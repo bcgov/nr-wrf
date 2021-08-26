@@ -1,0 +1,15 @@
+{
+    "python.formatting.provider": "black",
+    "cSpell.words": [
+        "ACL's",
+        "ajunk",
+        "boto",
+        "fput",
+        "hndlr",
+        "minio",
+        "rtype"
+    ],
+    "python.linting.flake8Enabled": true,
+    "python.linting.enabled": true,
+    "editor.rulers": [79, 100]
+}
