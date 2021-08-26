@@ -1,0 +1,6 @@
+node_modules
+caddy
+.env
+venv
+junk*
+*.pyc
