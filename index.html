@@ -28,7 +28,7 @@
     <meta name="msapplication-TileImage" content="icons/ms-icon-144x144.png"/>
     <meta name="theme-color" content="#ffffff"/>
 
-    <title>KMB-ENV GOV 2.0 Template</title>
+    <title>Air Quality Dispersion Model</title>
 
     <!-- BOOTSTRAP CORE CSS v3.3.6 -->
     <link rel="stylesheet" href="css/bootstrap.min.css">
@@ -47,16 +47,14 @@
     <!-- CUSTOM ENV CSS -->
     <link href="css/custom-main.css" rel="stylesheet" />
     <link href="css/custom-form.css" rel="stylesheet" />
-	
-	<script src="https://code.jquery.com/jquery-3.3.1.js"></script>
-	<script src="js/bootstrap.min.js"></script>
-	
-	<link href="jquery-ui/jquery-ui.min.css" rel="stylesheet" />
 
-    <!-- DATATABLES CSS -->
-    <link href="css/dataTables.bootstrap.min.css" rel="stylesheet" />
-	<script src="jquery-ui/jquery-ui.min.js"></script>
-	
+	<link rel="stylesheet" href="js/jquery-ui-1.12.1.custom/jquery-ui.min.css">
+	<script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+	<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>	
+
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <script src="js/bootstrap.min.js"></script>
+
 
     <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
     <!--[if lt IE 9]>
@@ -76,7 +74,19 @@ html, body, #viewDiv {
 <link rel="stylesheet"
 	href="https://js.arcgis.com/4.19/esri/themes/light/main.css">
 <script src="https://js.arcgis.com/4.19/"></script>
-
+  <script>
+  	function validateDate(date) {
+  		
+  	    var reg = /^\d{2}[./-]\d{2}[./-]\d{4}$/;
+  	    if (date.match(reg)) {
+  	      return true;
+  	    }
+  	    else {
+  	      alert("Invalid date format, please use the format mm/dd/yyyy");
+  	      return false;
+  	    }
+  	}
+  </script>
 <script>
 
 	
@@ -118,30 +128,13 @@ html, body, #viewDiv {
     			 geodesicUtils) {
 
 	      const graphicsLayer = new GraphicsLayer();
-	      var oAuthInfo = new OAuthInfo({
-	    	  appId: "UgpGEwgQ4NT2dGzT",
-	      });
-	      
-	      esriId.registerOAuthInfos([oAuthInfo]);
-	      
-	      esriId
-	      .checkSignInStatus(oAuthInfo.portalUrl + "/sharing")
-	      .then(() => {
-	        //alert("test");
-	      })
-	      .catch(() => {
-	        // Anonymous view
-	      });
-	      
-	      esriId.getCredential(oAuthInfo.portalUrl + "/sharing");
-	
 	      esriConfig.apiKey = "AAPK1c42e0bed09a4c5e9cd405eb8aa385be8iJCXX-m6zsVighHNzd5NLLVAhwtmAUOE5ZqrPseB8GuryyEHumQSDFtQJjjY3g_";
 	      const map = new Map({
 	        basemap: "arcgis-topographic", // Basemap layer
 	        layers: [graphicsLayer]
 	      });
 	      
-	      const layer = new FeatureLayer("https://services3.arcgis.com/9duoYyCuWXoe6qpX/arcgis/rest/services/wrf_fileindex/FeatureServer",
+	      const layer = new FeatureLayer("https://services6.arcgis.com/ubm4tcTYICKBpist/arcgis/rest/services/wrf_fileindex/FeatureServer",
 	    		  	{
 	    	  			opacity: 0.1
 	    		  	});
@@ -392,60 +385,7 @@ html, body, #viewDiv {
 
     });
   </script>
-<script>
-  	$(function() { // initialize various UI elements
-  	    $( "#tabs" ).tabs(); //init the tabs
-  		
-  	    
-  	    //init date pickers
-  		$("#s1StartDate").datepicker({
-  			changeMonth: true,
-			changeYear: true,
-			dateFormat: 'mm/dd/yy'
-		});
-  		$("#s1EndDate").datepicker({
-  			changeMonth: true,
-			changeYear: true,
-			dateFormat: 'mm/dd/yy'
 
-		});
-  		$("#s2StartDate").datepicker({
-  			changeMonth: true,
-			changeYear: true,
-			dateFormat: 'mm/dd/yy'
-
-		});
-  		$("#s2EndDate").datepicker({
-  			changeMonth: true,
-			changeYear: true,
-			dateFormat: 'mm/dd/yy'
-
-		});
-  		$("#s3StartDate").datepicker({
-  			changeMonth: true,
-			changeYear: true,
-			dateFormat: 'mm/dd/yy'
-		});
-  		$("#s3EndDate").datepicker({
-  			changeMonth: true,
-			changeYear: true,
-			dateFormat: 'mm/dd/yy'
-		});
-  	});
-  </script>
-  <script>
-  	function validateDate(date) {
-  		
-  	    var reg = /^\d{2}[./-]\d{2}[./-]\d{4}$/;
-  	    if (date.match(reg)) {
-  	      return true;
-  	    }
-  	    else {
-  	      alert("Invalid date format, please use the format mm/dd/yyyy");
-  	      return false;
-  	    }
-  	}
-  </script>
 
 </head>
 
@@ -479,7 +419,7 @@ html, body, #viewDiv {
                     </div>
                     <div class="col-sm-8 col-md-8 col-lg-6 hidden-xs">
                         <div class="bcgov-title">
-                            <h1>KMB-ENV GOV 2.0 Template</h1>
+                            <h1>Air Quality Dispersion Model</h1>
                         </div>
                     </div>
                     <!-- /GOV & ENV TITLE -->
@@ -488,10 +428,7 @@ html, body, #viewDiv {
                     <div id="navbar" class="collapse navbar-collapse">
 
                         <ul class="nav navbar-nav">
-                            <li><a href="#">Navigation Link 1</a></li>
-                            <li><a href="#">Navigation Link 2</a></li>
-                            <li><a href="#">Navigation Link 3</a></li>
-                            <li><a href="#">Navigation Link 4</a></li>
+
                         </ul>
                     </div>
                     <!-- /COLLAPSING NAVBAR -->
@@ -500,12 +437,7 @@ html, body, #viewDiv {
             <div class="navigationRibbon">
                 <div class="level2Navigation">
                     <div class="container">
-                        <a href="#">Navigation Link 1</a>
-                        <a href="#">Navigation Link 2</a>
-                        <a href="#">Navigation Link 3</a>
-                        <a href="#">Navigation Link 4</a>
-
-
+                        <a href="#"</a>
                     </div>
                 </div>
             </div>
@@ -517,36 +449,21 @@ html, body, #viewDiv {
     <div id="topicTemplate" class="template container gov-container">
         <div id="breadcrumbContainer">
             <ol class="breadcrumb">
-
-                <li>
-                    <a href="#">Home</a>
-                </li>
-                <li>
-                    <a href="#">Breadcrumb Link</a>
-                </li>
-                <li>
-                    <a href="#">Breadcrumb Link</a>
-                </li>
-                <li>
-                    <a href="#">Breadcrumb Link</a>
-                </li>
             </ol>
         </div>
         <a id="main-content-anchor"></a>
         <!-- PAGE CONTENT -->
         <div class="row">
             <div id="main-content" class="contentPageMainColumn col-xs-12">
-                <h1>Air Quality Dispersion Model</h1>
-                
             </div>
         </div>
         <div style="float: left; width: 450px">
 			<div id="tabs">
-			<ul>
-				<li><a href="#search-1">Search 1</a></li>
-				<li><a href="#search-2">Search 2</a></li>
-				<li><a href="#search-3">Search 3</a></li>
-			</ul>
+				<ul>
+					<li><a href="#search-1">Search 1</a></li>
+					<li><a href="#search-2">Search 2</a></li>
+					<li><a href="#search-3">Search 3</a></li>
+				</ul>
 				<div id="search-1">
 					
 						<div class="form-group">
@@ -660,13 +577,11 @@ html, body, #viewDiv {
 					</fieldset>
 				</div>
 			</div>
-
 		</div>
 		<div id="viewDiv"></div>
     </div>
     <!-- /BODY CONTENT -->
     <div id="shareIcons">
-
     </div>
 
     <!-- FOOTER -->
@@ -705,96 +620,50 @@ html, body, #viewDiv {
         </div>
     </div>
     <!-- /FOOTER -->
-    <!-- MODALS -->
-    <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                    <h4 class="modal-title" id="myModalLabel">Modal title</h4>
-                </div>
-                <div class="modal-body">
-                    <h4>Modal Window Content Title</h4>
-                    <p>Here's some words to fill some space.</p>
-                    <img class="img-thumbnail img-responsive" src="img/scared_kitten.jpg" />
-                    <div class="table-responsive">
-                        <table class="table table-condensed table-bordered">
-                            <thead>
-                                <tr>
-                                    <th>Table Heading 1</th>
-                                    <th>Table Heading 2</th>
-                                    <th>Table Heading 3</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Data 1</td>
-                                    <td>Data 2</td>
-                                    <td>Data 3</td>
-                                </tr>
-                                <tr>
-                                    <td>Data 1</td>
-                                    <td>Data 2</td>
-                                    <td>Data 3</td>
-                                </tr>
-                                <tr>
-                                    <td>Data 1</td>
-                                    <td>Data 2</td>
-                                    <td>Data 3</td>
-                                </tr>
-                                <tr>
-                                    <td>Data 1</td>
-                                    <td>Data 2</td>
-                                    <td>Data 3</td>
-                                </tr>
-                                <tr>
-                                    <td>Data 1</td>
-                                    <td>Data 2</td>
-                                    <td>Data 3</td>
-                                </tr>
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="3">Footer content</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
 
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-success" data-dismiss="modal">Button!</button>
-                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" data-dismiss="modal">Save changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- /Modals -->
     <!-- Bootstrap core JavaScript
     ================================================== -->
-    <!-- Placed at the end of the document so the pages load faster -->
-    <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-    <!-- Include all compiled plugins (below), or include individual files as needed -->
-    <script src="js/bootstrap.min.js"></script>
-    <script src="js/misc.js"></script>
-    <script src="js/navMenu.js"></script>
-    <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
-    <script src="js/ie10-viewport-bug-workaround.js"></script>
+	<script>
+  	$(function() { // initialize various UI elements
+  	    $( "#tabs" ).tabs(); //init the tabs  		
+  	    
+  	    //init date pickers
+  		$("#s1StartDate").datepicker({
+  			changeMonth: true,
+			changeYear: true,
+			dateFormat: 'mm/dd/yy'
+		});
+  		$("#s1EndDate").datepicker({
+  			changeMonth: true,
+			changeYear: true,
+			dateFormat: 'mm/dd/yy'
 
+		});
+  		$("#s2StartDate").datepicker({
+  			changeMonth: true,
+			changeYear: true,
+			dateFormat: 'mm/dd/yy'
 
-    <!-- DATATABLES SCRIPTS -->
-    <script src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.10/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.10/js/dataTables.bootstrap.min.js"></script>
+		});
+  		$("#s2EndDate").datepicker({
+  			changeMonth: true,
+			changeYear: true,
+			dateFormat: 'mm/dd/yy'
 
-    <!-- Datatables config -->
-    <script type="text/javascript" charset="utf-8">
-        $(document).ready(function () {
-            $('#bs-datatables').DataTable();
-        });
-    </script>
+		});
+  		$("#s3StartDate").datepicker({
+  			changeMonth: true,
+			changeYear: true,
+			dateFormat: 'mm/dd/yy'
+		});
+  		$("#s3EndDate").datepicker({
+  			changeMonth: true,
+			changeYear: true,
+			dateFormat: 'mm/dd/yy'
+		});
+  	});
+  </script>
+
 </body>
 
 </html>
