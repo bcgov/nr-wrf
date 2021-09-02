@@ -3,7 +3,7 @@ FROM caddy:2.1.1-alpine
 WORKDIR /app
 COPY ["js", "/app/js"]
 #COPY ["jquery-ui/package.json", "/app/"]
-COPY ["jquery-ui", "/app/jquery-ui"]
+#COPY ["jquery-ui", "/app/jquery-ui"]
 COPY ["css", "/app/css"]
 COPY ["fonts", "/app/fonts"]
 COPY ["icons", "/app/icons"]
