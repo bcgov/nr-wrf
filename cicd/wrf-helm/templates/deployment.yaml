@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Values.app }}
+    component: {{ .Values.frontend.name }}-deployment
+    env: {{ .Values.env }}
+    role: {{ .Values.role }}
+  name: wrf-frontend
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: {{ .Values.app }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app }}
+        component: {{ .Values.frontend.name }}
+        env: {{ .Values.env }}
+        role: {{ .Values.role }}
+    spec:
+      containers:
+      - image: ghcr.io/bcgov/wrf-frontend:20210826-2115
+        imagePullPolicy: IfNotPresent
+        name: wrf-frontend
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /config
+          name: wrf-frontend-1
+        - mountPath: /data
+          name: wrf-frontend-2
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: wrf-frontend-1
+      - emptyDir: {}
+        name: wrf-frontend-2
