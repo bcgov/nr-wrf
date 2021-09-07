@@ -28,7 +28,7 @@ spec:
         role: {{ .Values.role }}
     spec:
       containers:
-      - image: ghcr.io/bcgov/wrf-frontend:20210826-2115
+      - image: ghcr.io/bcgov/wrf-frontend:{{ .Values.imagetag }}
         imagePullPolicy: IfNotPresent
         name: wrf-frontend
         ports:
