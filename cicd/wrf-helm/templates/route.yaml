@@ -6,10 +6,15 @@ metadata:
     component: {{ .Values.frontend.routename }}
     env: {{ .Values.env }}
     role: {{ .Values.role }}
+    route-ingress: 'true'
   name: {{ .Values.frontend.routename }}
 spec:
   port:
     targetPort: 8080-tcp
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Allow
+  wildcardPolicy: None
   to:
     kind: Service
     name:  {{ .Values.frontend.servicename }}

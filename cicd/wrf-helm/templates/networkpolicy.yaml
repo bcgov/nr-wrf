@@ -13,6 +13,11 @@ spec:
     - namespaceSelector:
         matchLabels:
           network.openshift.io/policy-group: ingress
-  podSelector: {}
+  podSelector:
+    matchLabels:
+      app: {{ .Values.app }}
+      component: {{ .Values.frontend.name }}
+      env: {{ .Values.env }}
+      role: {{ .Values.role }}
   policyTypes:
   - Ingress
