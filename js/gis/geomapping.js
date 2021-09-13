@@ -41,12 +41,11 @@ require([
         basemap: "arcgis-topographic", // Basemap layer
         layers: [graphicsLayer]
       });
-      
       const layer = new FeatureLayer("https://services6.arcgis.com/ubm4tcTYICKBpist/arcgis/rest/services/wrf_fileindex/FeatureServer",
     		  	{
-    	  			opacity: 0.1
+    	  			opacity: 0.1,
+					outFields: ["*"]
     		  	});
-
       const view = new MapView({
         map: map,
         center: [-124.8563, 55.6913],
@@ -61,6 +60,9 @@ require([
 
       view.ui.add(coordsWidget, "bottom-right");
       
+	  function setContentInfo(feature) {
+		alert(feature);
+	  }
       function showCoordinates(pt) {
     	  var coords =
     	    "Lat/Lon " +
@@ -73,7 +75,40 @@ require([
     	    view.zoom;
     	  coordsWidget.innerHTML = coords;
     	}
-      
+		function urlToPromise(url) {
+			return new Promise(function(resolve, reject) {
+			JSZipUtils.getBinaryContent(url, function (err, data) {
+				if(err) {
+					reject(err);
+				} else {
+					resolve(data);
+				}
+			});
+			});
+		}
+		
+		function download(graphics) {
+			
+			var zip = new JSZip();			
+			
+			graphics.forEach((result, index) => {
+				const attributes = result.attributes;
+				var fileName = attributes.filename;
+				var url = "https://nrs.objectstore.gov.bc.ca/kadkvt/" +  fileName;
+				objectStorage = attributes.objectstorage;
+				zip.file(fileName, urlToPromise(url), {binary:true});
+
+			});
+				
+			zip.generateAsync({type:"blob"})
+				.then(function callback(blob) {
+				// see FileSaver.js
+				saveAs(blob, "nr-wrf.zip");
+			});
+				
+
+		}
+     
       view.watch("stationary", function (isStationary) {
     	  showCoordinates(view.center);
     	});
@@ -200,11 +235,30 @@ require([
 			         outFields: ["*"]
 			};
 			
+			var downloadAction = {
+				title: "Download Data",
+				id: "download-action",
+				image: "images/download-icon-256.png"
+			};
+			
+			
 			layer.queryFeatures(modelQuery)
 	        .then((results) => {
 
-	            console.log("Feature count: " + results.features.length)
-
+	            console.log("Feature count: " + results.features.length);
+				view.popup.on("trigger-action", function(event) {
+					// Execute the measureThis() function if the measure-this action is clicked
+					if (event.action.id === "download-action") {
+						download(results.features);
+					}
+				});
+      
+				view.popup.open({
+								title: "Model Data For Area",
+								actions: [downloadAction],
+								content: "Click the download icon to download your data",
+                                location: {latitude: topRightPoint.latitude, longitude: topRightPoint.longitude}
+                            });
 	          }).catch((error) => {
 	            console.log(error);
 	          });

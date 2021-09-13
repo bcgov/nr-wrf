@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    app: {{ .Values.app }}
+    component: {{ .Values.frontend.routensp }}
+    env: {{ .Values.env }}
+    role: {{ .Values.role }}
+  name: wrf-allow-from-openshift-ingress
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+  podSelector:
+    matchLabels:
+      app: {{ .Values.app }}
+      component: {{ .Values.frontend.name }}
+      env: {{ .Values.env }}
+      role: {{ .Values.role }}
+  policyTypes:
+  - Ingress

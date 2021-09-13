@@ -65,6 +65,9 @@
 
 <link rel="stylesheet"
 	href="js/jquery-ui-1.12.1.custom/jquery-ui.min.css">
+<script src="js/jszip.min.js"></script>
+<script src="js/jszip-utils.min.js"></script>
+<script src="js/FileSaver.min.js"></script>
 <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
 <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 
@@ -237,10 +240,8 @@ html, body, #viewDiv {
 							</div>
 						</fieldset>
 						<br />
-						<button class="btn btn-default" type="button" id="search1Button"
+						<button class="btn btn-primary" type="button" id="search1Button"
 							onclick="search1()" value="Search">Search</button>
-						<button class="btn btn-primary" type="button"
-							id="search1DownloadButton" onclick="download1()">Download</button>
 					</div>
 				</div>
 				<div id="search-2">
@@ -282,10 +283,8 @@ html, body, #viewDiv {
 						</div>
 					</fieldset>
 					<br />
-					<button class="btn btn-default" type="button" id="search2Button"
+					<button class="btn btn-primary" type="button" id="search2Button"
 						onclick="search2()" value="Search">Search</button>
-					<button class="btn btn-primary" type="button"
-						id="search2DownloadButton" onclick="download2()">Download</button>
 				</div>
 				<div id="search-3">
 					<fieldset>
@@ -300,10 +299,8 @@ html, body, #viewDiv {
 								<input type="text" id="s3EndDate" class="form-control">
 							</div>
 						</div>
-
 						<button class="btn btn-primary" type="button"
 							id="search3DownloadButton" onclick="download3()">Download</button>
-
 					</fieldset>
 				</div>
 			</div>
