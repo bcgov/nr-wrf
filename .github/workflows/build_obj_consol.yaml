@@ -58,7 +58,7 @@ jobs:
       with:
         push: true # Will only build if this is not here
         context: python-objstore
-        file: consolicate_objstores.docker
+        file: python-objstore/consolicate_objstores.docker
         tags: |
           ghcr.io/${{ github.repository_owner }}/obj-consolidate:latest
           ghcr.io/${{ github.repository_owner }}/obj-consolidate:${{ steps.calculateImageTag.outputs.DATESTAMP }}
