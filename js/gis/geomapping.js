@@ -79,20 +79,39 @@ require([
     	  coordsWidget.innerHTML = coords;
     	}
 		
+		function urlToPromise(url) {
+			return new Promise(function(resolve, reject) {
+			JSZipUtils.getBinaryContent(url, function (err, data) {
+				if(err) {
+					reject(err);
+				} else {
+					resolve(data);
+				}
+			});
+			});
+		}
 		
-			function download(graphics) {
-				var objectStorage = "";
-				var fileName = "";
+		function download(graphics) {
+			
+			var zip = new JSZip();			
+			
+			graphics.forEach((result, index) => {
+				const attributes = result.attributes;
+				var fileName = attributes.filename;
+				var url = "https://nrs.objectstore.gov.bc.ca/kadkvt/" +  fileName;
+				objectStorage = attributes.objectstorage;
+				zip.file(fileName, urlToPromise(url), {binary:true});
+
+			});
 				
-				graphics.forEach((result, index) => {
-					const attributes = result.attributes;
-					objectStorage = attributes.objectstorage;
-					fileName = attributes.filename;
-				});
+			zip.generateAsync({type:"blob"})
+				.then(function callback(blob) {
+				// see FileSaver.js
+				saveAs(blob, "nr-wrf.zip");
+			});
 				
-				
-					alert(objectStorage + "/" +  fileName);
-			}
+
+		}
       
       view.watch("stationary", function (isStationary) {
     	  showCoordinates(view.center);
