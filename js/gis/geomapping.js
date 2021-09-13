@@ -41,13 +41,11 @@ require([
         basemap: "arcgis-topographic", // Basemap layer
         layers: [graphicsLayer]
       });
-	        
       const layer = new FeatureLayer("https://services6.arcgis.com/ubm4tcTYICKBpist/arcgis/rest/services/wrf_fileindex/FeatureServer",
     		  	{
     	  			opacity: 0.1,
 					outFields: ["*"]
     		  	});
-				
       const view = new MapView({
         map: map,
         center: [-124.8563, 55.6913],
@@ -65,7 +63,6 @@ require([
 	  function setContentInfo(feature) {
 		alert(feature);
 	  }
-	  
       function showCoordinates(pt) {
     	  var coords =
     	    "Lat/Lon " +
@@ -78,7 +75,6 @@ require([
     	    view.zoom;
     	  coordsWidget.innerHTML = coords;
     	}
-		
 		function urlToPromise(url) {
 			return new Promise(function(resolve, reject) {
 			JSZipUtils.getBinaryContent(url, function (err, data) {
@@ -112,7 +108,7 @@ require([
 				
 
 		}
-      
+     
       view.watch("stationary", function (isStationary) {
     	  showCoordinates(view.center);
     	});
