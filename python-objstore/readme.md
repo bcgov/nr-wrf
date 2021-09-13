@@ -1,10 +1,13 @@
 # Overview
 
-Contains python script that is used to set the individual objects in object
-store to be publicly accessible.  In other words it would allow anyone with
-the url to get access to the documents through the s3 api.
+Contains various python script that area used to:
+    * modify permissions
+    * move data from one bucket to another
 
-# Running the Script
+# Changing Permissions Script - publishObjectStore.py
+
+This script will iterate over every object in a bucket and make them all
+public/read as their permissions.
 
 ## install dependencies and activate virtualenv
 
@@ -14,7 +17,9 @@ source ./venv/bin/activate
 pip install -r requirements.txt
 ```
 
-configure the following environment variables:
+## Environment Variables:
+
+Set the following env vars before running the script.
 
 * OBJ_STORE_BUCKET
 * OBJ_STORE_SECRET
@@ -29,3 +34,18 @@ for them as 'public / READ'
 ```
 python publishObjectStore.py
 ```
+
+# Data Consolidation Script - consolidate_objstores.py
+
+This script iterates over the index file and copies all the data in the test
+object store bucket to prod so all the prod data is in one place.
+
+Created a dockerfile to bundle into a container.  The following are the instructions
+used to build the image and also the instructions to run.
+
+`podman image build -t wrf:consolidate-object-store-data .`
+
+podman volume create temp-storage
+podman run -v temp-storage:/data --env TMP_FOLDER=/data --env INDEX_FILE=./wrf_fileindex.csv --env-file=.env  -it wrf:consolidate-object-store-data
+
+
