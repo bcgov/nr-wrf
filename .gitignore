@@ -7,3 +7,4 @@ junk*
 data/destfiles.json
 data/srcfiles.json
 wrf_fileindex.csv
+python-objstore/wrf_fileindex.csv.bak
