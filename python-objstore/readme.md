@@ -43,9 +43,15 @@ object store bucket to prod so all the prod data is in one place.
 Created a dockerfile to bundle into a container.  The following are the instructions
 used to build the image and also the instructions to run.
 
-`podman image build -t wrf:consolidate-object-store-data .`
+```
+# building the image
+podman image build -t wrf:consolidate-object-store-data -f consolicate_objstores.docker .
 
+# create the tmp volume
 podman volume create temp-storage
+
+# run the pod with env vars
 podman run -v temp-storage:/data --env TMP_FOLDER=/data --env INDEX_FILE=./wrf_fileindex.csv --env-file=.env  -it wrf:consolidate-object-store-data
+```
 
 

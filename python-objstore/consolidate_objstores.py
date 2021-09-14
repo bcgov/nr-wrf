@@ -22,10 +22,13 @@ LOGGER = logging.getLogger()
 class ConsolidateStorage:
 
     def __init__(self, csvFile=None):
-        self.csvFile = constants.INDEX_FILE
+        self.csvFile = csvFile
         if csvFile is None:
             self.csvFile = constants.INDEX_FILE
         LOGGER.debug(f"csv file being used: {self.csvFile}")
+
+        self.checkParams()
+
         self.srcObjStoreUtil = objStoreUtil.ObjectStoreUtil(
             objStoreHost=constants.OBJ_STORE_HOST,
             objStoreUser=constants.OBJ_STORE_TST_USER,
@@ -46,6 +49,41 @@ class ConsolidateStorage:
         self.srcCacheFile = os.path.join(constants.TMP_FOLDER, 'srcfiles.json')
         self.destCacheFile = os.path.join(constants.TMP_FOLDER, 'destfiles.json')
         LOGGER.debug(f"cache dir: {constants.TMP_FOLDER}")
+
+    def checkParams(self):
+        """checking to verify that the parameters the script expects have been
+        populated
+        """
+        if not constants.TMP_FOLDER:
+            msg = f'the env var TMP_FOLDER has not been set'
+            raise ValueError(msg)
+        parmListDest = ['OBJ_STORE_HOST', 'OBJ_STORE_USER', 'OBJ_STORE_SECRET', 'OBJ_STORE_BUCKET']
+        parmListSrc = ['OBJ_STORE_TST_USER', 'OBJ_STORE_TST_BUCKET', 'OBJ_STORE_TST_SECRET']
+        paramType = 'destination'
+        for param in parmListDest:
+            paramValue = getv
+            if not param:
+                msg = f'The {paramType} object store bucket parameter: {param} has not been populated'
+
+        parmListDest = [constants.OBJ_STORE_HOST, constants.OBJ_STORE_USER, constants.OBJ_STORE_SECRET, constants.OBJ_STORE_BUCKET]
+        parmListSrc = [constants.OBJ_STORE_TST_USER, constants.OBJ_STORE_TST_BUCKET, constants.OBJ_STORE_TST_SECRET]
+
+
+
+    def getWRFIndexFile(self):
+        """The WRF Index file is the layer that glues the geographic extents
+        of the air quality data to files that reside in object store.  The
+        index file is stored in object storage.
+
+        The first thing the script does is attempt to pull this file down
+        from object storage to local storage and then iterate over the
+        contents of the file.
+        """
+        if not os.path.exists(self.csvFile):
+            objStoreName = os.path.basename(self.csvFile)
+            self.csvFile = os.path.join(constants.TMP_FOLDER, objStoreName)
+            LOGGER.info(f'retrieving the index file: {objStoreName}')
+            self.destObjStoreUtil.getObject(objStoreName, self.csvFile)
 
     def consolidate(self):
         rowCnt = 0
@@ -164,5 +202,7 @@ if __name__ == '__main__':
     urllibLog = logging.getLogger('urllib3.connectionpool')
     urllibLog.setLevel(logging.INFO)
 
-    cons = ConsolidateStorage()
+    wrfIndexFile = 'wrf_fileindex.csv'
+    cons = ConsolidateStorage(csvFile=wrfIndexFile)
+    cons.getWRFIndexFile()
     cons.consolidate()
