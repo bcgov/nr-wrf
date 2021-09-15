@@ -646,3 +646,6 @@ legend {
     box-shadow: rgba(0, 0, 0, 0.4) -10px 0 20px inset;
 }
 
+.container {
+	width: 100% !important;
+}
