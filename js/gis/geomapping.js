@@ -60,9 +60,6 @@ require([
 
       view.ui.add(coordsWidget, "bottom-right");
       
-	  function setContentInfo(feature) {
-		alert(feature);
-	  }
       function showCoordinates(pt) {
     	  var coords =
     	    "Lat/Lon " +
@@ -100,10 +97,14 @@ require([
 
 			});
 				
-			zip.generateAsync({type:"blob"})
-				.then(function callback(blob) {
+			zip.generateAsync({type:"blob"}, function updateCallback(metadata) {
+				var msg = "Downloading : " + metadata.percent.toFixed(2) + " %";
+				view.popup.content = "<div role='progressbar' style='background:green; width:" + metadata.percent.toFixed(2) + "%; height: 15px'>" + msg + "</div>";
+			})
+			.then(function callback(blob) {
 				// see FileSaver.js
 				saveAs(blob, "nr-wrf.zip");
+				view.popup.close();
 			});
 				
 
