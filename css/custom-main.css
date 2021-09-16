@@ -1,8 +1,8 @@
 /* BC Gov Font workaround for Cross-Origin Resource Sharing block by CL and RT */
 
 @font-face {
-    font-family: 'Myriad-Pro';
-    src: url('../fonts/MyriadWebPro.ttf');
+    font-family: 'BCSans';
+    src: url('../fonts/BCSans-Regular.ttf');
 }
 
 
@@ -29,8 +29,8 @@ html {
 
 body {
     color: #494949;
-    font-family: Myriad-Pro, Calibri, Arial, "sans serif";
-    font-size: 13px;
+    font-family: 'BCSans', Verdana, Arial, sans-serif !important;
+    font-size: 16px;
 }
 
 input {
@@ -153,6 +153,10 @@ button.gov-button-custom {
     border: none;
     right: 30px;
     padding-bottom: 15px;
+}
+
+button {
+    font-family: 'BCSans';
 }
 
 
@@ -496,11 +500,14 @@ label {
     margin-bottom: 5px;
     font-size: 12px;
     font-weight: normal;
+    font-family: 'BCSans';
 }
 
 
 legend {
-	font-size: 17px;
+    color: #494949;
+    font-family: 'BCSans', Verdana, Arial, sans-serif !important;
+    font-size: 16px;
 }
 
 
