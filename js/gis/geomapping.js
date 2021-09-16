@@ -72,41 +72,54 @@ require([
     	    view.zoom;
     	  coordsWidget.innerHTML = coords;
     	}
-		function urlToPromise(url) {
-			return new Promise(function(resolve, reject) {
-			JSZipUtils.getBinaryContent(url, function (err, data) {
-				if(err) {
-					reject(err);
-				} else {
-					resolve(data);
-				}
-			});
-			});
-		}
 		
-		function download(graphics) {
+		// download the data from the objects store
+		function downloadModelData(graphics) {
+
+			var urls = [];
+			var zip = new JSZip();
+			var count = 0;
+			var zipFilename = "nr-wrf.zip";
 			
-			var zip = new JSZip();			
-			
+			// prepare a list of urls representing the files that we'll be downloading
 			graphics.forEach((result, index) => {
 				const attributes = result.attributes;
 				var fileName = attributes.filename;
-				var url = "https://nrs.objectstore.gov.bc.ca/kadkvt/" +  fileName;
+				var imageUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/" +  fileName;
 				objectStorage = attributes.objectstorage;
-				zip.file(fileName, urlToPromise(url), {binary:true});
+				if (objectStorage.includes("kadkvt")) {
+					urls.push(imageUrl);
+				}
 
-			});
-				
-			zip.generateAsync({type:"blob"}, function updateCallback(metadata) {
-				var msg = "Downloading : " + metadata.percent.toFixed(2) + " %";
-				view.popup.content = "<div role='progressbar' style='background:green; width:" + metadata.percent.toFixed(2) + "%; height: 15px'>" + msg + "</div>";
 			})
-			.then(function callback(blob) {
-				// see FileSaver.js
-				saveAs(blob, "nr-wrf.zip");
-				view.popup.close();
+
+			urls.forEach(function(url){
+				// loading a file and add it in a zip file
+				JSZipUtils.getBinaryContent(url, function (err, data) {
+				   if(err) {
+					  throw err; // or handle the error
+				   }
+				   // add the zip file
+				   zip.file(url.substring(url.lastIndexOf('/')+1), data, {binary:true});
+				   
+				   var msg = "Determining download size, please wait..."
+				   view.popup.content = msg;
+				   					
+				   count++;
+				   if (count == urls.length) {
+					zip.generateAsync({type:'blob'}, function updateCallback(metadata) {
+						var msg = "Preparing Download : " + metadata.percent.toFixed(2) + " %";
+						view.popup.content = "<div role='progressbar' style='background:green; width:" + metadata.percent.toFixed(2) + "%; height: 15px'>" + msg + "</div>";
+					})
+					.then(function callback(content) {
+						view.popup.close();
+						saveAs(content, zipFilename);
+					 });
+				   }
+
+				});
 			});
-				
+
 
 		}
      
@@ -250,7 +263,7 @@ require([
 				view.popup.on("trigger-action", function(event) {
 					// Execute the measureThis() function if the measure-this action is clicked
 					if (event.action.id === "download-action") {
-						download(results.features);
+						downloadModelData(results.features);
 					}
 				});
       
