@@ -102,9 +102,6 @@ require([
 				   // add the zip file
 				   zip.file(url.substring(url.lastIndexOf('/')+1), data, {binary:true});
 				   
-				   var msg = "Determining download size, please wait..."
-				   view.popup.content = msg;
-				   					
 				   count++;
 				   if (count == urls.length) {
 					zip.generateAsync({type:'blob'}, function updateCallback(metadata) {
@@ -241,6 +238,9 @@ require([
 			graphicsLayer.removeAll();
 			graphicsLayer.add(polygonGraphic); 
 
+//			maxZoom = map.getMaxZoom(); 
+			view.center = centerPoint; 
+
 			const modelQuery = {
 			         spatialRelationship: "intersects", // Relationship operation to apply
 			         geometry: polygon,  // The sketch feature geometry
@@ -263,6 +263,8 @@ require([
 				view.popup.on("trigger-action", function(event) {
 					// Execute the measureThis() function if the measure-this action is clicked
 					if (event.action.id === "download-action") {
+						view.popup.actions.removeAll(); // to prevent clicking the download again
+						view.popup.content = "Preparing download... please wait";
 						downloadModelData(results.features);
 					}
 				});

@@ -5,10 +5,17 @@
 <meta charset="utf-8" />
 <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 <meta name="HandheldFriendly" content="true" />
 <meta name="description" content="" />
 <meta name="author" content="Ministry of Environment" />
+<meta name="title" content=" Weather Research and Forecasting Dataset Interactive Map ">
+<meta name="navigaton_title" content=" Weather Research and Forecasting Dataset Interactive Map ">
+<meta name="description" content="Weather Research and Forecasting Dataset Interactive Map - a three-dimensional gridded data base using the Weather Research and Forecasting (WRF) model. ">
+<meta name="author" content=" Ministry of Environment and Climate Change Strategy ">
+<meta name="MBCTERMS.subjectCategory" content="Nature and Environment">
+<meta name="DCTERMS.subject" content="Air quality">
+<meta name="DCTERMS.subject" content="Modelling">
+<meta name="DCTERMS.publisher" content="Province of British Columbia">
 <link rel="apple-touch-icon" sizes="57x57"
 	href="icons/apple-icon-57x57.png" />
 <link rel="apple-touch-icon" sizes="60x60"
@@ -45,9 +52,6 @@
 
 <!-- BOOTSTRAP CORE CSS v3.3.6 -->
 <link rel="stylesheet" href="css/bootstrap.min.css">
-
-<!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
-<link rel="stylesheet" href="css/ie10-viewport-bug-workaround.css" />
 
 <!-- STANDARD CSS -->
 <link type="text/css" href="css/main.css?refresh=160106102"
@@ -116,6 +120,7 @@ html, body, #viewDiv {
 	<div id="header">
 		<div id="header-main" class="navbar navbar-default navbar-fixed-top">
 			<div class="container">
+				
 				<div id="header-main-row" class="row">
 					<!-- GOV & ENV TITLE -->
 					<div class="col-sm-3 col-md-2 col-lg-2 header-main-left">
@@ -142,7 +147,7 @@ html, body, #viewDiv {
 							class="navbar-toggle gov-button-custom collapsed"
 							data-toggle="collapse" data-target="#navbar" aria-expanded="true"
 							aria-label="Burger Navigation">
-							<img src="images/menu-open-mobile.png" />
+							<img src="images/menu-open-mobile.png" alt="Mobile Menu Button" />
 						</button>
 					</div>
 					<div class="col-sm-8 col-md-8 col-lg-6 hidden-xs">
@@ -154,9 +159,9 @@ html, body, #viewDiv {
 
 					<!-- COLLAPSING NAVBAR -->
 					<div id="navbar" class="collapse navbar-collapse">
-
+						
 						<ul class="nav navbar-nav">
-
+							<li><a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">Air quality modelling</a></li>
 						</ul>
 					</div>
 					<!-- /COLLAPSING NAVBAR -->
@@ -165,7 +170,7 @@ html, body, #viewDiv {
 			<div class="navigationRibbon">
 				<div class="level2Navigation">
 					<div class="container">
-						<a href="#"></a>
+						<a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">Air quality modelling</a>
 					</div>
 				</div>
 			</div>
@@ -175,14 +180,18 @@ html, body, #viewDiv {
 	<!-- /Header -->
 	<!-- BODY CONTENT -->
 	<div id="topicTemplate" class="template container gov-container">
-		<div id="breadcrumbContainer">
+		<!--div id="breadcrumbContainer">
 			<ol class="breadcrumb">
 			</ol>
-		</div>
+		</div -->
 		<a id="main-content-anchor"></a>
 		<!-- PAGE CONTENT -->
 		<div class="row">
 			<div id="main-content" class="contentPageMainColumn col-xs-12">
+				<h1>Air Quality Dispersion Model</h1>
+               <div id="introduction">
+     <p>Insert introduction here. Include instructions etc. Please read our <a href=http://www2.gov.bc.ca/gov/content?id=D73D2DC9D7A8445195F5ED5199350D4B>data license agreement and disclaimer.</a></p>
+                </div>
 			</div>
 		</div>
 		<div style="float: left; width: 450px">
@@ -197,11 +206,11 @@ html, body, #viewDiv {
 					<div class="form-group">
 						<fieldset>
 							<legend>Date Range</legend>
-							<label class="col-lg-2 text-right control-label">Start</label>
+							<label class="col-lg-2 text-right control-label" for="s1StartDate">Start</label>
 							<div class="col-lg-4">
 								<input type="text" id="s1StartDate" class="form-control">
 							</div>
-							<label class="col-lg-2 text-right control-label">End</label>
+							<label class="col-lg-2 text-right control-label" for="s1EndDate">End</label>
 							<div class="col-lg-4">
 								<input type="text" id="s1EndDate" class="form-control">
 							</div>
@@ -209,12 +218,12 @@ html, body, #viewDiv {
 						<br />
 						<fieldset>
 							<legend>Centre Point</legend>
-							<label class="col-lg-2 text-right control-label">Latitude</label>
+							<label class="col-lg-2 text-right control-label" for="s1Latitude">Latitude</label>
 							<div class="col-lg-4">
 								<input type="text" id="s1Latitude" maxlength="12"
 									class="form-control">
 							</div>
-							<label class="col-lg-2 text-right control-label">Longitude</label>
+							<label class="col-lg-2 text-right control-label" for="s1Longitude">Longitude</label>
 							<div class="col-lg-4">
 								<input type="text" id="s1Longitude" maxlength="12"
 									class="form-control">
@@ -223,7 +232,7 @@ html, body, #viewDiv {
 						<br />
 						<fieldset>
 							<legend>Distance from Centre Point</legend>
-							<label class="col-lg-2 text-right control-label">Distance</label>
+							<label class="col-lg-2 text-right control-label" for="distanceFromPoint">Distance</label>
 							<div class="col-lg-4">
 								<select class="form-control" id="distanceFromPoint"
 									data-column="3">
@@ -248,23 +257,23 @@ html, body, #viewDiv {
 				<div id="search-2">
 					<fieldset>
 						<legend>Date Range</legend>
-						<label class="col-lg-2 text-right control-label">Start</label>
+						<label class="col-lg-2 text-right control-label" for="s2StartDate">Start</label>
 						<div class="col-lg-4">
 							<input type="text" id="s2StartDate" class="form-control">
 						</div>
-						<label class="col-lg-2 text-right control-label">End</label>
+						<label class="col-lg-2 text-right control-label" for="s2EndDate">End</label>
 						<div class="col-lg-4">
 							<input type="text" id="s2EndDate" class="form-control">
 						</div>
 					</fieldset>
 					<fieldset>
 						<legend>Bottom Left Point</legend>
-						<label class="col-lg-2 text-right control-label">Latitude</label>
+						<label class="col-lg-2 text-right control-label" for="s2Latitude1">Latitude</label>
 						<div class="col-lg-4">
 							<input type="text" id="s2Latitude1" maxlength="12"
 								class="form-control">
 						</div>
-						<label class="col-lg-2 text-right control-label">Longitude</label>
+						<label class="col-lg-2 text-right control-label" for="s2Longitude1">Longitude</label>
 						<div class="col-lg-4">
 							<input type="text" id="s2Longitude1" maxlength="12"
 								class="form-control">
@@ -272,12 +281,12 @@ html, body, #viewDiv {
 					</fieldset>
 					<fieldset>
 						<legend>Top Right Point</legend>
-						<label class="col-lg-2 text-right control-label">Latitude</label>
+						<label class="col-lg-2 text-right control-label" for="s2Latitude2">Latitude</label>
 						<div class="col-lg-4">
 							<input type="text" id="s2Latitude2" maxlength="12"
 								class="form-control">
 						</div>
-						<label class="col-lg-2 text-right control-label">Longitude</label>
+						<label class="col-lg-2 text-right control-label" for="s2Longitude2">Longitude</label>
 						<div class="col-lg-4">
 							<input type="text" id="s2Longitude2" maxlength="12"
 								class="form-control">
@@ -291,11 +300,11 @@ html, body, #viewDiv {
 					<fieldset>
 						<legend>Date Range</legend>
 						<div class="row">
-							<label class="col-lg-2 text-right control-label">Start</label>
+							<label class="col-lg-2 text-right control-label" for="s3StartDate">Start</label>
 							<div class="col-lg-4">
 								<input type="text" id="s3StartDate" class="form-control">
 							</div>
-							<label class="col-lg-2 text-right control-label">End</label>
+							<label class="col-lg-2 text-right control-label" for="s3EndDate">End</label>
 							<div class="col-lg-4">
 								<input type="text" id="s3EndDate" class="form-control">
 							</div>
@@ -320,8 +329,8 @@ html, body, #viewDiv {
 				<div id="footerAdminLinksContainer" class="container">
 					<div id="footerAdminLinks" class="row">
 						<ul class="inline">
-							<li><a href="#" target="_self">Home</a></li>
-							<li><a href="#" target="_self">About this site</a></li>
+							<li><a href="https://gov.bc.ca">Home</a></li>
+							<li><a href="https://www2.gov.bc.ca/gov/content?id=6C49603C7EAA4050979CF908162EA91D">About this site</a></li>
 							<li><a href="http://gov.bc.ca/disclaimer/" target="_self">Disclaimer</a>
 							</li>
 							<li><a href="http://gov.bc.ca/privacy/" target="_self">Privacy</a>
@@ -330,7 +339,7 @@ html, body, #viewDiv {
 								target="_self">Accessibility</a></li>
 							<li><a href="http://gov.bc.ca/copyright" target="_self">Copyright</a>
 							</li>
-							<li><a href="#" target="_self">Contact Us</a></li>
+							<li><a href="https://www2.gov.bc.ca/gov/content?id=8D53E57633F94760A3BC8D5426FB1D4B">Contact Us</a></li>
 						</ul>
 					</div>
 				</div>
