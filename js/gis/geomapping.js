@@ -54,11 +54,29 @@ require([
       });
       
       var coordsWidget = document.createElement("div");
+	  var graphics;
       coordsWidget.id = "coordsWidget";
       coordsWidget.className = "esri-widget esri-component";
       coordsWidget.style.padding = "7px 15px 5px";
 
       view.ui.add(coordsWidget, "bottom-right");
+
+	  var downloadAction = {
+		title: "Download Data",
+		id: "download-action",
+		image: "images/download-icon-256.png"
+	  };
+
+	  view.popup.on("trigger-action", function(event) {
+		// Execute the measureThis() function if the measure-this action is clicked
+		if (event.action.id === "download-action") {
+			view.popup.actions.removeAll(); // to prevent clicking the download again
+			view.popup.content = "Preparing download... please wait";
+			downloadModelData();
+		}
+	});
+
+  	  
       
       function showCoordinates(pt) {
     	  var coords =
@@ -74,7 +92,7 @@ require([
     	}
 		
 		// download the data from the objects store
-		function downloadModelData(graphics) {
+		function downloadModelData() {
 
 			var urls = [];
 			var zip = new JSZip();
@@ -110,6 +128,8 @@ require([
 					})
 					.then(function callback(content) {
 						view.popup.close();
+						view.popup.clear();
+						graphicsLayer.removeAll();
 						saveAs(content, zipFilename);
 					 });
 				   }
@@ -249,26 +269,14 @@ require([
 			         outFields: ["*"]
 			};
 			
-			var downloadAction = {
-				title: "Download Data",
-				id: "download-action",
-				image: "images/download-icon-256.png"
-			};
-			
+
+
 			
 			layer.queryFeatures(modelQuery)
 	        .then((results) => {
 
 	            console.log("Feature count: " + results.features.length);
-				view.popup.on("trigger-action", function(event) {
-					// Execute the measureThis() function if the measure-this action is clicked
-					if (event.action.id === "download-action") {
-						view.popup.actions.removeAll(); // to prevent clicking the download again
-						view.popup.content = "Preparing download... please wait";
-						downloadModelData(results.features);
-					}
-				});
-      
+				graphics = results.features;
 				view.popup.open({
 								title: "Model Data For Area",
 								actions: [downloadAction],
