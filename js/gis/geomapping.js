@@ -56,8 +56,11 @@ require([
 	  const sketch = new Sketch({
           layer: graphicsLayer,
           view: view,
+		  availableCreateTools: ["rectangle"],
+		  creationMode: "single",
+		  container: "sketchdiv"
           // graphic will be selected as soon as it is created
-          creationMode: "update"
+          
         });
 
       var coordsWidget = document.createElement("div");
@@ -376,6 +379,19 @@ require([
 			graphicsLayer.removeAll();
 			graphicsLayer.add(polygonGraphic);    
 	}
+	
+	sketch.on("create", function(event) {
+		// check if the create event's state has changed to complete indicating
+		// the graphic create operation is completed.
+		
+		if (event.state === "complete") {
+			// remove the graphic from the layer. Sketch adds
+			// the completed graphic to the layer by default.
+			
+			// use the graphic.geometry to query features that intersect it
+			
+		}
+	});
       
       
     
