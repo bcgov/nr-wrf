@@ -57,6 +57,9 @@
 <link type="text/css" href="css/main.css?refresh=160106102"
 	rel="stylesheet" />
 
+<!-- Timepicker CSS -->
+<link rel="stylesheet" href="css/jquery-ui-timepicker-addon.min.css">
+
 <!-- FONTS -->
 <link rel="stylesheet"
 	href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" />
@@ -75,6 +78,8 @@
 <script src="js/FileSaver.min.js"></script>
 <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
 <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<script src="js/timepicker/jquery-ui-sliderAccess.js"></script>
+<script src="js/timepicker/jquery-ui-timepicker-addon.min.js"></script>
 
 <!-- Include all compiled plugins (below), or include individual files as needed -->
 <script src="js/bootstrap.min.js"></script>
@@ -170,7 +175,7 @@ html, body, #viewDiv {
 			<div class="navigationRibbon">
 				<div class="level2Navigation">
 					<div class="container">
-						<a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">Air quality modelling</a>
+						<a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">BC Air Quality</a>
 					</div>
 				</div>
 			</div>
@@ -194,59 +199,65 @@ html, body, #viewDiv {
                 </div>
 			</div>
 		</div>
-		<div style="float: left; width: 450px">
+		<div style="float: left; width: 350px">
 			<div id="tabs">
 				<ul>
-					<li><a href="#search-1">Search 1</a></li>
-					<li><a href="#search-2">Search 2</a></li>
-					<li><a href="#search-3">Search 3</a></li>
+					<li><a href="#search-1" onclick="hideSketch();">Search 1</a></li>
+					<li><a href="#search-2" onclick="hideSketch();">Search 2</a></li>
+					<li><a href="#search-3" onclick="showSketch();">Search 3</a></li>
 				</ul>
 				<div id="search-1">
 
-					<div class="form-group">
+					<div>
 						<fieldset>
 							<legend>Date Range</legend>
-							<label class="col-lg-2 text-right control-label" for="s1StartDate">Start</label>
-							<div class="col-lg-4">
-								<input type="text" id="s1StartDate" class="form-control">
+							<div class="form-group row">
+								<div class="col-lg-10">
+									<label for="s1StartDate">Start</label>
+									<input type="text" id="s1StartDate" class="form-control ">
+								</div>
 							</div>
-							<label class="col-lg-2 text-right control-label" for="s1EndDate">End</label>
-							<div class="col-lg-4">
-								<input type="text" id="s1EndDate" class="form-control">
+							<div class="form-group row">
+								<div class="col-lg-10">
+									<label class="" for="s1EndDate">End</label>
+									<input type="text" id="s1EndDate" class="form-control">
+								</div>
 							</div>
 						</fieldset>
 						<br />
 						<fieldset>
 							<legend>Centre Point</legend>
-							<label class="col-lg-2 text-right control-label" for="s1Latitude">Latitude</label>
-							<div class="col-lg-4">
-								<input type="text" id="s1Latitude" maxlength="12"
+							<div class="form-group row">
+								<div class="col-lg-6">
+									<label for="s1Latitude">Latitude</label>
+									<input type="text" id="s1Latitude" maxlength="12"
 									class="form-control">
+								</div>
 							</div>
-							<label class="col-lg-2 text-right control-label" for="s1Longitude">Longitude</label>
-							<div class="col-lg-4">
-								<input type="text" id="s1Longitude" maxlength="12"
-									class="form-control">
+							<div class="form-group row">
+								<div class="col-lg-6">
+									<label for="s1Longitude">Longitude</label>
+									<input type="text" id="s1Longitude" maxlength="12"
+										class="form-control">
+								</div>
 							</div>
-						</fieldset>
-						<br />
-						<fieldset>
-							<legend>Distance from Centre Point</legend>
-							<label class="col-lg-2 text-right control-label" for="distanceFromPoint">Distance</label>
-							<div class="col-lg-4">
-								<select class="form-control" id="distanceFromPoint"
-									data-column="3">
-									<option value="10">10km</option>
-									<option value="20">20km</option>
-									<option value="30">30km</option>
-									<option value="40">40km</option>
-									<option value="50">50km</option>
-									<option value="60">60km</option>
-									<option value="70">70km</option>
-									<option value="80">80km</option>
-									<option value="90">90km</option>
-									<option value="100">100km</option>
-								</select>
+							<div class="form-group row">
+								<div class="col-lg-8">
+									<label for="distanceFromPoint">Distance From Centre Point</label>
+									<select class="form-control" id="distanceFromPoint"
+										data-column="3">
+										<option value="10">10km</option>
+										<option value="20">20km</option>
+										<option value="30">30km</option>
+										<option value="40">40km</option>
+										<option value="50">50km</option>
+										<option value="60">60km</option>
+										<option value="70">70km</option>
+										<option value="80">80km</option>
+										<option value="90">90km</option>
+										<option value="100">100km</option>
+									</select>
+								</div>
 							</div>
 						</fieldset>
 						<br />
@@ -257,39 +268,51 @@ html, body, #viewDiv {
 				<div id="search-2">
 					<fieldset>
 						<legend>Date Range</legend>
-						<label class="col-lg-2 text-right control-label" for="s2StartDate">Start</label>
-						<div class="col-lg-4">
-							<input type="text" id="s2StartDate" class="form-control">
-						</div>
-						<label class="col-lg-2 text-right control-label" for="s2EndDate">End</label>
-						<div class="col-lg-4">
-							<input type="text" id="s2EndDate" class="form-control">
-						</div>
+							<div class="form-group row">
+								<div class="col-lg-10">
+									<label for="s2StartDate">Start</label>
+									<input type="text" id="s2StartDate" class="form-control ">
+								</div>
+							</div>
+							<div class="form-group row">
+								<div class="col-lg-10">
+									<label class="" for="s2EndDate">End</label>
+									<input type="text" id="s2EndDate" class="form-control">
+								</div>
+							</div>
 					</fieldset>
 					<fieldset>
 						<legend>Bottom Left Point</legend>
-						<label class="col-lg-2 text-right control-label" for="s2Latitude1">Latitude</label>
-						<div class="col-lg-4">
-							<input type="text" id="s2Latitude1" maxlength="12"
+						<div class="form-group row">
+							<div class="col-lg-6">
+								<label for="s2Latitude1">Latitude</label>
+								<input type="text" id="s2Latitude1" maxlength="12"
 								class="form-control">
+							</div>
 						</div>
-						<label class="col-lg-2 text-right control-label" for="s2Longitude1">Longitude</label>
-						<div class="col-lg-4">
-							<input type="text" id="s2Longitude1" maxlength="12"
+						<div class="form-group row">
+							<div class="col-lg-6">
+								<label for="s2Longitude1">Longitude</label>
+								<input type="text" id="s2Longitude1" maxlength="12"
 								class="form-control">
+							</div>
 						</div>
 					</fieldset>
 					<fieldset>
 						<legend>Top Right Point</legend>
-						<label class="col-lg-2 text-right control-label" for="s2Latitude2">Latitude</label>
-						<div class="col-lg-4">
-							<input type="text" id="s2Latitude2" maxlength="12"
+						<div class="form-group row">
+							<div class="col-lg-6">
+								<label for="s2Latitude2">Latitude</label>
+								<input type="text" id="s2Latitude2" maxlength="12"
 								class="form-control">
+							</div>
 						</div>
-						<label class="col-lg-2 text-right control-label" for="s2Longitude2">Longitude</label>
-						<div class="col-lg-4">
-							<input type="text" id="s2Longitude2" maxlength="12"
-								class="form-control">
+						<div class="form-group row">
+							<div class="col-lg-6">
+								<label for="s2Longitude2">Longitude</label>
+								<input type="text" id="s2Longitude2" maxlength="12"
+									class="form-control">
+							</div>
 						</div>
 					</fieldset>
 					<br />
@@ -299,18 +322,20 @@ html, body, #viewDiv {
 				<div id="search-3">
 					<fieldset>
 						<legend>Date Range</legend>
-						<div class="row">
-							<label class="col-lg-2 text-right control-label" for="s3StartDate">Start</label>
-							<div class="col-lg-4">
+						<div class="form-group row">
+							<div class="col-lg-10">
+								<label for="s3StartDate">Start</label>
 								<input type="text" id="s3StartDate" class="form-control">
 							</div>
-							<label class="col-lg-2 text-right control-label" for="s3EndDate">End</label>
-							<div class="col-lg-4">
+						</div>
+						<div class="form-group row">
+							<div class="col-lg-10">
+								<label for="s3EndDate">End</label>
 								<input type="text" id="s3EndDate" class="form-control">
 							</div>
 						</div>
-						<button class="btn btn-primary" type="button"
-							id="search3DownloadButton" onclick="download3()">Download</button>
+						<button class="btn btn-primary" type="button" id="search3Button"
+						onclick="search3()" value="Search">Search</button>
 					</fieldset>
 				</div>
 			</div>
@@ -356,43 +381,84 @@ html, body, #viewDiv {
 		const url = 'https://nrs.objectstore.gov.bc.ca/kadkvt'; 
 		xhr.open('GET', url); 
 		xhr.send();
+		
+		var timezones = [ 
+					{ value: -420, label: 'Mountain' }, 
+					{ value: -480, label: 'Pacific' } 
+				];
 	
 		$(function() { // initialize various UI elements
 			$("#tabs").tabs(); //init the tabs  		
 
 			//init date pickers
-			$("#s1StartDate").datepicker({
+			$("#s1StartDate").datetimepicker({
 				changeMonth : true,
 				changeYear : true,
-				dateFormat : 'mm/dd/yy'
+				dateFormat : 'mm/dd/yy',
+				minDate: new Date(2011, 0, 1), 
+				maxDate: new Date(2015, 11, 31),
+				defaultDate: new Date(2011,0,1),
+				timeFormat: "HH:mm z",
+				controlType: 'select',
+				showMinute: false,
+				timezoneList: timezones
 			});
-			$("#s1EndDate").datepicker({
+			$("#s1EndDate").datetimepicker({
 				changeMonth : true,
 				changeYear : true,
-				dateFormat : 'mm/dd/yy'
-
+				dateFormat : 'mm/dd/yy',
+				minDate: new Date(2011, 0, 1), 
+				maxDate: new Date(2015, 11, 31),
+				timeFormat: "HH:mm z",
+				controlType: 'select',
+				showMinute: false,
+				timezoneList: timezones
 			});
-			$("#s2StartDate").datepicker({
+			$("#s2StartDate").datetimepicker({
 				changeMonth : true,
 				changeYear : true,
-				dateFormat : 'mm/dd/yy'
-
+				dateFormat : 'mm/dd/yy',
+				minDate: new Date(2011, 0, 1), 
+				maxDate: new Date(2015, 11, 31),
+				defaultDate: new Date(2011,0,1),
+				timeFormat: "HH:mm z",
+				controlType: 'select',
+				showMinute: false,
+				timezoneList: timezones
 			});
-			$("#s2EndDate").datepicker({
+			$("#s2EndDate").datetimepicker({
 				changeMonth : true,
 				changeYear : true,
-				dateFormat : 'mm/dd/yy'
-
+				dateFormat : 'mm/dd/yy',
+				minDate: new Date(2011, 0, 1), 
+				maxDate: new Date(2015, 11, 31),
+				timeFormat: "HH:mm z",
+				controlType: 'select',
+				showMinute: false,
+				timezoneList: timezones
 			});
-			$("#s3StartDate").datepicker({
+			$("#s3StartDate").datetimepicker({
 				changeMonth : true,
 				changeYear : true,
-				dateFormat : 'mm/dd/yy'
+				dateFormat : 'mm/dd/yy',
+				minDate: new Date(2011, 0, 1), 
+				maxDate: new Date(2015, 11, 31),
+				defaultDate: new Date(2011,0,1),
+				timeFormat: "HH:mm z",
+				controlType: 'select',
+				showMinute: false,
+				timezoneList: timezones
 			});
-			$("#s3EndDate").datepicker({
+			$("#s3EndDate").datetimepicker({
 				changeMonth : true,
 				changeYear : true,
-				dateFormat : 'mm/dd/yy'
+				dateFormat : 'mm/dd/yy',
+				minDate: new Date(2011, 0, 1), 
+				maxDate: new Date(2015, 11, 31),
+				timeFormat: "HH:mm z",
+				controlType: 'select',
+				showMinute: false,
+				timezoneList: timezones
 			});
 		});
 	</script>
