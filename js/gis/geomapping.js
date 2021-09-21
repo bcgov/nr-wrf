@@ -52,7 +52,14 @@ require([
         zoom: 5, // scale: 72223.819286
         container: "viewDiv",
       });
-      
+	  
+	  const sketch = new Sketch({
+          layer: graphicsLayer,
+          view: view,
+          // graphic will be selected as soon as it is created
+          creationMode: "update"
+        });
+
       var coordsWidget = document.createElement("div");
 	  var graphics;
       coordsWidget.id = "coordsWidget";
@@ -287,6 +294,15 @@ require([
 	            console.log(error);
 	          });
 		}
+		
+	  showSketch = function() {
+		view.ui.add(sketch, "top-right");
+	  }
+	  
+	  hideSketch = function() {
+		view.ui.remove(sketch);
+	  }
+
       
    	  // Perform the "Search 2" function.  Given two points (bottom left and upper right),
    	  // draw a rectangle
