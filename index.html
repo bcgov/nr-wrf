@@ -106,7 +106,7 @@ html, body, #viewDiv {
 <script>
 	function validateDate(date) {
 
-		var reg = /^\d{2}[./-]\d{2}[./-]\d{4}$/;
+		var reg = /^\d{2}[./-]\d{2}[./-]\d{4}\s\d{2}:\d{2}\s-\d{4}$/;
 		if (date.match(reg)) {
 			return true;
 		} else {
@@ -195,6 +195,7 @@ html, body, #viewDiv {
 			<div id="main-content" class="contentPageMainColumn col-xs-12">
 				<h1>BC Air Quality</h1>
                <div id="introduction">
+				
      <p>Insert introduction here. Include instructions etc. Please read our <a href=http://www2.gov.bc.ca/gov/content?id=D73D2DC9D7A8445195F5ED5199350D4B>data license agreement and disclaimer.</a></p>
                 </div>
 			</div>
@@ -202,9 +203,9 @@ html, body, #viewDiv {
 		<div style="float: left; width: 350px">
 			<div id="tabs">
 				<ul>
-					<li><a href="#search-1" onclick="hideSketch();">Search 1</a></li>
-					<li><a href="#search-2" onclick="hideSketch();">Search 2</a></li>
-					<li><a href="#search-3" onclick="showSketch();">Search 3</a></li>
+					<li><a href="#search-1">Search 1</a></li>
+					<li><a href="#search-2">Search 2</a></li>
+					<li><a href="#search-3">Search 3</a></li>
 				</ul>
 				<div id="search-1">
 
@@ -334,7 +335,12 @@ html, body, #viewDiv {
 								<input type="text" id="s3EndDate" class="form-control">
 							</div>
 						</div>
-						<div id="sketchdiv"></div>
+						<div class="form-group row">
+							<div class="col-lg-10">
+								<label for="s3EndDate">Select the area</label>
+								<div id="sketchdiv"></div>
+							</div>
+						</div>
 						<button class="btn btn-primary" type="button" id="search3Button"
 						onclick="search3()" value="Search">Search</button>
 					</fieldset>
@@ -343,6 +349,7 @@ html, body, #viewDiv {
 		</div>
 		<div id="viewDiv"></div>
 	</div>
+	
 	<!-- /BODY CONTENT -->
 	<div id="shareIcons"></div>
 
