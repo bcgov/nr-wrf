@@ -456,17 +456,10 @@ require([
 }
 	
 	sketch.on("create", function(event) {
-		// check if the create event's state has changed to complete indicating
-		// the graphic create operation is completed.
-	
-		if (event.state === "complete") {
-			// remove the graphic from the layer. Sketch adds
-			// the completed graphic to the layer by default.
-			
-			// use the graphic.geometry to query features that intersect it
-			
-		} else if (event.state === "start") {
-			// remove previous graphics
+		// clear the screen of any popups or previous graphics
+		if (event.state === "start") {
+			view.popup.close();
+			view.popup.clear();						
 			graphicsLayer.removeAll();
 		}
 	});
