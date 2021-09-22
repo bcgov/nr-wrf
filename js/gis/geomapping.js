@@ -16,6 +16,8 @@ require([
   "esri/geometry/Point",
   "esri/geometry/Circle",
   "esri/geometry/support/geodesicUtils",
+  "esri/geometry/Geometry",
+  "esri/geometry/Extent",
   "dojo/domReady!"
 ], function (esriConfig,
 			 Map, 
@@ -33,7 +35,9 @@ require([
 			 Polygon, 
 			 Point, 
 			 Circle, 
-			 geodesicUtils) {
+			 geodesicUtils,
+			 Geometry,
+			 Extent) {
 
       const graphicsLayer = new GraphicsLayer();
       esriConfig.apiKey = "AAPK1c42e0bed09a4c5e9cd405eb8aa385be8iJCXX-m6zsVighHNzd5NLLVAhwtmAUOE5ZqrPseB8GuryyEHumQSDFtQJjjY3g_";
@@ -56,8 +60,24 @@ require([
 	  const sketch = new Sketch({
           layer: graphicsLayer,
           view: view,
+		  visibleElements: {
+			  createTools: {
+				point: false,
+				circle: false,
+				polygon: false,
+				polyline: false,
+				rectangle: true
+			  },
+			  selectionTools:{
+				"lasso-selection": false,
+				"rectangle-selection": false,
+				"pointer-selection": false /* this has no effect - I don't know the correct name for this tool */
+			  },
+			  undoRedoMenu: false
+		  },
+		  container: document.getElementById("sketchdiv")
           // graphic will be selected as soon as it is created
-          creationMode: "update"
+          
         });
 
       var coordsWidget = document.createElement("div");
@@ -206,18 +226,6 @@ require([
 					),
 					distanceFromPoint,
 					90);
-			var bottomPoint = geodesicUtils.pointFromDistance(
-					new Point(
-							{x: centerPoint.longitude, y: centerPoint.latitude}
-					),
-					distanceFromPoint,
-					180);
-			var topPoint = geodesicUtils.pointFromDistance(
-					new Point(
-							{x: centerPoint.longitude, y: centerPoint.latitude}
-					),
-					distanceFromPoint,
-					0);
 
 			var topRightPoint = geodesicUtils.pointFromDistance(
 					rightPoint,
@@ -262,17 +270,18 @@ require([
 			  symbol: simpleFillSymbol
 			});
 
+	
+
 			graphicsLayer.removeAll();
 			graphicsLayer.add(polygonGraphic); 
 
-//			maxZoom = map.getMaxZoom(); 
-			view.center = centerPoint; 
+			view.center = polygonGraphic.geometry.centroid; 
 
 			const modelQuery = {
 			         spatialRelationship: "intersects", // Relationship operation to apply
 			         geometry: polygon,  // The sketch feature geometry
 			         returnGeometry: true,
-			         where: "date >= '" + s1StartDate + "' and date <= '" + s1EndDate + "'",
+			         where: "date >= '" + s1StartDate.substring(0, 10)  + "' and date <= '" + s1EndDate.substring(0, 10) + "'",
 			         outFields: ["*"]
 			};
 			
@@ -295,15 +304,6 @@ require([
 	          });
 		}
 		
-	  showSketch = function() {
-		view.ui.add(sketch, "top-right");
-	  }
-	  
-	  hideSketch = function() {
-		view.ui.remove(sketch);
-	  }
-
-      
    	  // Perform the "Search 2" function.  Given two points (bottom left and upper right),
    	  // draw a rectangle
       search2 = function() {  
@@ -373,9 +373,96 @@ require([
 			  geometry: polygon,
 			  symbol: simpleFillSymbol
 			});
+			
+			var maxLongitude = Math.max(s2Longitude1, s2Longitude2);
+			var maxLatitude = Math.max(s2Latitude1, s2Latitude2);
+
 			graphicsLayer.removeAll();
 			graphicsLayer.add(polygonGraphic);    
+
+			view.center = [maxLongitude,maxLatitude]; 
+
+			const modelQuery = {
+			         spatialRelationship: "intersects", // Relationship operation to apply
+			         geometry: polygon,  // The sketch feature geometry
+			         returnGeometry: true,
+			         where: "date >= '" + s2StartDate.substring(0, 10)  + "' and date <= '" + s2EndDate.substring(0, 10)  + "'",
+			         outFields: ["*"]
+			};
+			
+
+
+			
+			layer.queryFeatures(modelQuery)
+	        .then((results) => {
+
+	            console.log("Feature count: " + results.features.length);
+				graphics = results.features;
+				view.popup.open({
+								title: "Model Data For Area",
+								actions: [downloadAction],
+								content: "Click the download icon to download your data",
+                                location: {latitude: maxLatitude, longitude: maxLongitude}
+                            });
+	          }).catch((error) => {
+	            console.log(error);
+	          });
 	}
+
+	search3 = function() {  
+    	  
+	  var s3StartDate = $("#s2StartDate").val();
+	  var s3EndDate = $("#s2EndDate").val();
+	  
+		
+	  if (!validateDate(s3StartDate)) {
+		  return;
+	  }
+	  
+	  if (!validateDate(s3EndDate)) {
+		  return;
+	  }
+
+	  if (graphicsLayer.graphics.length < 1) {
+		  alert("Please draw a rectangle to mark your selection");
+		  return;
+	  }
+
+	  view.center = graphicsLayer.graphics.getItemAt(0).geometry.centroid; 
+
+	  const modelQuery = {
+			   spatialRelationship: "intersects", // Relationship operation to apply
+			   geometry: graphicsLayer.graphics.getItemAt(0).geometry,  // The sketch feature geometry
+			   returnGeometry: true,
+			   where: "date >= '" + s3StartDate.substring(0, 10)  + "' and date <= '" + s3EndDate.substring(0, 10)  + "'",
+			   outFields: ["*"]
+	  };
+	  
+
+	  layer.queryFeatures(modelQuery)
+	  .then((results) => {
+
+		  console.log("Feature count: " + results.features.length);
+		  graphics = results.features;
+		  view.popup.open({
+						  title: "Model Data For Area",
+						  actions: [downloadAction],
+						  content: "Click the download icon to download your data",
+						  location: view.center
+					  });
+		}).catch((error) => {
+		  console.log(error);
+		});
+}
+	
+	sketch.on("create", function(event) {
+		// clear the screen of any popups or previous graphics
+		if (event.state === "start") {
+			view.popup.close();
+			view.popup.clear();						
+			graphicsLayer.removeAll();
+		}
+	});
       
       
     
