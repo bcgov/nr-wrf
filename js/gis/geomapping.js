@@ -60,7 +60,21 @@ require([
 	  const sketch = new Sketch({
           layer: graphicsLayer,
           view: view,
-		  availableCreateTools: ["rectangle"],
+		  visibleElements: {
+			  createTools: {
+				point: false,
+				circle: false,
+				polygon: false,
+				polyline: false,
+				rectangle: true
+			  },
+			  selectionTools:{
+				"lasso-selection": false,
+				"rectangle-selection": false,
+				"pointer-selection": false /* this has no effect - I don't know the correct name for this tool */
+			  },
+			  undoRedoMenu: false
+		  },
 		  container: document.getElementById("sketchdiv")
           // graphic will be selected as soon as it is created
           
