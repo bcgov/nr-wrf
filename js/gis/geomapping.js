@@ -106,6 +106,13 @@ require([
 		// display the download tooltip containing the results from the selected search
 		function downloadDialog(results, topRightPoint) {
 		  				console.log("Feature count: " + results.features.length);
+
+				// close dialog if there's already one up.
+				view.popup.close();
+				view.popup.clear();
+				graphicsLayer.removeAll();
+
+						
 				if (results.features.length == 0) {
 					alert("No shape files were found in the selected area");
 				} else if (results.features.length > 50) {
