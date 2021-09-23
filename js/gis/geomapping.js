@@ -108,8 +108,8 @@ require([
 		  				console.log("Feature count: " + results.features.length);
 				if (results.features.length == 0) {
 					alert("No shape files were found in the selected area");
-				} else if (results.features.length > 200) {
-					alert("The area you have selected contains more than 200 shape files.  Please constrain your search to a small area or time period.");
+				} else if (results.features.length > 50) {
+					alert("The area you have selected contains more than 50 files.  Please constrain your search to a small area or time period.");
 				} else {
 					graphics = results.features;
 					view.popup.open({
