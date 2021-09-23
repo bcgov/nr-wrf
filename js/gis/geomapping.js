@@ -103,7 +103,24 @@ require([
 		}
 	});
 
-  	  
+		// display the download tooltip containing the results from the selected search
+		function downloadDialog(results, topRightPoint) {
+		  				console.log("Feature count: " + results.features.length);
+				if (results.features.length == 0) {
+					alert("No shape files were found in the selected area");
+				} else if (results.features.length > 200) {
+					alert("The area you have selected contains more than 200 shape files.  Please constrain your search to a small area or time period.");
+				} else {
+					graphics = results.features;
+					view.popup.open({
+									title: "Model Data For Area",
+									actions: [downloadAction],
+									content: results.features.length + " files in selected area.  Click the download icon to download your data",
+									location: {latitude: topRightPoint.latitude, longitude: topRightPoint.longitude}
+								});
+								
+				}
+		}  	  
       
       function showCoordinates(pt) {
     	  var coords =
@@ -139,19 +156,23 @@ require([
 			})
 
 			urls.forEach(function(url){
+				var msg = "Downloading Files";
 				// loading a file and add it in a zip file
 				JSZipUtils.getBinaryContent(url, function (err, data) {
 				   if(err) {
 					  throw err; // or handle the error
 				   }
+				   count++;
+				   msg = "Downloading file " + count + " of " + urls.length;
+				   view.popup.content = "<div>" + msg + "</div>";
 				   // add the zip file
 				   zip.file(url.substring(url.lastIndexOf('/')+1), data, {binary:true});
 				   
-				   count++;
+				   
 				   if (count == urls.length) {
 					zip.generateAsync({type:'blob'}, function updateCallback(metadata) {
-						var msg = "Preparing Download : " + metadata.percent.toFixed(2) + " %";
-						view.popup.content = "<div role='progressbar' style='background:green; width:" + metadata.percent.toFixed(2) + "%; height: 15px'>" + msg + "</div>";
+						msg = "Packaging Download : " + metadata.percent.toFixed(2) + "%";
+						view.popup.content = msg;
 					})
 					.then(function callback(content) {
 						view.popup.close();
@@ -291,18 +312,13 @@ require([
 			layer.queryFeatures(modelQuery)
 	        .then((results) => {
 
-	            console.log("Feature count: " + results.features.length);
-				graphics = results.features;
-				view.popup.open({
-								title: "Model Data For Area",
-								actions: [downloadAction],
-								content: "Click the download icon to download your data",
-                                location: {latitude: topRightPoint.latitude, longitude: topRightPoint.longitude}
-                            });
+	            downloadDialog(results, topRightPoint);
+				
 	          }).catch((error) => {
 	            console.log(error);
 	          });
 		}
+		
 		
    	  // Perform the "Search 2" function.  Given two points (bottom left and upper right),
    	  // draw a rectangle
@@ -396,14 +412,8 @@ require([
 			layer.queryFeatures(modelQuery)
 	        .then((results) => {
 
-	            console.log("Feature count: " + results.features.length);
-				graphics = results.features;
-				view.popup.open({
-								title: "Model Data For Area",
-								actions: [downloadAction],
-								content: "Click the download icon to download your data",
-                                location: {latitude: maxLatitude, longitude: maxLongitude}
-                            });
+	            downloadDialog(results, {latitude: maxLatitude, longitude: maxLongitude});
+				
 	          }).catch((error) => {
 	            console.log(error);
 	          });
@@ -439,21 +449,17 @@ require([
 	  };
 	  
 
-	  layer.queryFeatures(modelQuery)
-	  .then((results) => {
 
-		  console.log("Feature count: " + results.features.length);
-		  graphics = results.features;
-		  view.popup.open({
-						  title: "Model Data For Area",
-						  actions: [downloadAction],
-						  content: "Click the download icon to download your data",
-						  location: view.center
-					  });
-		}).catch((error) => {
-		  console.log(error);
-		});
-}
+		layer.queryFeatures(modelQuery)
+	        .then((results) => {
+
+            downloadDialog(results, graphicsLayer.graphics.getItemAt(0).geometry.centroid);
+			
+        }).catch((error) => {
+            console.log(error);
+        });
+
+	}
 	
 	sketch.on("create", function(event) {
 		// clear the screen of any popups or previous graphics
