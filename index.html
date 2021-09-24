@@ -166,7 +166,7 @@ html, body, #viewDiv {
 					<div id="navbar" class="collapse navbar-collapse">
 						
 						<ul class="nav navbar-nav">
-							<li><a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">BC Air Quality</a></li>
+							<li><a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">Modelling</a></li>
 						</ul>
 					</div>
 					<!-- /COLLAPSING NAVBAR -->
@@ -175,7 +175,7 @@ html, body, #viewDiv {
 			<div class="navigationRibbon">
 				<div class="level2Navigation">
 					<div class="container">
-						<a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">BC Air Quality</a>
+						<a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">Modelling</a>
 					</div>
 				</div>
 			</div>
@@ -193,7 +193,7 @@ html, body, #viewDiv {
 		<!-- PAGE CONTENT -->
 		<div class="row">
 			<div id="main-content" class="contentPageMainColumn col-xs-12">
-				<h1>BC Air Quality</h1>
+				<h1>Weather Research and Forecasting Model (WRF) Data</h1>
                <div id="introduction">
 				
      <p>Insert introduction here. Include instructions etc. Please read our <a href=http://www2.gov.bc.ca/gov/content?id=D73D2DC9D7A8445195F5ED5199350D4B>data license agreement and disclaimer.</a></p>
@@ -409,7 +409,13 @@ html, body, #viewDiv {
 				timeFormat: "HH:mm z",
 				controlType: 'select',
 				showMinute: false,
-				timezoneList: timezones
+				timezoneList: timezones,
+				onSelect: function(dateText) {
+					var sourceDate = new Date(this.value);
+					sourceDate.setMonth(sourceDate.getMonth()+1);
+					$( "#s1EndDate" ).datepicker( "option", "maxDate", sourceDate);
+					
+				}
 			});
 			$("#s1EndDate").datetimepicker({
 				changeMonth : true,
@@ -432,7 +438,13 @@ html, body, #viewDiv {
 				timeFormat: "HH:mm z",
 				controlType: 'select',
 				showMinute: false,
-				timezoneList: timezones
+				timezoneList: timezones,
+				onSelect: function(dateText) {
+					var sourceDate = new Date(this.value);
+					sourceDate.setMonth(sourceDate.getMonth()+1);
+					$( "#s2EndDate" ).datepicker( "option", "maxDate", sourceDate);
+					
+				}
 			});
 			$("#s2EndDate").datetimepicker({
 				changeMonth : true,
@@ -455,7 +467,13 @@ html, body, #viewDiv {
 				timeFormat: "HH:mm z",
 				controlType: 'select',
 				showMinute: false,
-				timezoneList: timezones
+				timezoneList: timezones,
+				onSelect: function(dateText) {
+					var sourceDate = new Date(this.value);
+					sourceDate.setMonth(sourceDate.getMonth()+1);
+					$( "#s3EndDate" ).datepicker( "option", "maxDate", sourceDate);
+					
+				}
 			});
 			$("#s3EndDate").datetimepicker({
 				changeMonth : true,
@@ -469,6 +487,7 @@ html, body, #viewDiv {
 				timezoneList: timezones
 			});
 		});
+		
 	</script>
 
 </body>
