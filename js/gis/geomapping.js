@@ -110,8 +110,6 @@ require([
 				// close dialog if there's already one up.
 				view.popup.close();
 				view.popup.clear();
-				graphicsLayer.removeAll();
-
 						
 				if (results.features.length == 0) {
 					alert("No shape files were found in the selected area");
