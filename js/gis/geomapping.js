@@ -127,6 +127,7 @@ require([
 				}
 		}  	  
       
+	  // show coords on the map, based on current mouse cursor location
       function showCoordinates(pt) {
     	  var coords =
     	    "Lat/Lon " +
@@ -139,6 +140,49 @@ require([
     	    view.zoom;
     	  coordsWidget.innerHTML = coords;
     	}
+
+		// reads the config file into memory, replacing the parameters using the user selected data
+		function getConfig(url, 
+						   isyear, 
+						   ismonth, 
+						   isday, 
+						   ishour, 
+						   ieyear, 
+						   iemonth, 
+						   ieday, 
+						   iehour, 
+						   ni1, 
+						   ni2, 
+						   nj1, 
+						   nj2){
+			// read text from URL location
+			var request = new XMLHttpRequest();
+			request.open('GET', url, false);
+			request.send(null);
+			if (request.status === 200) {
+				var configText = request.responseText;
+				
+				configText = configText.replace("! ISYEAR = 2012 !","! ISYEAR = " + isyear + " !");
+				configText = configText.replace("! ISMONTH = 1 !","! ISMONTH = " + ismonth + " !");
+				configText = configText.replace("! ISDAY = 1 !","! ISDAY = " + isday + " !");
+				configText = configText.replace("! ISHOUR = 0 !","! ISHOUR = " + ishour + " !");
+
+				configText = configText.replace("! IEYEAR = 2012 !","! IEYEAR = " + ieyear + " !");
+				configText = configText.replace("! IEMONTH = 1 !","! IEMONTH = " + iemonth + " !");
+				configText = configText.replace("! IEDAY = 1 !","! IEDAY = " + ieday + " !");
+				configText = configText.replace("! IEHOUR = 0 !","! IEHOUR = " + iehour + " !");
+
+				configText = configText.replace("! NI1 = 2 !","! NI1 = " + ni1 + " !");
+				configText = configText.replace("! NI2 = 3 !","! NI2 = " + ni2 + " !");
+				configText = configText.replace("! NJ1 = 392 !","! NJ1 = " + nj1 + " !");
+				configText = configText.replace("! NJ2 = 392 !","! NJ2 = " + nj2 + " !");
+				
+				return configText;
+			} else {
+				return "";
+			}
+		}
+
 		
 		// download the data from the objects store
 		function downloadModelData() {
@@ -147,18 +191,96 @@ require([
 			var zip = new JSZip();
 			var count = 0;
 			var zipFilename = "nr-wrf.zip";
+			var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
+			
+			var xStart = 999;
+			var yStart = 999;
+			
+			var xEnd = 1;
+			var yEnd = 1;
+			
 			
 			// prepare a list of urls representing the files that we'll be downloading
 			graphics.forEach((result, index) => {
 				const attributes = result.attributes;
 				var fileName = attributes.filename;
-				var imageUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/" +  fileName;
+				var imageUrl = baseUrl +  fileName;
+				
+			   // determine x/y values
+			   // The files are in the format x###y###x###y###.yyyymm.10x10x
+			   // We can determine the minimum and maximum xy coordinates by looking at all the file names.
+			   var x1 = fileName.substring(1,4);
+			   var y1 = fileName.substring(5,8);
+			   var x2 = fileName.substring(9,12);
+			   var y2 = fileName.substring(13,16);
+			   
+			   if (x1 < xStart) {
+				   xStart = x1;
+			   }
+			   
+			   if (y1 < yStart) {
+				   yStart = y1;
+			   }
+			   
+			   if (x2 > xEnd) {
+				   xEnd = x2;
+			   }
+			   
+			   if (y2 > yEnd) {
+				   yEnd = y2;
+			   }
+
 				objectStorage = attributes.objectstorage;
 				if (objectStorage.includes("kadkvt")) {
 					urls.push(imageUrl);
 				}
 
-			})
+			});
+			
+			var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
+			
+			
+			var startDate = $("#startDate").datetimepicker('getDate');
+			var endDate = $("#endDate").datetimepicker('getDate');
+			
+			// factor in the timezone
+			startDate.setHours(startDate.getHours() + timezoneOffset);
+			endDate.setHours(endDate.getHours() + timezoneOffset);
+			
+			
+			var startYear = startDate.getFullYear();
+			var startMonth = startDate.getMonth() + 1;
+			var startDay = startDate.getDate();
+			var startHour = startDate.getHours();
+			
+			var endYear = endDate.getFullYear();
+			var endMonth = endDate.getMonth() + 1;
+			var endDay = endDate.getDate();
+			var endHour = endDate.getHours();
+			
+			
+			var stitchingConfig = getConfig(baseUrl + "m3d_bild_temp.inp", 
+											startYear, 
+											startMonth, 
+											startDay,
+											startHour,
+											endYear, 
+											endMonth, 
+											endDay,
+											endHour,
+											xStart,
+											yStart,
+											xEnd,
+											yEnd
+											);
+			
+			
+			zip.file("m3d_bild.inp",stitchingConfig);
+			
+			
+			// add the files required to unzip all the files, and process them
+			urls.push(baseUrl + "7z.exe");
+			urls.push(baseUrl + "m3d_bild.exe");
 
 			urls.forEach(function(url){
 				var msg = "Downloading Files";
@@ -173,6 +295,9 @@ require([
 				   // add the zip file
 				   zip.file(url.substring(url.lastIndexOf('/')+1), data, {binary:true});
 				   
+				   
+					
+
 				   
 				   if (count == urls.length) {
 					zip.generateAsync({type:'blob'}, function updateCallback(metadata) {
@@ -204,12 +329,12 @@ require([
       // Perform the "Search 1" function.  Given a point (lat/long), draw a square
       // equidistance from the point using the distance provided by distanceFromPoint
       search1 = function() {  
-    	  
+	  
     	  	var s1Latitude = $("#s1Latitude").val();        
     	  	var s1Longitude = $("#s1Longitude").val(); 
 			var distanceFromPoint = $("#distanceFromPoint").val();
-			var s1StartDate = $("#s1StartDate").val();
-			var s1EndDate = $("#s1EndDate").val();
+			var s1StartDate = $("#startDate").val();
+			var s1EndDate = $("#endDate").val();
     	  	
     	  	
 			if (!validateDate(s1StartDate)) {
@@ -333,8 +458,8 @@ require([
     	  	var s2Longitude1 = $("#s2Longitude1").val(); 
     	  	var s2Latitude2 = $("#s2Latitude2").val();        
     	  	var s2Longitude2 = $("#s2Longitude2").val(); 
-			var s2StartDate = $("#s2StartDate").val();
-			var s2EndDate = $("#s2EndDate").val();
+			var s2StartDate = $("#startDate").val();
+			var s2EndDate = $("#endDate").val();
     	  	
     	  	
 			if (!validateDate(s2StartDate)) {
@@ -426,8 +551,8 @@ require([
 
 	search3 = function() {  
     	  
-	  var s3StartDate = $("#s2StartDate").val();
-	  var s3EndDate = $("#s2EndDate").val();
+	  var s3StartDate = $("#startDate").val();
+	  var s3EndDate = $("#endDate").val();
 	  
 		
 	  if (!validateDate(s3StartDate)) {
