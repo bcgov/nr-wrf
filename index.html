@@ -106,7 +106,7 @@ html, body, #viewDiv {
 <script>
 	function validateDate(date) {
 
-		var reg = /^\d{2}[./-]\d{2}[./-]\d{4}\s\d{2}:\d{2}\s-\d{4}$/;
+		var reg = /^\d{2}[./-]\d{2}[./-]\d{4}\s\d{2}:\d{2}$/;
 		if (date.match(reg)) {
 			return true;
 		} else {
@@ -166,7 +166,7 @@ html, body, #viewDiv {
 					<div id="navbar" class="collapse navbar-collapse">
 						
 						<ul class="nav navbar-nav">
-							<li><a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">BC Air Quality</a></li>
+							<li><a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">Modelling</a></li>
 						</ul>
 					</div>
 					<!-- /COLLAPSING NAVBAR -->
@@ -175,7 +175,7 @@ html, body, #viewDiv {
 			<div class="navigationRibbon">
 				<div class="level2Navigation">
 					<div class="container">
-						<a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">BC Air Quality</a>
+						<a href=https://www2.gov.bc.ca/gov/content?id=5D4A6114DAA14400860111A33E189B10 class="current">Modelling</a>
 					</div>
 				</div>
 			</div>
@@ -184,16 +184,45 @@ html, body, #viewDiv {
 
 	<!-- /Header -->
 	<!-- BODY CONTENT -->
+	<template id="dateFieldset">
+		<fieldset>
+			<legend>Date Range</legend>
+			<div class="form-group">
+				<label class="col-lg-4 control-label">Timezone</label>
+				<div class="col-lg-10">
+					<div class="radio">
+						<label>
+							<input type="radio" name="timezone" id="timezonePST" value="8" checked>PST (-0800)
+						</label>
+					</div>
+					<div class="radio">
+						<label>
+							<input type="radio" name="timezone" id="timezoneUTC" value="0">UTC
+						</label>
+					</div>
+				</div>
+			</div>
+			<div class="form-group row">
+				<div class="col-lg-10">
+					<label for="startDate">Start</label>
+					<input type="text" id="startDate" class="form-control ">
+				</div>
+			</div>
+			<div class="form-group row">
+				<div class="col-lg-10">
+					<label class="" for="endDate">End</label>
+					<input type="text" id="endDate" class="form-control">
+				</div>
+			</div>
+		</fieldset>
+	</template>
+	
 	<div id="topicTemplate" class="template container gov-container">
-		<!--div id="breadcrumbContainer">
-			<ol class="breadcrumb">
-			</ol>
-		</div -->
 		<a id="main-content-anchor"></a>
 		<!-- PAGE CONTENT -->
 		<div class="row">
 			<div id="main-content" class="contentPageMainColumn col-xs-12">
-				<h1>BC Air Quality</h1>
+				<h1>Weather Research and Forecasting Model (WRF) Data</h1>
                <div id="introduction">
 				
      <p>Insert introduction here. Include instructions etc. Please read our <a href=http://www2.gov.bc.ca/gov/content?id=D73D2DC9D7A8445195F5ED5199350D4B>data license agreement and disclaimer.</a></p>
@@ -203,85 +232,53 @@ html, body, #viewDiv {
 		<div style="float: left; width: 350px">
 			<div id="tabs">
 				<ul>
-					<li><a href="#search-1">Search 1</a></li>
-					<li><a href="#search-2">Search 2</a></li>
-					<li><a href="#search-3">Search 3</a></li>
+					<li><a href="#search-1" onclick="fillTemplate('s1DateDiv');">Search 1</a></li>
+					<li><a href="#search-2" onclick="fillTemplate('s2DateDiv');">Search 2</a></li>
+					<li><a href="#search-3" onclick="fillTemplate('s3DateDiv');">Search 3</a></li>
 				</ul>
 				<div id="search-1">
-
-					<div>
-						<fieldset>
-							<legend>Date Range</legend>
-							<div class="form-group row">
-								<div class="col-lg-10">
-									<label for="s1StartDate">Start</label>
-									<input type="text" id="s1StartDate" class="form-control ">
-								</div>
+					<div id="s1DateDiv"></div>
+					<fieldset>
+						<legend>Centre Point</legend>
+						<div class="form-group row">
+							<div class="col-lg-6">
+								<label for="s1Latitude">Latitude</label>
+								<input type="text" id="s1Latitude" maxlength="12"
+								class="form-control">
 							</div>
-							<div class="form-group row">
-								<div class="col-lg-10">
-									<label class="" for="s1EndDate">End</label>
-									<input type="text" id="s1EndDate" class="form-control">
-								</div>
-							</div>
-						</fieldset>
-						<br />
-						<fieldset>
-							<legend>Centre Point</legend>
-							<div class="form-group row">
-								<div class="col-lg-6">
-									<label for="s1Latitude">Latitude</label>
-									<input type="text" id="s1Latitude" maxlength="12"
+						</div>
+						<div class="form-group row">
+							<div class="col-lg-6">
+								<label for="s1Longitude">Longitude</label>
+								<input type="text" id="s1Longitude" maxlength="12"
 									class="form-control">
-								</div>
 							</div>
-							<div class="form-group row">
-								<div class="col-lg-6">
-									<label for="s1Longitude">Longitude</label>
-									<input type="text" id="s1Longitude" maxlength="12"
-										class="form-control">
-								</div>
+						</div>
+						<div class="form-group row">
+							<div class="col-lg-8">
+								<label for="distanceFromPoint">Distance From Centre Point</label>
+								<select class="form-control" id="distanceFromPoint"
+									data-column="3">
+									<option value="10">10km</option>
+									<option value="20">20km</option>
+									<option value="30">30km</option>
+									<option value="40">40km</option>
+									<option value="50">50km</option>
+									<option value="60">60km</option>
+									<option value="70">70km</option>
+									<option value="80">80km</option>
+									<option value="90">90km</option>
+									<option value="100">100km</option>
+								</select>
 							</div>
-							<div class="form-group row">
-								<div class="col-lg-8">
-									<label for="distanceFromPoint">Distance From Centre Point</label>
-									<select class="form-control" id="distanceFromPoint"
-										data-column="3">
-										<option value="10">10km</option>
-										<option value="20">20km</option>
-										<option value="30">30km</option>
-										<option value="40">40km</option>
-										<option value="50">50km</option>
-										<option value="60">60km</option>
-										<option value="70">70km</option>
-										<option value="80">80km</option>
-										<option value="90">90km</option>
-										<option value="100">100km</option>
-									</select>
-								</div>
-							</div>
-						</fieldset>
-						<br />
-						<button class="btn btn-primary" type="button" id="search1Button"
-							onclick="search1()" value="Search">Search</button>
-					</div>
+						</div>
+					</fieldset>
+					<br />
+					<button class="btn btn-primary" type="button" id="search1Button"
+						onclick="search1()" value="Search">Search</button>
 				</div>
 				<div id="search-2">
-					<fieldset>
-						<legend>Date Range</legend>
-							<div class="form-group row">
-								<div class="col-lg-10">
-									<label for="s2StartDate">Start</label>
-									<input type="text" id="s2StartDate" class="form-control ">
-								</div>
-							</div>
-							<div class="form-group row">
-								<div class="col-lg-10">
-									<label class="" for="s2EndDate">End</label>
-									<input type="text" id="s2EndDate" class="form-control">
-								</div>
-							</div>
-					</fieldset>
+					<div id="s2DateDiv"></div>
 					<fieldset>
 						<legend>Bottom Left Point</legend>
 						<div class="form-group row">
@@ -321,20 +318,8 @@ html, body, #viewDiv {
 						onclick="search2()" value="Search">Search</button>
 				</div>
 				<div id="search-3">
+					<div id="s3DateDiv"></div>
 					<fieldset>
-						<legend>Date Range</legend>
-						<div class="form-group row">
-							<div class="col-lg-10">
-								<label for="s3StartDate">Start</label>
-								<input type="text" id="s3StartDate" class="form-control">
-							</div>
-						</div>
-						<div class="form-group row">
-							<div class="col-lg-10">
-								<label for="s3EndDate">End</label>
-								<input type="text" id="s3EndDate" class="form-control">
-							</div>
-						</div>
 						<div class="form-group row">
 							<div class="col-lg-10">
 								<label for="s3EndDate">Select the area</label>
@@ -384,91 +369,74 @@ html, body, #viewDiv {
 	<!-- Bootstrap core JavaScript
     ================================================== -->
 	<script>
+
+		const template = document.getElementById("dateFieldset");
 	
 		const xhr = new XMLHttpRequest(); 
 		const url = 'https://nrs.objectstore.gov.bc.ca/kadkvt'; 
 		xhr.open('GET', url); 
 		xhr.send();
 		
-		var timezones = [ 
-					{ value: -420, label: 'Mountain' }, 
-					{ value: -480, label: 'Pacific' } 
-				];
-	
 		$(function() { // initialize various UI elements
 			$("#tabs").tabs(); //init the tabs  		
+			
 
-			//init date pickers
-			$("#s1StartDate").datetimepicker({
-				changeMonth : true,
-				changeYear : true,
-				dateFormat : 'mm/dd/yy',
-				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
-				defaultDate: new Date(2011,0,1),
-				timeFormat: "HH:mm z",
-				controlType: 'select',
-				showMinute: false,
-				timezoneList: timezones
-			});
-			$("#s1EndDate").datetimepicker({
-				changeMonth : true,
-				changeYear : true,
-				dateFormat : 'mm/dd/yy',
-				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
-				timeFormat: "HH:mm z",
-				controlType: 'select',
-				showMinute: false,
-				timezoneList: timezones
-			});
-			$("#s2StartDate").datetimepicker({
-				changeMonth : true,
-				changeYear : true,
-				dateFormat : 'mm/dd/yy',
-				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
-				defaultDate: new Date(2011,0,1),
-				timeFormat: "HH:mm z",
-				controlType: 'select',
-				showMinute: false,
-				timezoneList: timezones
-			});
-			$("#s2EndDate").datetimepicker({
-				changeMonth : true,
-				changeYear : true,
-				dateFormat : 'mm/dd/yy',
-				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
-				timeFormat: "HH:mm z",
-				controlType: 'select',
-				showMinute: false,
-				timezoneList: timezones
-			});
-			$("#s3StartDate").datetimepicker({
-				changeMonth : true,
-				changeYear : true,
-				dateFormat : 'mm/dd/yy',
-				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
-				defaultDate: new Date(2011,0,1),
-				timeFormat: "HH:mm z",
-				controlType: 'select',
-				showMinute: false,
-				timezoneList: timezones
-			});
-			$("#s3EndDate").datetimepicker({
-				changeMonth : true,
-				changeYear : true,
-				dateFormat : 'mm/dd/yy',
-				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
-				timeFormat: "HH:mm z",
-				controlType: 'select',
-				showMinute: false,
-				timezoneList: timezones
-			});
 		});
+		
+		
+		
+		function removeAllChildNodes(parent) {
+			while (parent.firstChild) {
+				parent.removeChild(parent.firstChild);
+			}
+		}
+		
+		fillTemplate("s1DateDiv");
+			
+		function fillTemplate(divName) {
+			var s1DateDiv = document.getElementById("s1DateDiv");
+			var s2DateDiv = document.getElementById("s2DateDiv");
+			var s3DateDiv = document.getElementById("s3DateDiv");
+			
+			s1DateDiv.innerHTML = "";
+			s2DateDiv.innerHTML = "";
+			s3DateDiv.innerHTML = "";
+			document.getElementById(divName).innerHTML = template.innerHTML;
+			
+			//init date pickers
+			$("#startDate").datetimepicker({
+				changeMonth : true,
+				changeYear : true,
+				dateFormat : 'mm/dd/yy',
+				minDate: new Date(2011, 0, 1), 
+				maxDate: new Date(2015, 11, 31),
+				defaultDate: new Date(2011,0,1),
+				timeFormat: "HH:mm",
+				controlType: 'select',
+				showMinute: false,
+				onSelect: function(dateText) {
+					var sourceDate = new Date(this.value);
+					sourceDate.setMonth(sourceDate.getMonth()+1);
+					$( "#endDate" ).datepicker( "option", "maxDate", sourceDate);
+					
+				}
+			});
+			$("#endDate").datetimepicker({
+				changeMonth : true,
+				changeYear : true,
+				dateFormat : 'mm/dd/yy',
+				minDate: new Date(2011, 0, 1), 
+				maxDate: new Date(2015, 11, 31),
+				timeFormat: "HH:mm",
+				controlType: 'select',
+				showMinute: false
+			});
+
+
+		}
+		
+		
+		
 	</script>
 
 </body>
