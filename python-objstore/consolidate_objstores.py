@@ -147,6 +147,9 @@ class ConsolidateStorage:
         if os.path.exists(tmpPath):
             os.remove(tmpPath)
 
+    def makePublic(self, srcFile):
+        self.destObjStoreUtil.setPublicPermissions(srcFile)
+
     def moveFilesAsync(self):
         """
         
@@ -168,18 +171,22 @@ class ConsolidateStorage:
                 files2Move.append(srcFile)
         LOGGER.info(f"files to be moved: {len(files2Move)}")
 
-        # debugging
-        #files2Move = files2Move[:200]
-
         files2MoveIter = iter(files2Move)
 
         completed = 0
+
+        # creating a pointer to the method that will be called by the various
+        # threads
+        method = self.moveFile
+        #method = self.makePublic
+
+        # self.destObjStoreUtil.setPublicPermissions(srcFile)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=CONCURRENT_TASKS_BUNDLE) as executor:
             futures = {}
             cnt = 0
             for file2Move in itertools.islice(files2MoveIter, CONCURRENT_TASKS_BUNDLE):
-                fut = executor.submit(self.moveFile, file2Move)
+                fut = executor.submit(method, file2Move)
                 futures[fut] = file2Move
                 cnt += 1
             LOGGER.info(f'stack size: {cnt}')
@@ -190,7 +197,7 @@ class ConsolidateStorage:
                 )
                 completed += len(done)
                 if not completed % 100:
-                    LOGGER.debug(
+                    LOGGER.info(
                         f"total completed: {completed} of {len(files2Move)} (pkgs in loop: {len(done)})"
                     )
                 for fut in done:
@@ -201,7 +208,7 @@ class ConsolidateStorage:
                 for file2Move in itertools.islice(files2MoveIter, len(done)):
                     # LOGGER.debug(f"adding: {pkgName} to the queue")
                     # adding the package name to the url, as a param
-                    fut = executor.submit(self.moveFile, file2Move)
+                    fut = executor.submit(method, file2Move)
                     futures[fut] = file2Move
 
         
