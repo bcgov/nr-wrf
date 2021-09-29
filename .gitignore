@@ -4,6 +4,5 @@ caddy
 venv
 junk*
 *.pyc
-data/destfiles.json
-data/srcfiles.json
+data/
 wrf_fileindex.csv
