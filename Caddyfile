@@ -1,6 +1,0 @@
-:8080 {
-
-    file_server  {
-    }
-}
-cors  / https://nrs.objectstore.gov.bc.ca

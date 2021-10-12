@@ -8,10 +8,12 @@ COPY ["css", "/app/css"]
 COPY ["fonts", "/app/fonts"]
 COPY ["icons", "/app/icons"]
 COPY ["images", "/app/images"]
-COPY ["index.html", "/app/."]
+COPY ["index.html", "Caddyfile", "/app/."]
 
 
 RUN apk update && apk add bash curl
 
-EXPOSE 8080
-ENTRYPOINT ["caddy", "file-server", "--listen", ":8080", "." ]
+#EXPOSE 8080
+EXPOSE 8081
+#ENTRYPOINT ["caddy", "file-server", "--listen", ":8080", "." ]
+ENTRYPOINT ["caddy", "run" ]

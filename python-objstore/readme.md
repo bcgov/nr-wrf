@@ -21,10 +21,24 @@ pip install -r requirements.txt
 
 Set the following env vars before running the script.
 
-* OBJ_STORE_BUCKET
-* OBJ_STORE_SECRET
-* OBJ_STORE_USER
-* OBJ_STORE_HOST
+PROD object store bucket, all data required by app should be located here
+* OBJ_STORE_BUCKET - prod bucket name
+* OBJ_STORE_SECRET - prod bucket secret
+* OBJ_STORE_USER   - prod bucket user
+* OBJ_STORE_HOST   - prod host
+
+TEST object store bucket, data in here is to be moved to prod bucket
+* OBJ_STORE_TST_BUCKET  - test bucket name
+* OBJ_STORE_TST_SECRET  - test secret
+* OBJ_STORE_TST_USER    - test user
+* OBJ_STORE_TST_HOST    - test host
+
+TMP_FOLDER              - temp folder where any temp data will be downloaded to
+INDEX_FILE              - path to where the local copy of the index file is
+                          located
+TEST_OBJ_NAME           - name of a object store file that is used for
+                          debugging
+
 
 ## running the script
 

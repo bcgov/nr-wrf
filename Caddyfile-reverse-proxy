@@ -1,0 +1,39 @@
+:8081 {
+    log {
+        level DEBUG
+        format console
+    }
+    file_server
+}
+
+localhost {
+    log {
+        level DEBUG
+        format console
+        output stdout
+    }
+    @pathmatch {
+        path /objectstore*
+    }
+
+    route @pathmatch {
+        uri strip_prefix /objectstore
+
+        reverse_proxy  {
+            to https://nrs.objectstore.gov.bc.ca
+            header_down Access-Control-Allow-Origin *
+            header_up x-emc-namespace ns1
+            header_up Host {http.reverse_proxy.upstream.host}
+            #buffer_requests
+            #buffer_responses
+            transport http {
+                tls
+                tls_insecure_skip_verify
+            }
+        }
+    }
+}
+
+
+
+
