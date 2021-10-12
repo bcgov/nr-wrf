@@ -4,11 +4,10 @@ caddy
 venv
 junk*
 *.pyc
-data/destfiles.json
-data/srcfiles.json
 wrf_fileindex.csv
 python-objstore/wrf_fileindex.csv.bak
 Caddyfile_save2
 Caddyfile_save1
 data/oldWRFIndexFile.csv
 data/wrf_fileindex_v2.csv
+data/

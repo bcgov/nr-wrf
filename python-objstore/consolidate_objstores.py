@@ -12,6 +12,8 @@ import logging
 import os
 import sys
 import re
+import concurrent.futures
+import itertools
 
 import constants
 import objStoreUtil
@@ -22,12 +24,10 @@ LOGGER = logging.getLogger()
 class ConsolidateStorage:
 
     def __init__(self, csvFile=None):
-        self.csvFile = csvFile
-        if csvFile is None:
-            self.csvFile = constants.INDEX_FILE
+        self.csvFile = constants.INDEX_FILE
+        if csvFile is None or not os.path.exists(csvFile):
+            self.csvFile = os.path.join(constants.TMP_FOLDER, constants.INDEX_FILE)
         LOGGER.debug(f"csv file being used: {self.csvFile}")
-
-        self.checkParams()
 
         self.srcObjStoreUtil = objStoreUtil.ObjectStoreUtil(
             objStoreHost=constants.OBJ_STORE_HOST,
@@ -45,64 +45,25 @@ class ConsolidateStorage:
             tmpfolder=constants.TMP_FOLDER
         )
 
-        # cache for file lists
+        # cache for file lists - used to speed up debugging
         self.srcCacheFile = os.path.join(constants.TMP_FOLDER, 'srcfiles.json')
         self.destCacheFile = os.path.join(constants.TMP_FOLDER, 'destfiles.json')
         LOGGER.debug(f"cache dir: {constants.TMP_FOLDER}")
 
-    def checkParams(self):
-        """checking to verify that the parameters the script expects have been
-        populated
-        """
-        if not constants.TMP_FOLDER:
-            msg = f'the env var TMP_FOLDER has not been set'
-            raise ValueError(msg)
-        parmListDest = ['OBJ_STORE_HOST', 'OBJ_STORE_USER', 'OBJ_STORE_SECRET', 'OBJ_STORE_BUCKET']
-        parmListSrc = ['OBJ_STORE_TST_USER', 'OBJ_STORE_TST_BUCKET', 'OBJ_STORE_TST_SECRET']
-        paramType = 'destination'
-        for param in parmListDest:
-            paramValue = getv
-            if not param:
-                msg = f'The {paramType} object store bucket parameter: {param} has not been populated'
+        self.getCsvFile()
 
-        parmListDest = [constants.OBJ_STORE_HOST, constants.OBJ_STORE_USER, constants.OBJ_STORE_SECRET, constants.OBJ_STORE_BUCKET]
-        parmListSrc = [constants.OBJ_STORE_TST_USER, constants.OBJ_STORE_TST_BUCKET, constants.OBJ_STORE_TST_SECRET]
-
-
-
-    def getWRFIndexFile(self):
-        """The WRF Index file is the layer that glues the geographic extents
-        of the air quality data to files that reside in object store.  The
-        index file is stored in object storage.
-
-        The first thing the script does is attempt to pull this file down
-        from object storage to local storage and then iterate over the
-        contents of the file.
-        """
+    def getCsvFile(self):
         if not os.path.exists(self.csvFile):
-            objStoreName = os.path.basename(self.csvFile)
-            self.csvFile = os.path.join(constants.TMP_FOLDER, objStoreName)
-            LOGGER.info(f'retrieving the index file: {objStoreName}')
-            self.destObjStoreUtil.getObject(objStoreName, self.csvFile)
+            bareCsvFileName = os.path.basename(self.csvFile)
+            LOGGER.info(f"retrieving the csv file: {bareCsvFileName}")
+            self.destObjStoreUtil.getObject(bareCsvFileName, self.csvFile)
 
     def consolidate(self):
-        rowCnt = 0
-        bucketRegexStr = f'^.*{constants.OBJ_STORE_BUCKET}$'
-        LOGGER.debug(f"regex str: {bucketRegexStr}")
-        bucketRegex = re.compile(f'^.*{constants.OBJ_STORE_BUCKET}$')
+        # bucketRegexStr = f'^.*{constants.OBJ_STORE_BUCKET}$'
+        # LOGGER.debug(f"regex str: {bucketRegexStr}")
+        # bucketRegex = re.compile(f'^.*{constants.OBJ_STORE_BUCKET}$')
 
-        with open(self.csvFile, 'r') as csvfile:
-            spamreader = csv.reader(csvfile, delimiter=',')
-            header = csvfile.readline()
-
-            cnt = 0
-            for row in spamreader:
-                rowDict = self.parseRow(row)
-                if not bucketRegex.match(rowDict['bucketname']):
-                    self.moveFile(rowDict['bucketname'], rowDict['filename'])
-                    if cnt > 20:
-                        raise
-                    cnt += 1
+        self.moveFiles()
 
     def parseRow(self, row):
         """gets a row with the following columns:
@@ -122,30 +83,34 @@ class ConsolidateStorage:
         #LOGGER.debug(f"bucket name: {retDict['bucketname']}")
         return retDict
 
-    def getFileLists(self):
+    def getFileLists(self, cache=False):
         """mostly used for debugging, gets a list of source and
-        destination files and then caches the results.
+        destination files and then caches the results to files in the
+        data folder.  Caching only takes place is the cache variable is
+        set to true
         """
 
-        if os.path.exists(self.srcCacheFile):
+        if cache and os.path.exists(self.srcCacheFile):
             with open(self.srcCacheFile, 'r') as fh:
                 srcFiles = json.load(fh)
         else:
             LOGGER.info("getting the source file list")
             srcFiles = self.srcObjStoreUtil.listObjects(returnFileNamesOnly=True)
-            with open(self.srcCacheFile, 'w') as fh:
-                json.dump(srcFiles, fh)
-        if os.path.exists(self.destCacheFile):
+            if cache:
+                with open(self.srcCacheFile, 'w') as fh:
+                    json.dump(srcFiles, fh)
+        if cache and os.path.exists(self.destCacheFile):
             with open(self.destCacheFile, 'r') as fh:
                 destFiles = json.load(fh)
         else:
             LOGGER.info("getting the destination file list")
             destFiles = self.destObjStoreUtil.listObjects(returnFileNamesOnly=True)
-            with open(self.destCacheFile, 'w') as fh:
-                json.dump(destFiles, fh)
+            if cache:
+                with open(self.destCacheFile, 'w') as fh:
+                    json.dump(destFiles, fh)
         return srcFiles, destFiles
 
-    def moveFile(self, srcBucketname, srcFilename):
+    def moveFiles(self):
         """pulls the file down that is described by the bucket / filename
         combination, and copies it to the destination.
 
@@ -160,22 +125,96 @@ class ConsolidateStorage:
             #destFiles = self.destObjStoreUtil.listObjects(returnFileNamesOnly=True)
             for srcFile in srcFiles:
                 if srcFile not in destFiles:
-                    tmpPath = os.path.join(constants.TMP_FOLDER, srcFile)
-                    if os.path.exists(tmpPath):
-                        os.remove(tmpPath)
-                    LOGGER.debug(f"getting the file: {srcFile}")
-                    self.srcObjStoreUtil.getObject(srcFile, tmpPath)
-                    LOGGER.debug(f"putting the file: {srcFile}")
-                    self.destObjStoreUtil.putObject(srcFile, tmpPath)
-                    srcFiles.remove(srcFile)
-                    destFiles.append(srcFile)
-                    # remove the temp file
-                    if os.path.exists(tmpPath):
-                        os.remove(tmpPath)
+                    self.moveFile(srcFile)
         except:
             LOGGER.warning("error detected, caching file copy status")
             self.cacheSrcDest(srcFiles, destFiles)
             raise
+
+    def moveFile(self, srcFile):
+        tmpPath = os.path.join(constants.TMP_FOLDER, srcFile)
+        if os.path.exists(tmpPath):
+            os.remove(tmpPath)
+        LOGGER.debug(f"getting the file: {srcFile}")
+        self.srcObjStoreUtil.getObject(srcFile, tmpPath)
+        LOGGER.debug(f"putting the file: {srcFile}")
+        self.destObjStoreUtil.putObject(srcFile, tmpPath)
+        #srcFiles.remove(srcFile)
+        #destFiles.append(srcFile)
+        self.destObjStoreUtil.setPublicPermissions(srcFile)
+        LOGGER.info(f"moved and set permissions on {srcFile}")
+        # remove the temp file
+        if os.path.exists(tmpPath):
+            os.remove(tmpPath)
+
+    def makePublic(self, srcFile):
+        self.destObjStoreUtil.setPublicPermissions(srcFile)
+
+    def moveFilesAsync(self):
+        """
+
+        https://alexwlchan.net/2019/10/adventures-with-concurrent-futures/
+        """
+        srcFiles, destFiles = self.getFileLists()
+        LOGGER.info(f"file to move: {len(srcFiles)}")
+        LOGGER.info(f"files in destination: {len(destFiles)}")
+
+        self.srcObjStoreUtil.createBotoClient()
+        self.destObjStoreUtil.createBotoClient()
+
+        CONCURRENT_TASKS_BUNDLE = 10
+        #MAX_WORKERS = 10
+
+        files2Move = []
+        for srcFile in srcFiles:
+            if srcFile not in destFiles:
+                files2Move.append(srcFile)
+        LOGGER.info(f"files to be moved: {len(files2Move)}")
+
+        files2MoveIter = iter(files2Move)
+
+        completed = 0
+
+        # creating a pointer to the method that will be called by the various
+        # threads
+        method = self.moveFile
+        #method = self.makePublic
+
+        # self.destObjStoreUtil.setPublicPermissions(srcFile)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=CONCURRENT_TASKS_BUNDLE) as executor:
+            futures = {}
+            cnt = 0
+            for file2Move in itertools.islice(files2MoveIter, CONCURRENT_TASKS_BUNDLE):
+                fut = executor.submit(method, file2Move)
+                futures[fut] = file2Move
+                cnt += 1
+            LOGGER.info(f'stack size: {cnt}')
+
+            while futures:
+                done, _ = concurrent.futures.wait(
+                    futures, return_when=concurrent.futures.FIRST_COMPLETED
+                )
+                completed += len(done)
+                if not completed % 100:
+                    LOGGER.info(
+                        f"total completed: {completed} of {len(files2Move)} (pkgs in loop: {len(done)})"
+                    )
+                for fut in done:
+                    futures.pop(fut)
+                    # you can retrieve the original task using: futures.pop(fut)
+                    # can add error catching and re-add to executor here
+                    data = fut.result()
+                for file2Move in itertools.islice(files2MoveIter, len(done)):
+                    # LOGGER.debug(f"adding: {pkgName} to the queue")
+                    # adding the package name to the url, as a param
+                    fut = executor.submit(method, file2Move)
+                    futures[fut] = file2Move
+
+
+    def publishFile(self, fileName):
+        LOGGER.debug(f"publishing filename: {fileName}")
+        self.destObjStoreUtil.setPublicPermissions(fileName)
 
     def cacheSrcDest(self, srcFiles, destFiles):
         """getting a file list from source and destination can be time
@@ -189,10 +228,9 @@ class ConsolidateStorage:
             json.dump(destFiles, fh)
 
 
-
-
 if __name__ == '__main__':
-    LOGGER.setLevel(logging.DEBUG)
+    #LOGGER.setLevel(logging.DEBUG)
+    LOGGER.setLevel(logging.INFO)
     hndlr = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s')
     hndlr.setFormatter(formatter)
@@ -202,7 +240,16 @@ if __name__ == '__main__':
     urllibLog = logging.getLogger('urllib3.connectionpool')
     urllibLog.setLevel(logging.INFO)
 
-    wrfIndexFile = 'wrf_fileindex.csv'
-    cons = ConsolidateStorage(csvFile=wrfIndexFile)
-    cons.getWRFIndexFile()
-    cons.consolidate()
+    botoLogTypes = ['botocore.retryhandler', 'botocore.hooks', 'botocore.parsers',
+                'botocore.httpsession', 'botocore.endpoint', 'botocore.auth',
+                'botocore.loaders', 'botocore.client']
+    for botoLogType in botoLogTypes:
+        botoLog = logging.getLogger(botoLogType)
+        botoLog.setLevel(logging.INFO)
+
+    utilLog = logging.getLogger('objStoreUtil')
+    utilLog.setLevel(logging.INFO)
+
+    cons = ConsolidateStorage()
+    #cons.consolidate()
+    cons.moveFilesAsync()

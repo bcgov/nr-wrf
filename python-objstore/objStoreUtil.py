@@ -291,6 +291,7 @@ class ObjectStoreUtil:
         """
         if objStoreBucket is None:
             objStoreBucket = self.objStoreBucket
+        self.createBotoClient()
 
         resp = self.botoClient.put_object_acl(
                     ACL="public-read",
