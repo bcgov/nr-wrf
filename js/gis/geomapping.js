@@ -273,7 +273,8 @@ require([
 			// add the files required to unzip all the files, and process them
 			urls.push(baseUrl + "7z.exe");
 			urls.push(baseUrl + "m3d_bild.exe");
-
+			//urls.push(baseUrl + "start.bat");
+			//urls.push(baseUrl + "readme.txt");
 			urls.forEach(function(url){
 				var msg = "Downloading Files";
 				// loading a file and add it in a zip file
