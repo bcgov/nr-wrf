@@ -18,6 +18,7 @@ require([
   "esri/geometry/support/geodesicUtils",
   "esri/geometry/Geometry",
   "esri/geometry/Extent",
+  "esri/widgets/CoordinateConversion",
   "dojo/domReady!"
 ], function (esriConfig,
 			 Map, 
@@ -37,7 +38,8 @@ require([
 			 Circle, 
 			 geodesicUtils,
 			 Geometry,
-			 Extent) {
+			 Extent,
+			 CoordinateConversion) {
 
       const graphicsLayer = new GraphicsLayer();
       esriConfig.apiKey = "AAPK1c42e0bed09a4c5e9cd405eb8aa385be8iJCXX-m6zsVighHNzd5NLLVAhwtmAUOE5ZqrPseB8GuryyEHumQSDFtQJjjY3g_";
@@ -56,6 +58,12 @@ require([
         zoom: 6, // scale: 72223.819286
         container: "viewDiv",
       });
+
+	  const ccWidget = new CoordinateConversion({
+		view: view
+	  });
+
+	  view.ui.add(ccWidget, "bottom-right");
 	  
 	  const sketch = new Sketch({
           layer: graphicsLayer,
@@ -127,16 +135,6 @@ require([
 				}
 		}  	  
       
-	  // show coords on the map, based on current mouse cursor location
-      function showCoordinates(pt) {
-    	  var coords =
-    	    "Lat/Lon " +
-    	    pt.latitude.toFixed(3) +
-    	    " " +
-    	    pt.longitude.toFixed(3);
-    	  coordsWidget.innerHTML = coords;
-    	}
-
 		// reads the config file into memory, replacing the parameters using the user selected data
 		function getConfig(url, 
 						   isyear, 
@@ -312,14 +310,6 @@ require([
 
 		}
      
-      view.watch("stationary", function (isStationary) {
-    	  showCoordinates(view.center);
-    	});
-
-    	view.on("pointer-move", function (evt) {
-    	  showCoordinates(view.toMap({ x: evt.x, y: evt.y }));
-    	});
-
       // Perform the "Search 1" function.  Given a point (lat/long), draw a square
       // equidistance from the point using the distance provided by distanceFromPoint
       search1 = function() {  
