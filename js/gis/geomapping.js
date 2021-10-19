@@ -53,7 +53,7 @@ require([
       const view = new MapView({
         map: map,
         center: [-124.8563, 55.6913],
-        zoom: 5, // scale: 72223.819286
+        zoom: 6, // scale: 72223.819286
         container: "viewDiv",
       });
 	  
@@ -133,11 +133,7 @@ require([
     	    "Lat/Lon " +
     	    pt.latitude.toFixed(3) +
     	    " " +
-    	    pt.longitude.toFixed(3) +
-    	    " | Scale 1:" +
-    	    Math.round(view.scale * 1) / 1 +
-    	    " | Zoom " +
-    	    view.zoom;
+    	    pt.longitude.toFixed(3);
     	  coordsWidget.innerHTML = coords;
     	}
 
@@ -161,21 +157,20 @@ require([
 			request.send(null);
 			if (request.status === 200) {
 				var configText = request.responseText;
-				
-				configText = configText.replace("! ISYEAR = 2012 !","! ISYEAR = " + isyear + " !");
-				configText = configText.replace("! ISMONTH = 1 !","! ISMONTH = " + ismonth + " !");
-				configText = configText.replace("! ISDAY = 1 !","! ISDAY = " + isday + " !");
-				configText = configText.replace("! ISHOUR = 0 !","! ISHOUR = " + ishour + " !");
+				configText = configText.replace("! ISYEAR = 2012 !","! ISYEAR = ".concat(isyear).concat(" !"));
+				configText = configText.replace("! ISMONTH = 1 !","! ISMONTH = ".concat(ismonth).concat(" !"));
+				configText = configText.replace("! ISDAY = 1 !","! ISDAY = ".concat(isday).concat(" !"));
+				configText = configText.replace("! ISHOUR = 0 !","! ISHOUR = ".concat(ishour).concat(" !"));
 
-				configText = configText.replace("! IEYEAR = 2012 !","! IEYEAR = " + ieyear + " !");
-				configText = configText.replace("! IEMONTH = 1 !","! IEMONTH = " + iemonth + " !");
-				configText = configText.replace("! IEDAY = 1 !","! IEDAY = " + ieday + " !");
-				configText = configText.replace("! IEHOUR = 0 !","! IEHOUR = " + iehour + " !");
+				configText = configText.replace("! IEYEAR = 2012 !","! IEYEAR = ".concat(ieyear).concat(" !"));
+				configText = configText.replace("! IEMONTH = 3 !","! IEMONTH = ".concat(iemonth).concat(" !"));
+				configText = configText.replace("! IEDAY = 1 !","! IEDAY = ".concat(ieday).concat(" !"));
+				configText = configText.replace("! IEHOUR = 0 !","! IEHOUR = ".concat(iehour).concat(" !"));
 
-				configText = configText.replace("! NI1 = 2 !","! NI1 = " + ni1 + " !");
-				configText = configText.replace("! NI2 = 3 !","! NI2 = " + ni2 + " !");
-				configText = configText.replace("! NJ1 = 392 !","! NJ1 = " + nj1 + " !");
-				configText = configText.replace("! NJ2 = 392 !","! NJ2 = " + nj2 + " !");
+				configText = configText.replace("! NI1 = 2 !","! NI1 = ".concat(ni1).concat(" !"));
+				configText = configText.replace("! NI2 = 3 !","! NI2 = ".concat(ni2).concat(" !"));
+				configText = configText.replace("! NJ1 = 392 !","! NJ1 = ".concat(nj1).concat(" !"));
+				configText = configText.replace("! NJ2 = 392 !","! NJ2 = ".concat(nj2).concat(" !"));
 				
 				return configText;
 			} else {
@@ -258,7 +253,6 @@ require([
 			var endDay = endDate.getDate();
 			var endHour = endDate.getHours();
 			
-			
 			var stitchingConfig = getConfig(baseUrl + "m3d_bild_temp.inp", 
 											startYear, 
 											startMonth, 
@@ -269,8 +263,8 @@ require([
 											endDay,
 											endHour,
 											xStart,
-											yStart,
 											xEnd,
+											yStart,
 											yEnd
 											);
 			
@@ -369,7 +363,7 @@ require([
 					new Point(
 							{x: centerPoint.longitude, y: centerPoint.latitude}
 					),
-					distanceFromPoint,
+					distanceFromPoint + 40000,
 					270);
 			var rightPoint = geodesicUtils.pointFromDistance(
 					new Point(
@@ -380,7 +374,7 @@ require([
 
 			var topRightPoint = geodesicUtils.pointFromDistance(
 					rightPoint,
-					distanceFromPoint,
+					distanceFromPoint + 40000,
 					0);
 
 			var bottomRightPoint = geodesicUtils.pointFromDistance(
@@ -389,7 +383,7 @@ require([
 					180);
 			var topLeftPoint = geodesicUtils.pointFromDistance(
 					leftPoint,
-					distanceFromPoint,
+					distanceFromPoint + 40000,
 					0);
 			var bottomLeftPoint = geodesicUtils.pointFromDistance(
 					leftPoint,
@@ -460,6 +454,34 @@ require([
     	  	var s2Longitude2 = $("#s2Longitude2").val(); 
 			var s2StartDate = $("#startDate").val();
 			var s2EndDate = $("#endDate").val();
+			
+			var s2Point1Offset = geodesicUtils.pointFromDistance(
+					new Point(
+							{x: s2Longitude1, y: s2Latitude1}
+					),
+					40000,
+					90);
+					
+			s2Point1Offset = geodesicUtils.pointFromDistance(
+					new Point(
+							{x: s2Point1Offset.longitude, y: s2Point1Offset.latitude}
+					),
+					40000,
+					270);
+					
+			var s2Point2Offset = geodesicUtils.pointFromDistance(
+					new Point(
+							{x: s2Longitude2, y: s2Latitude2}
+					),
+					40000,
+					90);
+					
+			s2Point2Offset = geodesicUtils.pointFromDistance(
+					new Point(
+							{x: s2Point2Offset.longitude, y: s2Point2Offset.latitude}
+					),
+					40000,
+					270);
     	  	
     	  	
 			if (!validateDate(s2StartDate)) {
@@ -493,16 +515,14 @@ require([
 				return;					
 			}
 
-			
-			
 			var polygon = {
 					  type: "polygon",
 					  rings: [
-					    [s2Longitude1, s2Latitude1],
-					    [s2Longitude1, s2Latitude2],
-					    [s2Longitude2, s2Latitude2],
-					    [s2Longitude2, s2Latitude1],
-					    [s2Longitude1, s2Latitude1]
+					    [s2Point1Offset.longitude, s2Point1Offset.latitude],
+					    [s2Point1Offset.longitude, s2Point2Offset.latitude],
+					    [s2Point2Offset.longitude, s2Point2Offset.latitude],
+					    [s2Point2Offset.longitude, s2Point1Offset.latitude],
+					    [s2Point1Offset.longitude, s2Point1Offset.latitude]
 					  ]
 			};
 			
