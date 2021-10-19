@@ -41,8 +41,8 @@ if __name__ == "__main__":
             )
             objUtil.setPublicPermissions(objStoreObjDict["object_name"])
         # Testing... limit the number of iterations
-        # if cnt > 20:
-        #     raise
+        if cnt > 3:
+            raise
         cnt += 1
     # pub.statObject(constants.TEST_OBJ_NAME)
     # pubPermission = pub.getPublicPermission(constants.TEST_OBJ_NAME)

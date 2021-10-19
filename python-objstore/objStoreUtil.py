@@ -13,6 +13,7 @@ import logging
 
 import boto3
 import minio
+import os
 
 import constants
 
@@ -20,12 +21,47 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ObjectStoreUtil:
-    def __init__(self):
-        print(f"----{constants.OBJ_STORE_HOST}----")
+    def __init__(self, objStoreHost=None, objStoreUser=None,
+                 objStoreSecret=None, objStoreBucket=None, tmpfolder=None):
+        """[summary]
+
+        :param objStoreHost: [if provided will use this as the object storage
+                             host, if not will use the host described in the
+                             environment variable: OBJ_STORE_HOST]
+        :type objStoreHost: [type], optional
+        :param objStoreUser: [description], defaults to None
+        :type objStoreUser: [type], optional
+        :param objStoreSecret: [description], defaults to None
+        :type objStoreSecret: [type], optional
+        """
+        self.objStoreHost = objStoreHost
+        self.objStoreUser = objStoreUser
+        self.objStoreSecret = objStoreSecret
+        self.objStoreBucket = objStoreBucket
+        self.tmpfolder = tmpfolder
+
+        if self.objStoreHost is None:
+            self.objStoreHost = constants.OBJ_STORE_HOST
+        if self.objStoreUser is None:
+            self.objStoreUser = constants.OBJ_STORE_USER
+        if self.objStoreSecret is None:
+            self.objStoreSecret = constants.OBJ_STORE_SECRET
+        if self.objStoreBucket is None:
+            self.objStoreBucket = constants.OBJ_STORE_BUCKET
+        # populate a temp folder variable.. if none is provided as an
+        # arg or in a constants variable then just use the current
+        # directory
+        if self.tmpfolder is None:
+            if hasattr(constants, 'TMP_FOLDER'):
+                self.tmpfolder = constants.TMP_FOLDER
+            else:
+                self.tmpfolder = os.path.dirname(__file__)
+
+        LOGGER.debug(f"obj store host: {self.objStoreHost}")
         self.minIoClient = minio.Minio(
-            constants.OBJ_STORE_HOST,
-            constants.OBJ_STORE_USER,
-            constants.OBJ_STORE_SECRET,
+            self.objStoreHost,
+            self.objStoreUser,
+            self.objStoreSecret,
         )
         # minio doesn't provide access to ACL's for buckets and objects
         # so using boto when that is required.  Methods that use the boto
@@ -33,7 +69,44 @@ class ObjectStoreUtil:
         self.botoClient = None
         self.botoSession = None
 
-    def listObjects(self, inDir=None):
+    def getObject(self, filePath, localPath, bucketName=None):
+        if not bucketName:
+            bucketName = self.objStoreBucket
+        retVal = self.minIoClient.fget_object(
+            bucket_name=bucketName,
+            object_name=filePath,
+            file_path=localPath
+        )
+        #retDict = self.getObjAsDict(retVal)
+        #LOGGER.debug(f"object get response: {retDict}")
+
+    def putObject(self, destPath, localPath, bucketName=None):
+        """just a wrapper method around the minio fput.  Makes it a
+        little easier to call.
+
+        :param localPath: the path to the file in the locally accessible file
+                          system
+        :type localPath: str
+        :param destPath: the path in the object storage where the file should
+                         be written.
+        :type destPath:
+        :param bucketName: [description], defaults to None
+        :type bucketName: [type], optional
+        """
+        if not bucketName:
+            bucketName = self.objStoreBucket
+
+        retVal = self.minIoClient.fput_object(
+            bucket_name=bucketName,
+            object_name=destPath,
+            file_path=localPath
+        )
+        #retDict = self.getObjAsDict(retVal)
+        #LOGGER.debug(f'object store returned: {retDict}')
+
+
+
+    def listObjects(self, inDir=None, recursive=True, returnFileNamesOnly=False):
         """lists the objects in the object store.  Run's recursive, if
         inDir arg is provided only lists objects that fall under that
         directory
@@ -46,9 +119,15 @@ class ObjectStoreUtil:
         :rtype: list
         """
         objects = self.minIoClient.list_objects(
-            constants.OBJ_STORE_BUCKET, recursive=True, prefix=inDir
+            self.objStoreBucket, recursive=recursive, prefix=inDir
         )
-        return objects
+        retVal = objects
+        if returnFileNamesOnly:
+            retVal = []
+            for obj in objects:
+                retVal.append(obj.object_name)
+
+        return retVal
 
     def logObjectProperties(self, inObject):
         """write to the log the properties / values of the specified
@@ -77,6 +156,7 @@ class ObjectStoreUtil:
         for attr in dir(inObject):
             if attr[0] != '_':
                 retDict[attr] = getattr(inObject, attr)
+
         return retDict
 
     def statObject(self, objectName):
@@ -86,12 +166,13 @@ class ObjectStoreUtil:
         :type objectName: str
         """
         stat = self.minIoClient.stat_object(
-                    constants.OBJ_STORE_BUCKET,
+                    self.objStoreBucket,
                     objectName)
         # self.__logObjectProperties(stat)
         return stat
 
-    def createBotoClient(self):
+    def createBotoClient(self, objStoreUser=None, objectStoreSecret=None,
+                         objStoreHost=None):
         """Checks to see if a boto connection has been made, if not then
         uses the following constants to build the connection:
 
@@ -99,6 +180,13 @@ class ObjectStoreUtil:
         client secret:  constants.OBJ_STORE_SECRET
         s3 host:        constants.OBJ_STORE_HOST
         """
+        if objStoreUser is None:
+            objStoreUser = self.objStoreUser
+        if objectStoreSecret is None:
+            objStoreSecret = self.objStoreSecret
+        if objStoreHost is None:
+            objStoreHost = self.objStoreHost
+
         if self.botoSession is None:
             self.botoSession = boto3.session.Session()
 
@@ -111,12 +199,12 @@ class ObjectStoreUtil:
         if self.botoClient is None:
             self.botoClient = self.botoSession.client(
                 service_name="s3",
-                aws_access_key_id=constants.OBJ_STORE_USER,
-                aws_secret_access_key=constants.OBJ_STORE_SECRET,
-                endpoint_url=f"https://{constants.OBJ_STORE_HOST}",
+                aws_access_key_id=objStoreUser,
+                aws_secret_access_key=objStoreSecret,
+                endpoint_url=f"https://{objStoreHost}",
             )
 
-    def getPublicPermission(self, objectName):
+    def getPublicPermission(self, objectName, objStoreBucket):
         """uses the boto3 module to communicate with the S3 service and retrieve
         the ACL's.  Parses the acl and return the permission that is associated
         with public access.
@@ -152,10 +240,13 @@ class ObjectStoreUtil:
         is looking for.  Also only expecting a single record that meets those
         criteria
         """
+        if objStoreBucket is None:
+            objStoreBucket = self.objStoreBucket
+
         self.createBotoClient()
         permission = None
         results = self.botoClient.get_object_acl(
-            Bucket=constants.OBJ_STORE_BUCKET, Key=objectName
+            Bucket=objStoreBucket, Key=objectName
         )
         LOGGER.debug(f"ACL permissions: {results}")
         for grants in results["Grants"]:
@@ -179,7 +270,7 @@ class ObjectStoreUtil:
                 permission = grants["Permission"]
         return permission
 
-    def setPublicPermissions(self, objectName):
+    def setPublicPermissions(self, objectName, objStoreBucket=None):
         """Sets the input object that exists in object store to be public
         Read.
 
@@ -198,22 +289,29 @@ class ObjectStoreUtil:
         :param objectName: [description]
         :type objectName: [type]
         """
+        if objStoreBucket is None:
+            objStoreBucket = self.objStoreBucket
+        self.createBotoClient()
+
         resp = self.botoClient.put_object_acl(
                     ACL="public-read",
-                    Bucket=constants.OBJ_STORE_BUCKET,
+                    Bucket=objStoreBucket,
                     Key=objectName
         )
         LOGGER.debug(f"resp: {resp}")
 
-    def getPresignedUrl(self, objectName):
+    def getPresignedUrl(self, objectName, objectBucket=None):
         """
         Gets the name of an object and returns the presigned url
 
         :param objectName: object name / key that exists in the object store
         :type objectName: str
         """
+        if objectBucket is None:
+            objectBucket = self.objStoreBucket
+
         presignUrl = self.minIoClient.get_presigned_url(
-            bucket_name=constants.OBJ_STORE_BUCKET,
+            bucket_name=objectBucket,
             object_name=objectName,
             method="GET"
         )
