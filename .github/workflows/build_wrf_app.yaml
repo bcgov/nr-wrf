@@ -15,8 +15,8 @@ on:
       - LICENSE
       - README.md
       - code_of_conduct.md
-      - python-objstore
       - pyproject.toml
+      - python-objstore/**
 
 jobs:
   # This workflow contains a single job called "build"
