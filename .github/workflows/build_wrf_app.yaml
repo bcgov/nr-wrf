@@ -58,7 +58,6 @@ jobs:
       uses: docker/build-push-action@v2
       with:
         push: true # Will only build if this is not here
-        #context: client
         tags: |
           ghcr.io/${{ github.repository_owner }}/wrf-frontend:latest
           ghcr.io/${{ github.repository_owner }}/wrf-frontend:${{ steps.calculateImageTag.outputs.DATESTAMP }}
