@@ -3,42 +3,22 @@ require([
   "esri/Map",
   "esri/views/MapView",
   "esri/layers/FeatureLayer",
-  "esri/portal/Portal",
-  "esri/identity/OAuthInfo",
-  "esri/identity/IdentityManager",
-  "esri/portal/PortalQueryParams",
   "esri/layers/GraphicsLayer",
   "esri/widgets/Sketch",
-  "esri/views/2d/draw/Draw",
   "esri/Graphic",
-  "esri/geometry/Polyline",
-  "esri/geometry/Polygon",
   "esri/geometry/Point",
-  "esri/geometry/Circle",
   "esri/geometry/support/geodesicUtils",
-  "esri/geometry/Geometry",
-  "esri/geometry/Extent",
   "esri/widgets/CoordinateConversion",
   "dojo/domReady!"
 ], function (esriConfig,
 			 Map, 
 			 MapView, 
 			 FeatureLayer, 
-			 Portal, 
-			 OAuthInfo, 
-			 esriId, 
-			 PortalQueryParams, 
 			 GraphicsLayer, 
 			 Sketch, 
-			 Draw, 
 			 Graphic, 
-			 Polyline,
-			 Polygon, 
 			 Point, 
-			 Circle, 
 			 geodesicUtils,
-			 Geometry,
-			 Extent,
 			 CoordinateConversion) {
 
       const graphicsLayer = new GraphicsLayer();
@@ -47,9 +27,9 @@ require([
         basemap: "arcgis-topographic", // Basemap layer
         layers: [graphicsLayer]
       });
-      const layer = new FeatureLayer("https://services6.arcgis.com/ubm4tcTYICKBpist/arcgis/rest/services/wrf_fileindex/FeatureServer",
+      const layer = new FeatureLayer("https://services3.arcgis.com/U26uBjSD32d7xvm2/arcgis/rest/services/wrf_fileindex/FeatureServer",
     		  	{
-    	  			opacity: 0.1,
+    	  			visible: false,
 					outFields: ["*"]
     		  	});
       const view = new MapView({
@@ -121,7 +101,7 @@ require([
 						
 				if (results.features.length == 0) {
 					alert("No shape files were found in the selected area");
-				} else if (results.features.length > 50) {
+				} else if (results.features.length > 5000) {
 					alert("The area you have selected contains more than 50 files.  Please constrain your search to a small area or time period.");
 				} else {
 					graphics = results.features;
@@ -191,45 +171,7 @@ require([
 			
 			var xEnd = 1;
 			var yEnd = 1;
-			
-			
-			// prepare a list of urls representing the files that we'll be downloading
-			graphics.forEach((result, index) => {
-				const attributes = result.attributes;
-				var fileName = attributes.filename;
-				var imageUrl = baseUrl +  fileName;
-				
-			   // determine x/y values
-			   // The files are in the format x###y###x###y###.yyyymm.10x10x
-			   // We can determine the minimum and maximum xy coordinates by looking at all the file names.
-			   var x1 = fileName.substring(1,4);
-			   var y1 = fileName.substring(5,8);
-			   var x2 = fileName.substring(9,12);
-			   var y2 = fileName.substring(13,16);
-			   
-			   if (x1 < xStart) {
-				   xStart = x1;
-			   }
-			   
-			   if (y1 < yStart) {
-				   yStart = y1;
-			   }
-			   
-			   if (x2 > xEnd) {
-				   xEnd = x2;
-			   }
-			   
-			   if (y2 > yEnd) {
-				   yEnd = y2;
-			   }
 
-				objectStorage = attributes.objectstorage;
-				if (objectStorage.includes("kadkvt")) {
-					urls.push(imageUrl);
-				}
-
-			});
-			
 			var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
 			
 			
@@ -251,6 +193,43 @@ require([
 			var endDay = endDate.getDate();
 			var endHour = endDate.getHours();
 			
+			
+			// prepare a list of urls representing the files that we'll be downloading
+			graphics.forEach((result, index) => {
+				var attributes = result.attributes;
+				
+			
+				
+			   // determine x/y values
+			   // The files are in the format x###y###x###y###.yyyymm.10x10x
+			   // We can determine the minimum and maximum xy coordinates by looking at all the file names.
+			   var i = attributes.i;
+			   var j = attributes.j;
+			   console.log(i + "," + j + " (" + attributes.lat+ "," + attributes.long + ")");
+			   //var imageUrl = baseUrl +  fileName;
+			   
+			   if (i < xStart) {
+				   xStart = i;
+			   }
+			   
+			   if (j < yStart) {
+				   yStart = j;
+			   }
+			   
+			   if (i > xEnd) {
+				   xEnd = i;
+			   }
+			   
+			   if (j > yEnd) {
+				   yEnd = j;
+			   }
+
+				//urls.push(imageUrl);
+				
+			});
+			
+			
+			
 			var stitchingConfig = getConfig(baseUrl + "m3d_bild_temp.inp", 
 											startYear, 
 											startMonth, 
@@ -266,7 +245,7 @@ require([
 											yEnd
 											);
 			
-			
+			alert("i0=" + xStart + " j0=" + yStart + "\ni1=" + xEnd + " j1=" + yEnd);
 			zip.file("m3d_bild.inp",stitchingConfig);
 			
 			
@@ -354,7 +333,7 @@ require([
 					new Point(
 							{x: centerPoint.longitude, y: centerPoint.latitude}
 					),
-					distanceFromPoint + 40000,
+					distanceFromPoint,
 					270);
 			var rightPoint = geodesicUtils.pointFromDistance(
 					new Point(
@@ -365,7 +344,7 @@ require([
 
 			var topRightPoint = geodesicUtils.pointFromDistance(
 					rightPoint,
-					distanceFromPoint + 40000,
+					distanceFromPoint,
 					0);
 
 			var bottomRightPoint = geodesicUtils.pointFromDistance(
@@ -374,7 +353,7 @@ require([
 					180);
 			var topLeftPoint = geodesicUtils.pointFromDistance(
 					leftPoint,
-					distanceFromPoint + 40000,
+					distanceFromPoint,
 					0);
 			var bottomLeftPoint = geodesicUtils.pointFromDistance(
 					leftPoint,
@@ -417,7 +396,7 @@ require([
 			         spatialRelationship: "intersects", // Relationship operation to apply
 			         geometry: polygon,  // The sketch feature geometry
 			         returnGeometry: true,
-			         where: "date >= '" + s1StartDate.substring(0, 10)  + "' and date <= '" + s1EndDate.substring(0, 10) + "'",
+			         //where: "date >= '" + s1StartDate.substring(0, 10)  + "' and date <= '" + s1EndDate.substring(0, 10) + "'",
 			         outFields: ["*"]
 			};
 			
@@ -450,30 +429,30 @@ require([
 					new Point(
 							{x: s2Longitude1, y: s2Latitude1}
 					),
-					40000,
-					90);
-					
+					0,
+					270);
+
 			s2Point1Offset = geodesicUtils.pointFromDistance(
 					new Point(
 							{x: s2Point1Offset.longitude, y: s2Point1Offset.latitude}
 					),
-					40000,
-					270);
+					0,
+					180);
 					
 			var s2Point2Offset = geodesicUtils.pointFromDistance(
 					new Point(
 							{x: s2Longitude2, y: s2Latitude2}
 					),
-					40000,
-					90);
-					
+					0,
+					0);
+		
 			s2Point2Offset = geodesicUtils.pointFromDistance(
-					new Point(
-							{x: s2Point2Offset.longitude, y: s2Point2Offset.latitude}
-					),
-					40000,
-					270);
-    	  	
+						new Point(
+								{x: s2Point2Offset.longitude, y: s2Point2Offset.latitude}
+						),
+						0,
+						90);
+
     	  	
 			if (!validateDate(s2StartDate)) {
 				return;
@@ -540,10 +519,10 @@ require([
 			view.center = [maxLongitude,maxLatitude]; 
 
 			const modelQuery = {
-			         spatialRelationship: "intersects", // Relationship operation to apply
+			         spatialRelationship: "contains", // Relationship operation to apply
 			         geometry: polygon,  // The sketch feature geometry
 			         returnGeometry: true,
-			         where: "date >= '" + s2StartDate.substring(0, 10)  + "' and date <= '" + s2EndDate.substring(0, 10)  + "'",
+			         //where: "date >= '" + s2StartDate.substring(0, 10)  + "' and date <= '" + s2EndDate.substring(0, 10)  + "'",
 			         outFields: ["*"]
 			};
 			
