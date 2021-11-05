@@ -205,7 +205,7 @@ require([
 			   // We can determine the minimum and maximum xy coordinates by looking at all the file names.
 			   var i = attributes.i;
 			   var j = attributes.j;
-			   console.log(i + "," + j + " (" + attributes.lat+ "," + attributes.long + ")");
+			   console.log(i + "," + j + " (" + attributes.lat+ "," + attributes.long + ")")
 			   //var imageUrl = baseUrl +  fileName;
 			   
 			   if (i < xStart) {
