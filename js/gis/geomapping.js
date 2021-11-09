@@ -87,7 +87,13 @@ require([
 		if (event.action.id === "download-action") {
 			view.popup.actions.removeAll(); // to prevent clicking the download again
 			view.popup.content = "Preparing download... please wait";
-			downloadModelData();
+			//downloadModelData();
+			var minJ = calculateMinimumJ(53.374);
+			var maxJ = calculateMaximumJ(54.448);
+			var minI = calculateMinimumI(-123.274, 171, 228);
+			var maxI = calculateMaximumI(-123.274, 171, 228);
+
+			alert(minJ + " " + maxJ + " " + minI + " " + maxI);
 		}
 	});
 
@@ -155,6 +161,157 @@ require([
 				return "";
 			}
 		}
+
+		function calculateMinimumJ(latitude) {
+			fetch('../../data/domaininfo_bcwrf.csv')
+				.then(function(response) {
+				return response.text()
+			})
+			.then(function(csv) {
+				// each line has the format I,J,LAT,LON
+				var lines = csv.split("\n");
+				var minJ = 2;
+				var previousJ = 2;
+				var potentialJ = true;
+				
+				for (var n = 1; n<lines.length; n++) {
+					var currentLine = lines[n].split(",");
+					var currentJ = parseInt(currentLine[1]);
+					var currentLatitude = parseFloat(currentLine[2]);
+					
+					if (currentLatitude > latitude) {
+						potentialJ = false;
+					}
+					// new J, reset the search
+					if (previousJ != currentJ && potentialJ) {
+						//alert(previousJ + " " + currentJ + " " + minJ);
+						if (previousJ > minJ) {
+							minJ = previousJ;
+							//alert(minJ);
+						}
+						potentialJ = true;
+					} else if (previousJ != currentJ) {
+						potentialJ = true;
+					}
+					previousJ = currentJ;
+
+					
+					
+				}
+				alert (minJ);
+			});
+		}
+
+		function calculateMaximumJ(latitude) {
+			fetch('../../data/domaininfo_bcwrf.csv')
+				.then(function(response) {
+				return response.text()
+			})
+			.then(function(csv) {
+				// each line has the format I,J,LAT,LON
+				var lines = csv.split("\n");
+				var maxJ = 425;
+				var previousJ = 425;
+				var potentialJ = true;
+				
+				for (var n = 1; n<lines.length; n++) {
+					var currentLine = lines[n].split(",");
+					var currentJ = parseInt(currentLine[1]);
+					var currentLatitude = parseFloat(currentLine[2]);
+					
+					if (currentLatitude < latitude) {
+						potentialJ = false;
+					}
+					// new J, reset the search
+					if ((previousJ != currentJ) && potentialJ) {
+						//alert(previousJ + " " + currentJ + " " + maxJ);
+						if (previousJ < maxJ) {
+							maxJ = parseInt(previousJ);
+							//alert(maxJ);
+						}
+						potentialJ = true;
+					} else if (previousJ != currentJ) {
+						potentialJ = true;
+					}
+
+					previousJ = currentJ;
+					
+				}
+				alert (maxJ);
+			});
+		}
+
+		function calculateMinimumI(longitude, minJ, maxJ) {
+			fetch('../../data/domaininfo_bcwrf.csv')
+				.then(function(response) {
+				return response.text()
+			})
+			.then(function(csv) {
+
+				// each line has the format I,J,LAT,LON
+				var lines = csv.split("\n");
+				var minI = 2;
+				var previousI = 2;
+				var previousLongitude = -200;
+				
+				
+				for (var n = 1; n<lines.length; n++) {
+					var currentLine = lines[n].split(",");
+					var currentI = parseInt(currentLine[0]);
+					var currentLongitude = parseFloat(currentLine[3]);
+					var currentJ = parseInt(currentLine[1]);
+					
+					if ((currentJ <= minJ) || (currentJ >= maxJ)) {
+						continue;
+					}
+
+					if (currentLongitude > previousLongitude && currentLongitude < longitude) {
+						minI = currentI;
+					}
+
+
+				}
+				alert (minI-1);
+			});
+		}
+
+		function calculateMaximumI(longitude, minJ, maxJ) {
+			fetch('../../data/domaininfo_bcwrf.csv')
+				.then(function(response) {
+				return response.text()
+			})
+			.then(function(csv) {
+
+				// each line has the format I,J,LAT,LON
+				var lines = csv.split("\n");
+				var minI = 2;
+				var previousI = 2;
+				var previousLongitude = 200;
+				
+				
+				for (var n = 1; n<lines.length; n++) {
+					var currentLine = lines[n].split(",");
+					var currentI = parseInt(currentLine[0]);
+					var currentLongitude = parseFloat(currentLine[3]);
+					var currentJ = parseInt(currentLine[1]);
+					
+					if ((currentJ <= minJ) || (currentJ >= maxJ)) {
+						continue;
+					}
+
+					if (currentLongitude < previousLongitude && currentLongitude > longitude) {
+						minI = currentI;
+					}
+
+
+				}
+				alert (minI);
+			});
+		}
+
+
+
+
 
 		
 		// download the data from the objects store
@@ -300,7 +457,7 @@ require([
 			var s1StartDate = $("#startDate").val();
 			var s1EndDate = $("#endDate").val();
     	  	
-    	  	
+    	  	/*
 			if (!validateDate(s1StartDate)) {
 				return;
 			}
@@ -322,7 +479,7 @@ require([
 				alert("You have entered a coordinate outside of the bounds of this application.");
 				return;					
 			}
-			
+			*/
 			distanceFromPoint = distanceFromPoint*1000; // convert km to meters
 							
 			var centerPoint = {
