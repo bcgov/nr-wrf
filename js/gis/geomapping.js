@@ -20,6 +20,18 @@ require([
 			 Point, 
 			 geodesicUtils,
 			 CoordinateConversion) {
+	
+	var lines;
+
+				fetch('../../data/domaininfo_bcwrf.csv')
+				.then(function(response) {
+				return response.text()
+			})
+			.then(function(csv) {
+
+				// each line has the format I,J,LAT,LON
+				lines = csv.split("\n");
+			});
 
       const graphicsLayer = new GraphicsLayer();
       esriConfig.apiKey = "AAPK1c42e0bed09a4c5e9cd405eb8aa385be8iJCXX-m6zsVighHNzd5NLLVAhwtmAUOE5ZqrPseB8GuryyEHumQSDFtQJjjY3g_";
@@ -42,6 +54,11 @@ require([
 	  const ccWidget = new CoordinateConversion({
 		view: view
 	  });
+
+	  var bottomLeftXGlobal;
+	  var bottomLeftYGlobal
+	  var topRightXGlobal;
+	  var topRightYGlobal;
 
 	  view.ui.add(ccWidget, "bottom-right");
 	  
@@ -87,13 +104,8 @@ require([
 		if (event.action.id === "download-action") {
 			view.popup.actions.removeAll(); // to prevent clicking the download again
 			view.popup.content = "Preparing download... please wait";
-			//downloadModelData();
-			var minJ = calculateMinimumJ(53.374);
-			var maxJ = calculateMaximumJ(54.448);
-			var minI = calculateMinimumI(-123.274, 171, 228);
-			var maxI = calculateMaximumI(-123.274, 171, 228);
-
-			alert(minJ + " " + maxJ + " " + minI + " " + maxI);
+			
+			downloadModelData();
 		}
 	});
 
@@ -163,18 +175,12 @@ require([
 		}
 
 		function calculateMinimumJ(latitude) {
-			fetch('../../data/domaininfo_bcwrf.csv')
-				.then(function(response) {
-				return response.text()
-			})
-			.then(function(csv) {
-				// each line has the format I,J,LAT,LON
-				var lines = csv.split("\n");
+
 				var minJ = 2;
 				var previousJ = 2;
 				var potentialJ = true;
 				
-				for (var n = 1; n<lines.length; n++) {
+				for (var n = 3; n<lines.length; n++) {
 					var currentLine = lines[n].split(",");
 					var currentJ = parseInt(currentLine[1]);
 					var currentLatitude = parseFloat(currentLine[2]);
@@ -198,23 +204,15 @@ require([
 					
 					
 				}
-				alert (minJ);
-			});
+				return (minJ);
 		}
 
 		function calculateMaximumJ(latitude) {
-			fetch('../../data/domaininfo_bcwrf.csv')
-				.then(function(response) {
-				return response.text()
-			})
-			.then(function(csv) {
-				// each line has the format I,J,LAT,LON
-				var lines = csv.split("\n");
 				var maxJ = 425;
 				var previousJ = 425;
 				var potentialJ = true;
 				
-				for (var n = 1; n<lines.length; n++) {
+				for (var n = 3; n<lines.length; n++) {
 					var currentLine = lines[n].split(",");
 					var currentJ = parseInt(currentLine[1]);
 					var currentLatitude = parseFloat(currentLine[2]);
@@ -237,25 +235,16 @@ require([
 					previousJ = currentJ;
 					
 				}
-				alert (maxJ);
-			});
+				return (maxJ);
 		}
 
 		function calculateMinimumI(longitude, minJ, maxJ) {
-			fetch('../../data/domaininfo_bcwrf.csv')
-				.then(function(response) {
-				return response.text()
-			})
-			.then(function(csv) {
-
-				// each line has the format I,J,LAT,LON
-				var lines = csv.split("\n");
 				var minI = 2;
 				var previousI = 2;
 				var previousLongitude = -200;
 				
 				
-				for (var n = 1; n<lines.length; n++) {
+				for (var n = 3; n<lines.length; n++) {
 					var currentLine = lines[n].split(",");
 					var currentI = parseInt(currentLine[0]);
 					var currentLongitude = parseFloat(currentLine[3]);
@@ -271,25 +260,16 @@ require([
 
 
 				}
-				alert (minI-1);
-			});
+				return (minI-1);
 		}
 
 		function calculateMaximumI(longitude, minJ, maxJ) {
-			fetch('../../data/domaininfo_bcwrf.csv')
-				.then(function(response) {
-				return response.text()
-			})
-			.then(function(csv) {
-
-				// each line has the format I,J,LAT,LON
-				var lines = csv.split("\n");
 				var minI = 2;
 				var previousI = 2;
 				var previousLongitude = 200;
 				
 				
-				for (var n = 1; n<lines.length; n++) {
+				for (var n = 3; n<lines.length; n++) {
 					var currentLine = lines[n].split(",");
 					var currentI = parseInt(currentLine[0]);
 					var currentLongitude = parseFloat(currentLine[3]);
@@ -300,18 +280,43 @@ require([
 					}
 
 					if (currentLongitude < previousLongitude && currentLongitude > longitude) {
+						previousLongitude = currentLongitude;
 						minI = currentI;
 					}
 
 
 				}
-				alert (minI);
-			});
+				return (minI);
 		}
 
 
 
+		function calculateMinimumTileNumber(n) {
+			if (n%10 == 2) {
+				return n;
+			} else if (n < 12) {
+				n =2;	
+			} else if (n%10 <2) {
+				n = n - 10 - (n%10) + 2;
+				
+			} else {
+				n = n - (n%10) + 2;
+			}
 
+			return n;
+		}
+
+		function calculateMaximumTileNumber(n) {
+			if (n%10 == 1) {
+				return n;
+			} else if (n%10 <1) {
+				n = n - 10 - (n%10) + 1;
+			} else {
+				n = n - (n%10) + 1;
+			}
+
+			return n;
+		}
 
 		
 		// download the data from the objects store
@@ -323,12 +328,6 @@ require([
 			var zipFilename = "nr-wrf.zip";
 			var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
 			
-			var xStart = 999;
-			var yStart = 999;
-			
-			var xEnd = 1;
-			var yEnd = 1;
-
 			var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
 			
 			
@@ -350,43 +349,38 @@ require([
 			var endDay = endDate.getDate();
 			var endHour = endDate.getHours();
 			
-			
-			// prepare a list of urls representing the files that we'll be downloading
-			graphics.forEach((result, index) => {
-				var attributes = result.attributes;
-				
-			
-				
-			   // determine x/y values
-			   // The files are in the format x###y###x###y###.yyyymm.10x10x
-			   // We can determine the minimum and maximum xy coordinates by looking at all the file names.
-			   var i = attributes.i;
-			   var j = attributes.j;
-			   console.log(i + "," + j + " (" + attributes.lat+ "," + attributes.long + ")")
-			   //var imageUrl = baseUrl +  fileName;
-			   
-			   if (i < xStart) {
-				   xStart = i;
-			   }
-			   
-			   if (j < yStart) {
-				   yStart = j;
-			   }
-			   
-			   if (i > xEnd) {
-				   xEnd = i;
-			   }
-			   
-			   if (j > yEnd) {
-				   yEnd = j;
-			   }
+			var minJ = calculateMinimumJ(bottomLeftYGlobal);
+			var maxJ = calculateMaximumJ(topRightYGlobal);
+			var minI = calculateMinimumI(bottomLeftXGlobal, minJ, maxJ);
+			var maxI = calculateMaximumI(topRightXGlobal, minJ, maxJ);
 
-				//urls.push(imageUrl);
-				
-			});
-			
-			
-			
+			for (var i = calculateMinimumTileNumber(minI); i <= maxI; i += 10) {
+				for (var j = calculateMinimumTileNumber(minJ); j <= maxJ; j += 10) {
+					var x1 = String("000" + i).slice(-3); //left pad x1 with zeroes
+					var y1 = String("000" + j).slice(-3);
+					var x2 = String("000" + (i + 9)).slice(-3);
+					var y2 = String("000" + (j + 9)).slice(-3);
+
+					var startingDate = new Date();
+					startingDate.setFullYear(startDate.getFullYear());
+					startingDate.setMonth(startDate.getMonth());
+					
+					var endingDate = new Date();
+					endingDate.setFullYear(endDate.getFullYear());
+					endingDate.setMonth(endDate.getMonth());
+
+					for (var tileDate = startingDate; tileDate < endingDate; tileDate = tileDate.setMonth(tileDate.getMonth() + 1)) {
+						var year = tileDate.getFullYear();
+						var month = tileDate.getMonth() + 1;
+						month = String("00" + month).slice(-2);
+						var fileName = "x" + x1 + "y" + y1 + "x" + x2 + "y" + y2+ "." + year + "" + month + ".10x10.m3d.7z";
+						alert(fileName);
+						urls.push(baseUrl + fileName);
+					}
+				}
+
+			}
+
 			var stitchingConfig = getConfig(baseUrl + "m3d_bild_temp.inp", 
 											startYear, 
 											startMonth, 
@@ -396,14 +390,15 @@ require([
 											endMonth, 
 											endDay,
 											endHour,
-											xStart,
-											xEnd,
-											yStart,
-											yEnd
+											minI,
+											maxI,
+											minJ,
+											maxJ
 											);
 			
-			alert("i0=" + xStart + " j0=" + yStart + "\ni1=" + xEnd + " j1=" + yEnd);
 			zip.file("m3d_bild.inp",stitchingConfig);
+
+
 			
 			
 			// add the files required to unzip all the files, and process them
@@ -516,6 +511,11 @@ require([
 					leftPoint,
 					distanceFromPoint,
 					180);
+			bottomLeftXGlobal = bottomLeftPoint.longitude;
+			bottomLeftYGlobal = bottomLeftPoint.latitude;
+			topRightXGlobal = topRightPoint.longitude;
+			topRightYGlobal = topRightPoint.latitude;
+
 			
 			var polygon = {
 					  type: "polygon",
@@ -582,6 +582,11 @@ require([
 			var s2StartDate = $("#startDate").val();
 			var s2EndDate = $("#endDate").val();
 			
+			bottomLeftXGlobal = s2Longitude1;
+			bottomLeftYGlobal = s2Latitude1;
+			topRightXGlobal = s2Longitude2;
+			topRightYGlobal = s2Latitude2;
+
 			var s2Point1Offset = geodesicUtils.pointFromDistance(
 					new Point(
 							{x: s2Longitude1, y: s2Latitude1}
