@@ -174,6 +174,7 @@ require([
 			}
 		}
 
+		// calculate the largest J value less than the southern boundary that the user selected
 		function calculateMinimumJ(latitude) {
 
 				var minJ = 2;
@@ -190,10 +191,9 @@ require([
 					}
 					// new J, reset the search
 					if (previousJ != currentJ && potentialJ) {
-						//alert(previousJ + " " + currentJ + " " + minJ);
+
 						if (previousJ > minJ) {
 							minJ = previousJ;
-							//alert(minJ);
 						}
 						potentialJ = true;
 					} else if (previousJ != currentJ) {
@@ -207,6 +207,7 @@ require([
 				return (minJ);
 		}
 
+		// calculate the smallest J value greater than the northern boundary that the user selected
 		function calculateMaximumJ(latitude) {
 				var maxJ = 425;
 				var previousJ = 425;
@@ -222,10 +223,8 @@ require([
 					}
 					// new J, reset the search
 					if ((previousJ != currentJ) && potentialJ) {
-						//alert(previousJ + " " + currentJ + " " + maxJ);
 						if (previousJ < maxJ) {
 							maxJ = parseInt(previousJ);
-							//alert(maxJ);
 						}
 						potentialJ = true;
 					} else if (previousJ != currentJ) {
@@ -238,9 +237,9 @@ require([
 				return (maxJ);
 		}
 
+		// calculate the largest I value less than the western boundary that the user selected, constrained by the norther/southern boundaries selected by the user
 		function calculateMinimumI(longitude, minJ, maxJ) {
 				var minI = 2;
-				var previousI = 2;
 				var previousLongitude = -200;
 				
 				
@@ -255,6 +254,7 @@ require([
 					}
 
 					if (currentLongitude > previousLongitude && currentLongitude < longitude) {
+						previousLongitude = currentLongitude;
 						minI = currentI;
 					}
 
@@ -263,9 +263,9 @@ require([
 				return (minI-1);
 		}
 
+		// calculate the smallest I value greater than the eastern boundary that the user selected, constrained by the norther/southern boundaries selected by the user
 		function calculateMaximumI(longitude, minJ, maxJ) {
 				var minI = 2;
-				var previousI = 2;
 				var previousLongitude = 200;
 				
 				
@@ -374,7 +374,6 @@ require([
 						var month = tileDate.getMonth() + 1;
 						month = String("00" + month).slice(-2);
 						var fileName = "x" + x1 + "y" + y1 + "x" + x2 + "y" + y2+ "." + year + "" + month + ".10x10.m3d.7z";
-						alert(fileName);
 						urls.push(baseUrl + fileName);
 					}
 				}
@@ -404,8 +403,8 @@ require([
 			// add the files required to unzip all the files, and process them
 			urls.push(baseUrl + "7z.exe");
 			urls.push(baseUrl + "m3d_bild.exe");
-			//urls.push(baseUrl + "start.bat");
-			//urls.push(baseUrl + "readme.txt");
+			urls.push(baseUrl + "start.bat");
+			urls.push(baseUrl + "readme.txt");
 			urls.forEach(function(url){
 				var msg = "Downloading Files";
 				// loading a file and add it in a zip file
@@ -438,9 +437,7 @@ require([
 
 				});
 			});
-
-
-		}
+	}
      
       // Perform the "Search 1" function.  Given a point (lat/long), draw a square
       // equidistance from the point using the distance provided by distanceFromPoint
@@ -452,7 +449,6 @@ require([
 			var s1StartDate = $("#startDate").val();
 			var s1EndDate = $("#endDate").val();
     	  	
-    	  	/*
 			if (!validateDate(s1StartDate)) {
 				return;
 			}
@@ -474,7 +470,6 @@ require([
 				alert("You have entered a coordinate outside of the bounds of this application.");
 				return;					
 			}
-			*/
 			distanceFromPoint = distanceFromPoint*1000; // convert km to meters
 							
 			var centerPoint = {
