@@ -370,6 +370,9 @@ require([
 		var minI = calculateMinimumI(bottomLeftXGlobal, minJ, maxJ);
 		var maxI = calculateMaximumI(topRightXGlobal, minJ, maxJ);
 
+		console.log("minJ and maxJ: " + minJ + " " + maxJ);
+		console.log("minI and maxI: " + minI + " " + maxI);
+
 		for (var i = calculateMinimumTileNumber(minI); i <= maxI; i += 10) {
 			for (var j = calculateMinimumTileNumber(minJ); j <= maxJ; j += 10) {
 				var x1 = String("000" + i).slice(-3); //left pad x1 with zeroes
