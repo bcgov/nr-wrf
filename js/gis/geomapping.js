@@ -25,7 +25,7 @@ require([
 
 	var lines;
 
-	fetch('../../domain_info/domaininfo_bcwrf.csv')
+	fetch('https://nrs.objectstore.gov.bc.ca/kadkvt/domaininfo_bcwrf.csv')
 		.then(function (response) {
 			return response.text()
 		})
