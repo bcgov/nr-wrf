@@ -49,7 +49,7 @@ require([
 	const view = new MapView({
 		map: map,
 		center: [-124.8563, 55.6913],
-		zoom: 6, // scale: 72223.819286
+		zoom: 5, // scale: 72223.819286
 		container: "viewDiv",
 	});
 
