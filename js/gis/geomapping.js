@@ -25,7 +25,7 @@ require([
 
 	var lines;
 
-	fetch('../../data/domaininfo_bcwrf.csv')
+	fetch('../../domain_info/domaininfo_bcwrf.csv')
 		.then(function (response) {
 			return response.text()
 		})
@@ -306,7 +306,8 @@ require([
 	}
 
 
-
+	// tiles have i/j coordinates ending in 2 (since each tile is 10 square kms and the i/j values start at 2)
+	// Given a number n, this function returns the greatest number less than or equal to n that ends in 2.  
 	function calculateMinimumTileNumber(n) {
 		if (n % 10 == 2) {
 			return n;
@@ -321,19 +322,6 @@ require([
 
 		return n;
 	}
-
-	function calculateMaximumTileNumber(n) {
-		if (n % 10 == 1) {
-			return n;
-		} else if (n % 10 < 1) {
-			n = n - 10 - (n % 10) + 1;
-		} else {
-			n = n - (n % 10) + 1;
-		}
-
-		return n;
-	}
-
 
 	// download the data from the objects store
 	function downloadModelData() {
