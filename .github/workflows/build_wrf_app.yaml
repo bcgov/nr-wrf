@@ -29,12 +29,13 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-20.04
     env:
+      DOCKER_BUILDKIT: 0
       DEBUG_DEPLOY: false
+
 
     steps:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v2
-      if: env.DEBUG_DEPLOY == 'false'
       id: checkout
       with:
         fetch-depth: 0
