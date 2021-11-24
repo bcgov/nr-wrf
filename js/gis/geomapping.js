@@ -255,7 +255,8 @@ require([
 
 	// calculate the largest I value less than the western boundary that the user selected, constrained by the norther/southern boundaries selected by the user
 	function calculateMinimumI(longitude, minJ, maxJ) {
-		var minI = 2;
+		var maxI1 = 2;
+		var maxI2 = 2;
 		var previousLongitude = -200;
 
 
@@ -265,25 +266,15 @@ require([
 			var currentLongitude = parseFloat(currentLine[3]);
 			var currentJ = parseInt(currentLine[1]);
 
-			if ((currentJ <= minJ) || (currentJ >= maxJ)) {
+			if (currentJ != minJ) {
 				continue;
 			}
 
 			if (currentLongitude > previousLongitude && currentLongitude < longitude) {
 				previousLongitude = currentLongitude;
-				minI = currentI;
+				maxI1 = currentI;
 			}
-
-
 		}
-		return (minI - 1);
-	}
-
-	// calculate the smallest I value greater than the eastern boundary that the user selected, constrained by the norther/southern boundaries selected by the user
-	function calculateMaximumI(longitude, minJ, maxJ) {
-		var minI = 2;
-		var previousLongitude = 200;
-
 
 		for (var n = 3; n < lines.length; n++) {
 			var currentLine = lines[n].split(",");
@@ -291,18 +282,58 @@ require([
 			var currentLongitude = parseFloat(currentLine[3]);
 			var currentJ = parseInt(currentLine[1]);
 
-			if ((currentJ <= minJ) || (currentJ >= maxJ)) {
+			if (currentJ != maxJ) {
+				continue;
+			}
+
+			if (currentLongitude > previousLongitude && currentLongitude < longitude) {
+				previousLongitude = currentLongitude;
+				maxI2 = currentI;
+			}
+		}
+
+		return Math.min(maxI1, maxI2);
+	}
+
+	// calculate the smallest I value greater than the eastern boundary that the user selected, constrained by the norther/southern boundaries selected by the user
+	function calculateMaximumI(longitude, minJ, maxJ) {
+		var minI1 = 2;
+		var minI2 = 2;
+		var previousLongitude = 200;
+
+		for (var n = 3; n < lines.length; n++) {
+			var currentLine = lines[n].split(",");
+			var currentI = parseInt(currentLine[0]);
+			var currentLongitude = parseFloat(currentLine[3]);
+			var currentJ = parseInt(currentLine[1]);
+
+			if (currentJ != minJ) {
 				continue;
 			}
 
 			if (currentLongitude < previousLongitude && currentLongitude > longitude) {
 				previousLongitude = currentLongitude;
-				minI = currentI;
+				minI1 = currentI;
+			}
+		}
+
+		for (var n = 3; n < lines.length; n++) {
+			var currentLine = lines[n].split(",");
+			var currentI = parseInt(currentLine[0]);
+			var currentLongitude = parseFloat(currentLine[3]);
+			var currentJ = parseInt(currentLine[1]);
+
+			if (currentJ != maxJ) {
+			   continue;
 			}
 
-
+			if (currentLongitude < previousLongitude && currentLongitude > longitude) {
+						   previousLongitude = currentLongitude;
+						   minI2 = currentI;
+			}
 		}
-		return (minI);
+		
+		return Math.max(minI1,minI2);
 	}
 
 
