@@ -7,8 +7,10 @@ metadata:
     env: {{ .Values.env }}
     role: {{ .Values.role }}
     route-ingress: 'true'
+    certbot-managed: 'true'
   name: {{ .Values.frontend.routename }}
 spec:
+  host: {{ .Values.routehost }}
   port:
     targetPort: 8080-tcp
   tls:
