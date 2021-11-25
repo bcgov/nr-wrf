@@ -117,6 +117,17 @@ html, body, #topicTemplate {
 			return false;
 		}
 	}
+
+	// verify that the start date is before the end date
+	function validateDateSelection(startDate, endDate) {
+		if (startDate > endDate) {
+			alert("The start date must be before the end date")
+			return false;
+		} else {
+			return true;
+		}
+	}
+
 </script>
 <script src="js/gis/geomapping.js"></script>
 
@@ -200,6 +211,12 @@ html, body, #topicTemplate {
 					</div>
 					<div class="radio">
 						<label>
+							<input type="radio" name="timezone" id="timezoneMST" value="7" >MST (-0700)
+						</label>
+					</div>
+
+					<div class="radio">
+						<label>
 							<input type="radio" name="timezone" id="timezoneUTC" value="0">UTC
 						</label>
 					</div>
@@ -228,7 +245,7 @@ html, body, #topicTemplate {
 				<h1>Weather Research and Forecasting Model (WRF) Data</h1>
                <div id="introduction">
 				
-     <p>Click the "Search" button after specifying the spatial domain and time range using any of the search tab options below. Locate and select the "DOWNLOAD Data" icon that pops up to begin downloading the WRF data package. Extract the content of the package into a dedicated folder and open the included readme file (i.e., Readme.txt) for instructions on next steps.  If you have any questions, please email <a href="mailto:bcdispersion.model@gov.bc.ca">bcdispersion.model@gov.bc.ca</a>.</p>
+     <p>Click the "Search" button after specifying the spatial domain and time range using any of the search tab options below. Locate and select the "DOWNLOAD Data" icon that pops up to begin downloading the WRF data package. Open the included readme file (i.e., Readme.txt) for instructions on next steps.  If you have any questions, please email <a href="mailto:bcdispersion.model@gov.bc.ca">bcdispersion.model@gov.bc.ca</a>.</p>
                 </div>
 			</div>
 		</div>
@@ -262,8 +279,6 @@ html, body, #topicTemplate {
 								<label for="distanceFromPoint">Distance From Centre Point</label>
 								<select class="form-control" id="distanceFromPoint"
 									data-column="3">
-									<option value="10">10km</option>
-									<option value="20">20km</option>
 									<option value="30">30km</option>
 									<option value="40">40km</option>
 									<option value="50">50km</option>
@@ -412,14 +427,14 @@ html, body, #topicTemplate {
 				changeYear : true,
 				dateFormat : 'mm/dd/yy',
 				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
+				maxDate: new Date(2016, 0, 1),
 				defaultDate: new Date(2011,0,1),
 				timeFormat: "HH:mm",
 				controlType: 'select',
 				showMinute: false,
 				onSelect: function(dateText) {
 					var sourceDate = new Date(this.value);
-					sourceDate.setMonth(sourceDate.getMonth()+1);
+					sourceDate.setFullYear(sourceDate.getFullYear()+1);
 					$( "#endDate" ).datepicker( "option", "maxDate", sourceDate);
 					
 				}
@@ -429,7 +444,7 @@ html, body, #topicTemplate {
 				changeYear : true,
 				dateFormat : 'mm/dd/yy',
 				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
+				maxDate: new Date(2016, 0, 1),
 				timeFormat: "HH:mm",
 				controlType: 'select',
 				showMinute: false
