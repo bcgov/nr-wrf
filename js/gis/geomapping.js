@@ -2,7 +2,6 @@ require([
 	"esri/config",
 	"esri/Map",
 	"esri/views/MapView",
-	"esri/layers/FeatureLayer",
 	"esri/layers/GraphicsLayer",
 	"esri/widgets/Sketch",
 	"esri/Graphic",
@@ -14,7 +13,6 @@ require([
 ], function (esriConfig,
 	Map,
 	MapView,
-	FeatureLayer,
 	GraphicsLayer,
 	Sketch,
 	Graphic,
@@ -36,16 +34,12 @@ require([
 		});
 
 	const graphicsLayer = new GraphicsLayer();
+	const boundaryGraphicsLayer = new GraphicsLayer();
 	esriConfig.apiKey = "AAPK1c42e0bed09a4c5e9cd405eb8aa385be8iJCXX-m6zsVighHNzd5NLLVAhwtmAUOE5ZqrPseB8GuryyEHumQSDFtQJjjY3g_";
 	const map = new Map({
 		basemap: "arcgis-topographic", // Basemap layer
 		layers: [graphicsLayer]
 	});
-	const layer = new FeatureLayer("https://services3.arcgis.com/U26uBjSD32d7xvm2/arcgis/rest/services/wrf_fileindex/FeatureServer",
-		{
-			visible: false,
-			outFields: ["*"]
-		});
 	const view = new MapView({
 		map: map,
 		center: [-124.8563, 55.6913],
@@ -124,29 +118,18 @@ require([
 	});
 
 	// display the download tooltip containing the results from the selected search
-	function downloadDialog(results, topRightPoint) {
-		console.log("Feature count: " + results.features.length);
+	function downloadDialog(topRightPoint) {
 
 		// close dialog if there's already one up.
 		view.popup.close();
 		view.popup.clear();
 
-
-
-
-
-		if (results.features.length == 0) {
-			alert("No shape files were found in the selected area");
-		} else {
-			graphics = results.features;
-			view.popup.open({
-				title: "Model Data For Area",
-				actions: [downloadAction],
-				content: "Click the download icon to download your data",
-				location: { latitude: topRightPoint.latitude, longitude: topRightPoint.longitude }
-			});
-
-		}
+		view.popup.open({
+			title: "Model Data For Area",
+			actions: [downloadAction],
+			content: "Click the download icon to download your data",
+			location: { latitude: topRightPoint.latitude, longitude: topRightPoint.longitude }
+		});
 	}
 
 	// reads the config file into memory, replacing the parameters using the user selected data
@@ -320,9 +303,7 @@ require([
 	function downloadModelData() {
 
 		var urls = [];
-		var zip = new JSZip();
-		var count = 0;
-		var zipFilename = "nr-wrf.zip";
+
 		var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
 
 		var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
@@ -369,12 +350,14 @@ require([
 				endingDate.setFullYear(endDate.getFullYear());
 				endingDate.setMonth(endDate.getMonth());
 
-				for (var tileDate = startingDate; tileDate < endingDate; tileDate = tileDate.setMonth(tileDate.getMonth() + 1)) {
+				for (var tileDate = startingDate; tileDate < endingDate; tileDate.setMonth(tileDate.getMonth() + 1)) {
 					var year = tileDate.getFullYear();
 					var month = tileDate.getMonth() + 1;
 					month = String("00" + month).slice(-2);
 					var fileName = "x" + x1 + "y" + y1 + "x" + x2 + "y" + y2 + "." + year + "" + month + ".10x10.m3d.7z";
-					urls.push(baseUrl + fileName);
+
+					urls.push({download: baseUrl + fileName, filename: fileName});
+
 				}
 			}
 
@@ -396,8 +379,8 @@ require([
 			maxJ
 		);
 
-		if (urls.length > 50) {
-			alert("The area you have selected contains more than 50 files for the given date range.  Please constrain your search to a small area or time period.");
+		if (urls.length > 500) {
+			alert("The area you have selected contains more than 500 files for the given date range.  Please constrain your search to a small area or time period.");
 			view.popup.close();
 			view.popup.clear();
 
@@ -406,46 +389,31 @@ require([
 
 		view.popup.content = "Preparing download... please wait";
 
-
-		zip.file("m3d_bild.inp", stitchingConfig);
-
 		// add the files required to unzip all the files, and process them
-		urls.push(baseUrl + "7z.exe");
-		urls.push(baseUrl + "m3d_bild.exe");
-		urls.push(baseUrl + "start.bat");
-		urls.push(baseUrl + "readme.txt");
-		urls.forEach(function (url) {
-			var msg = "Downloading Files";
-			// loading a file and add it in a zip file
-			JSZipUtils.getBinaryContent(url, function (err, data) {
-				if (err) {
-					throw err; // or handle the error
-				}
-				count++;
-				msg = "Downloading file " + count + " of " + (urls.length + 1);
-				view.popup.content = "<div>" + msg + "</div>";
-				// add the zip file
-				zip.file(url.substring(url.lastIndexOf('/') + 1), data, { binary: true });
+		urls.push({download: baseUrl + "7z.exe", filename: "7z.exe"});
+		urls.push({download: baseUrl + "m3d_bild.exe", filename: "m3d_bild.exe"});
+		urls.push({download: baseUrl + "start.bat", filename: "start.bat"});
+		urls.push({download: baseUrl + "readme.txt", filename: "readme.txt"});
 
+		urls.forEach(function (e) {     
+			fetch(e.download)                  
+				 .then(res => res.blob())                  
+				 .then(blob => {                    
+					  saveAs(blob, e.filename);                
+				 });            
+	   });
 
-
-
-
-				if (count == urls.length) {
-					zip.generateAsync({ type: 'blob' }, function updateCallback(metadata) {
-						msg = "Packaging Download : " + metadata.percent.toFixed(2) + "%";
-						view.popup.content = msg;
-					})
-						.then(function callback(content) {
-							view.popup.close();
-							view.popup.clear();
-							graphicsLayer.removeAll();
-							saveAs(content, zipFilename);
-						});
-				}
-
-			});
+	   // download the config file
+	   var blob = new Blob([stitchingConfig], {
+		type: "text/plain;charset=utf-8;",
 		});
+		saveAs(blob, "m3d_bild_temp.inp");
+
+
+		view.popup.close();
+		view.popup.clear();
+		graphicsLayer.removeAll();
+
 	}
 
 	// Perform the "Search 1" function.  Given a point (lat/long), draw a square
@@ -557,24 +525,12 @@ require([
 
 		view.center = polygonGraphic.geometry.centroid;
 
-		const modelQuery = {
-			spatialRelationship: "intersects", // Relationship operation to apply
-			geometry: polygon,  // The sketch feature geometry
-			returnGeometry: true,
-			outFields: ["*"]
-		};
+		
 
 
 
 
-		layer.queryFeatures(modelQuery)
-			.then((results) => {
-
-				downloadDialog(results, topRightPoint);
-
-			}).catch((error) => {
-				console.log(error);
-			});
+		downloadDialog(topRightPoint);
 	}
 
 
@@ -704,7 +660,7 @@ require([
 		layer.queryFeatures(modelQuery)
 			.then((results) => {
 
-				downloadDialog(results, { latitude: maxLatitude, longitude: maxLongitude });
+				downloadDialog({ latitude: maxLatitude, longitude: maxLongitude });
 
 			}).catch((error) => {
 				console.log(error);
@@ -732,23 +688,7 @@ require([
 
 		view.center = graphicsLayer.graphics.getItemAt(0).geometry.centroid;
 
-		const modelQuery = {
-			spatialRelationship: "intersects", // Relationship operation to apply
-			geometry: graphicsLayer.graphics.getItemAt(0).geometry,  // The sketch feature geometry
-			returnGeometry: true,
-			outFields: ["*"]
-		};
-
-
-
-		layer.queryFeatures(modelQuery)
-			.then((results) => {
-				downloadDialog(results,  { latitude: topRightYGlobal, longitude: topRightXGlobal });
-
-			}).catch((error) => {
-				console.log(error);
-			});
-
+		
 	}
 
 	sketch.on("create", function (event) {
@@ -760,12 +700,34 @@ require([
 		}
 	});
 
+	const boundaryPolygon = {
+		type: "polygon",
+		rings: [
+			[-143.461, 62.5648], //Longitude, latitude
+			[-107.197, 62.5648], //Longitude, latitude
+			[-112, 46.4292], //Longitude, latitude
+			[-137, 46.4292],   //Longitude, latitude
+			[-143.461, 62.5648]  //Longitude, latitude
+		]
+	 };
 
+	const simpleFillSymbol = {
+		type: "simple-fill",
+		color: [227, 139, 79, 0.1],  // Orange, opacity 80%
+		outline: {
+			color: [0, 0, 0],
+			width: 1
+		}
+	 };
 
+	 const polygonGraphic = new Graphic({
+		geometry: boundaryPolygon,
+		symbol: simpleFillSymbol,
+	
+	 });
 
-
-
-	map.add(layer);
+	 map.add(boundaryGraphicsLayer);
+	 boundaryGraphicsLayer.add(polygonGraphic);
 
 
 });

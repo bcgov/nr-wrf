@@ -211,6 +211,12 @@ html, body, #topicTemplate {
 					</div>
 					<div class="radio">
 						<label>
+							<input type="radio" name="timezone" id="timezoneMST" value="7" >MST (-0700)
+						</label>
+					</div>
+
+					<div class="radio">
+						<label>
 							<input type="radio" name="timezone" id="timezoneUTC" value="0">UTC
 						</label>
 					</div>
@@ -239,7 +245,7 @@ html, body, #topicTemplate {
 				<h1>Weather Research and Forecasting Model (WRF) Data</h1>
                <div id="introduction">
 				
-     <p>Click the "Search" button after specifying the spatial domain and time range using any of the search tab options below. Locate and select the "DOWNLOAD Data" icon that pops up to begin downloading the WRF data package. Extract the content of the package into a dedicated folder and open the included readme file (i.e., Readme.txt) for instructions on next steps.  If you have any questions, please email <a href="mailto:bcdispersion.model@gov.bc.ca">bcdispersion.model@gov.bc.ca</a>.</p>
+     <p>Click the "Search" button after specifying the spatial domain and time range using any of the search tab options below. Locate and select the "DOWNLOAD Data" icon that pops up to begin downloading the WRF data package. Open the included readme file (i.e., Readme.txt) for instructions on next steps.  If you have any questions, please email <a href="mailto:bcdispersion.model@gov.bc.ca">bcdispersion.model@gov.bc.ca</a>.</p>
                 </div>
 			</div>
 		</div>
@@ -428,7 +434,7 @@ html, body, #topicTemplate {
 				showMinute: false,
 				onSelect: function(dateText) {
 					var sourceDate = new Date(this.value);
-					sourceDate.setMonth(sourceDate.getMonth()+1);
+					sourceDate.setFullYear(sourceDate.getFullYear()+1);
 					$( "#endDate" ).datepicker( "option", "maxDate", sourceDate);
 					
 				}
