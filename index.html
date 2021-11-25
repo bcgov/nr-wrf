@@ -117,6 +117,17 @@ html, body, #topicTemplate {
 			return false;
 		}
 	}
+
+	// verify that the start date is before the end date
+	function validateDateSelection(startDate, endDate) {
+		if (startDate > endDate) {
+			alert("The start date must be before the end date")
+			return false;
+		} else {
+			return true;
+		}
+	}
+
 </script>
 <script src="js/gis/geomapping.js"></script>
 
@@ -262,8 +273,6 @@ html, body, #topicTemplate {
 								<label for="distanceFromPoint">Distance From Centre Point</label>
 								<select class="form-control" id="distanceFromPoint"
 									data-column="3">
-									<option value="10">10km</option>
-									<option value="20">20km</option>
 									<option value="30">30km</option>
 									<option value="40">40km</option>
 									<option value="50">50km</option>
@@ -412,7 +421,7 @@ html, body, #topicTemplate {
 				changeYear : true,
 				dateFormat : 'mm/dd/yy',
 				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
+				maxDate: new Date(2016, 0, 1),
 				defaultDate: new Date(2011,0,1),
 				timeFormat: "HH:mm",
 				controlType: 'select',
@@ -429,7 +438,7 @@ html, body, #topicTemplate {
 				changeYear : true,
 				dateFormat : 'mm/dd/yy',
 				minDate: new Date(2011, 0, 1), 
-				maxDate: new Date(2015, 11, 31),
+				maxDate: new Date(2016, 0, 1),
 				timeFormat: "HH:mm",
 				controlType: 'select',
 				showMinute: false

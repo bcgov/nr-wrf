@@ -193,32 +193,18 @@ require([
 	// calculate the largest J value less than the southern boundary that the user selected
 	function calculateMinimumJ(latitude) {
 
-		var minJ = 2;
-		var previousJ = 2;
-		var potentialJ = true;
+		var mminJ = 2;
+		var previousLatitude = -200;
 
 		for (var n = 3; n < lines.length; n++) {
 			var currentLine = lines[n].split(",");
 			var currentJ = parseInt(currentLine[1]);
 			var currentLatitude = parseFloat(currentLine[2]);
 
-			if (currentLatitude > latitude) {
-				potentialJ = false;
+			if (currentLatitude > previousLatitude && currentLatitude < latitude) {
+				previousLatitude = currentLatitude;
+				minJ = currentJ;
 			}
-			// new J, reset the search
-			if (previousJ != currentJ && potentialJ) {
-
-				if (previousJ > minJ) {
-					minJ = previousJ;
-				}
-				potentialJ = true;
-			} else if (previousJ != currentJ) {
-				potentialJ = true;
-			}
-			previousJ = currentJ;
-
-
-
 		}
 		return (minJ);
 	}
@@ -226,29 +212,17 @@ require([
 	// calculate the smallest J value greater than the northern boundary that the user selected
 	function calculateMaximumJ(latitude) {
 		var maxJ = 425;
-		var previousJ = 425;
-		var potentialJ = true;
+		var previousLatitude = 200;
 
 		for (var n = 3; n < lines.length; n++) {
 			var currentLine = lines[n].split(",");
 			var currentJ = parseInt(currentLine[1]);
 			var currentLatitude = parseFloat(currentLine[2]);
 
-			if (currentLatitude < latitude) {
-				potentialJ = false;
+			if (currentLatitude < previousLatitude && currentLatitude > latitude) {
+				previousLatitude = currentLatitude;
+				maxJ = currentJ;
 			}
-			// new J, reset the search
-			if ((previousJ != currentJ) && potentialJ) {
-				if (previousJ < maxJ) {
-					maxJ = parseInt(previousJ);
-				}
-				potentialJ = true;
-			} else if (previousJ != currentJ) {
-				potentialJ = true;
-			}
-
-			previousJ = currentJ;
-
 		}
 		return (maxJ);
 	}
@@ -266,15 +240,13 @@ require([
 			var currentLongitude = parseFloat(currentLine[3]);
 			var currentJ = parseInt(currentLine[1]);
 
-			if (currentJ != minJ) {
-				continue;
-			}
-
-			if (currentLongitude > previousLongitude && currentLongitude < longitude) {
+			if ((currentJ == minJ) && (currentLongitude > previousLongitude) && (currentLongitude < longitude)) {
 				previousLongitude = currentLongitude;
 				maxI1 = currentI;
 			}
 		}
+
+		previousLongitude = -200;
 
 		for (var n = 3; n < lines.length; n++) {
 			var currentLine = lines[n].split(",");
@@ -282,16 +254,12 @@ require([
 			var currentLongitude = parseFloat(currentLine[3]);
 			var currentJ = parseInt(currentLine[1]);
 
-			if (currentJ != maxJ) {
-				continue;
-			}
-
-			if (currentLongitude > previousLongitude && currentLongitude < longitude) {
+			if ((currentJ == maxJ) && (currentLongitude > previousLongitude) && (currentLongitude < longitude)) {
 				previousLongitude = currentLongitude;
 				maxI2 = currentI;
 			}
 		}
-
+		console.log("MaxI1: " + maxI1 + ", maxI2: " + maxI2)
 		return Math.min(maxI1, maxI2);
 	}
 
@@ -307,15 +275,13 @@ require([
 			var currentLongitude = parseFloat(currentLine[3]);
 			var currentJ = parseInt(currentLine[1]);
 
-			if (currentJ != minJ) {
-				continue;
-			}
-
-			if (currentLongitude < previousLongitude && currentLongitude > longitude) {
+			if ((currentJ == minJ) && (currentLongitude < previousLongitude) && (currentLongitude > longitude)) {
 				previousLongitude = currentLongitude;
 				minI1 = currentI;
 			}
 		}
+		
+		previousLongitude = 200;
 
 		for (var n = 3; n < lines.length; n++) {
 			var currentLine = lines[n].split(",");
@@ -323,11 +289,7 @@ require([
 			var currentLongitude = parseFloat(currentLine[3]);
 			var currentJ = parseInt(currentLine[1]);
 
-			if (currentJ != maxJ) {
-			   continue;
-			}
-
-			if (currentLongitude < previousLongitude && currentLongitude > longitude) {
+			if ((currentJ == maxJ) && (currentLongitude < previousLongitude) && (currentLongitude > longitude)) {
 						   previousLongitude = currentLongitude;
 						   minI2 = currentI;
 			}
@@ -460,7 +422,7 @@ require([
 					throw err; // or handle the error
 				}
 				count++;
-				msg = "Downloading file " + count + " of " + urls.length;
+				msg = "Downloading file " + count + " of " + (urls.length + 1);
 				view.popup.content = "<div>" + msg + "</div>";
 				// add the zip file
 				zip.file(url.substring(url.lastIndexOf('/') + 1), data, { binary: true });
@@ -501,6 +463,10 @@ require([
 		}
 
 		if (!validateDate(s1EndDate)) {
+			return;
+		}
+
+		if (!validateDateSelection(s1StartDate, s1EndDate)) {
 			return;
 		}
 
@@ -662,6 +628,10 @@ require([
 		}
 
 		if (!validateDate(s2EndDate)) {
+			return;
+		}
+
+		if (!validateDateSelection(s2StartDate, s2EndDate)) {
 			return;
 		}
 
