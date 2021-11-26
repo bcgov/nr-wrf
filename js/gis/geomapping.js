@@ -647,24 +647,6 @@ require([
 
 		view.center = [maxLongitude, maxLatitude];
 
-		const modelQuery = {
-			spatialRelationship: "contains", // Relationship operation to apply
-			geometry: polygon,  // The sketch feature geometry
-			returnGeometry: true,
-			outFields: ["*"]
-		};
-
-
-
-
-		layer.queryFeatures(modelQuery)
-			.then((results) => {
-
-				downloadDialog({ latitude: maxLatitude, longitude: maxLongitude });
-
-			}).catch((error) => {
-				console.log(error);
-			});
 	}
 
 	search3 = function () {
