@@ -9,6 +9,7 @@ require([
 	"esri/geometry/support/geodesicUtils",
 	"esri/widgets/CoordinateConversion",
 	"esri/geometry/support/webMercatorUtils",
+	"esri/geometry/geometryEngine",
 	"dojo/domReady!"
 ], function (esriConfig,
 	Map,
@@ -19,9 +20,12 @@ require([
 	Point,
 	geodesicUtils,
 	CoordinateConversion,
-	webMercatorUtils) {
+	webMercatorUtils,
+	geometryEngine) {
 
 	var lines;
+	var polygonGraphic;
+
 
 	fetch('https://nrs.objectstore.gov.bc.ca/kadkvt/domaininfo_bcwrf.csv')
 		.then(function (response) {
@@ -31,10 +35,24 @@ require([
 
 			// each line has the format I,J,LAT,LON
 			lines = csv.split("\n");
+
+			var boundingPoints = [];
+
+			for (var n = 3; n < lines.length; n++) {
+				var currentLine = lines[n].split(",");
+	
+				boundingPoints.push(
+					{
+						latitude: currentLine[2],
+						longitude: currentLine[3]
+					});
+	
+			}
 		});
 
 	const graphicsLayer = new GraphicsLayer();
 	const boundaryGraphicsLayer = new GraphicsLayer();
+	
 	esriConfig.apiKey = "AAPK1c42e0bed09a4c5e9cd405eb8aa385be8iJCXX-m6zsVighHNzd5NLLVAhwtmAUOE5ZqrPseB8GuryyEHumQSDFtQJjjY3g_";
 	const map = new Map({
 		basemap: "arcgis-topographic", // Basemap layer
@@ -94,7 +112,6 @@ require([
 	});
 
 	var coordsWidget = document.createElement("div");
-	var graphics;
 	coordsWidget.id = "coordsWidget";
 	coordsWidget.className = "esri-widget esri-component";
 	coordsWidget.style.padding = "7px 15px 5px";
@@ -303,6 +320,9 @@ require([
 	function downloadModelData() {
 
 		var urls = [];
+		var zip = new JSZip();
+		var count = 0;
+		var zipFilename = "nr-wrf.zip";
 
 		var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
 
@@ -356,7 +376,7 @@ require([
 					month = String("00" + month).slice(-2);
 					var fileName = "x" + x1 + "y" + y1 + "x" + x2 + "y" + y2 + "." + year + "" + month + ".10x10.m3d.7z";
 
-					urls.push({download: baseUrl + fileName, filename: fileName});
+					urls.push(baseUrl + fileName);
 
 				}
 			}
@@ -389,30 +409,40 @@ require([
 
 		view.popup.content = "Preparing download... please wait";
 
+		zip.file("m3d_bild.inp", stitchingConfig);
+
 		// add the files required to unzip all the files, and process them
-		urls.push({download: baseUrl + "7z.exe", filename: "7z.exe"});
-		urls.push({download: baseUrl + "m3d_bild.exe", filename: "m3d_bild.exe"});
-		urls.push({download: baseUrl + "start.bat", filename: "start.bat"});
-		urls.push({download: baseUrl + "readme.txt", filename: "readme.txt"});
+		urls.push(baseUrl + "7z.exe");
+		urls.push(baseUrl + "m3d_bild.exe");
+		urls.push(baseUrl + "start.bat");
+		urls.push(baseUrl + "readme.txt");
 
-		urls.forEach(function (e) {     
-			fetch(e.download)                  
-				 .then(res => res.blob())                  
-				 .then(blob => {                    
-					  saveAs(blob, e.filename);                
-				 });            
-	   });
-
-	   // download the config file
-	   var blob = new Blob([stitchingConfig], {
-		type: "text/plain;charset=utf-8;",
+		urls.forEach(function (url) {
+			var msg = "Downloading Files";
+			// loading a file and add it in a zip file
+			JSZipUtils.getBinaryContent(url, function (err, data) {
+				if (err) {
+					throw err; // or handle the error
+				}
+				count++;
+				msg = "Downloading file " + count + " of " + (urls.length + 1);
+				view.popup.content = "<div>" + msg + "</div>";
+				// add the zip file
+				zip.file(url.substring(url.lastIndexOf('/') + 1), data, { binary: true });
+				if (count == urls.length) {
+					zip.generateAsync({ type: 'blob' }, function updateCallback(metadata) {
+						msg = "Packaging Download : " + metadata.percent.toFixed(2) + "%";
+						view.popup.content = msg;
+					})
+						.then(function callback(content) {
+							view.popup.close();
+							view.popup.clear();
+							graphicsLayer.removeAll();
+							saveAs(content, zipFilename);
+						});
+				}
+			});
 		});
-		saveAs(blob, "m3d_bild_temp.inp");
-
-
-		view.popup.close();
-		view.popup.clear();
-		graphicsLayer.removeAll();
 
 	}
 
@@ -682,17 +712,194 @@ require([
 		}
 	});
 
+	// convex hull of data points to form the boundary on the screen
 	const boundaryPolygon = {
 		type: "polygon",
 		rings: [
-			[-143.461, 62.5648], //Longitude, latitude
-			[-107.197, 62.5648], //Longitude, latitude
-			[-112, 46.4292], //Longitude, latitude
-			[-137, 46.4292],   //Longitude, latitude
-			[-143.461, 62.5648]  //Longitude, latitude
+			[-137.674,46.4292],
+			[-137.769,46.7831],
+			[-137.865,47.1373],
+			[-137.963,47.4916],
+			[-138.063,47.846],
+			[-138.164,48.2007],
+			[-138.266,48.5555],
+			[-138.37,48.9104],
+			[-138.476,49.2655],
+			[-138.584,49.6207],
+			[-138.693,49.976],
+			[-138.804,50.3313],
+			[-138.916,50.6868],
+			[-139.031,51.0422],
+			[-139.147,51.3977],
+			[-139.265,51.7533],
+			[-139.386,52.1088],
+			[-139.508,52.4643],
+			[-139.632,52.8198],
+			[-139.759,53.1753],
+			[-139.887,53.5307],
+			[-140.018,53.886],
+			[-140.151,54.2412],
+			[-140.287,54.5964],
+			[-140.424,54.9514],
+			[-140.565,55.3062],
+			[-140.708,55.6609],
+			[-140.853,56.0154],
+			[-141.001,56.3697],
+			[-141.152,56.7238],
+			[-141.306,57.0776],
+			[-141.462,57.4312],
+			[-141.622,57.7845],
+			[-141.785,58.1375],
+			[-141.95,58.4902],
+			[-142.119,58.8426],
+			[-142.292,59.1946],
+			[-142.468,59.5462],
+			[-142.647,59.8974],
+			[-142.83,60.2482],
+			[-143.016,60.5986],
+			[-143.207,60.9485],
+			[-143.402,61.2979],
+			[-143.402,61.2979],
+[-142.673,61.3905],
+[-141.94,61.4794],
+[-141.203,61.5645],
+[-140.462,61.646],
+[-139.718,61.7236],
+[-138.97,61.7975],
+[-138.219,61.8675],
+[-137.465,61.9337],
+[-136.708,61.996],
+[-135.949,62.0545],
+[-135.186,62.109],
+[-134.422,62.1597],
+[-133.654,62.2064],
+[-132.885,62.2491],
+[-132.114,62.2879],
+[-131.341,62.3227],
+[-130.567,62.3535],
+[-129.791,62.3803],
+[-129.014,62.403],
+[-128.236,62.4218],
+[-127.457,62.4365],
+[-126.677,62.4472],
+[-125.897,62.4539],
+[-125.117,62.4565],
+[-124.337,62.4551],
+[-123.557,62.4496],
+[-122.777,62.4402],
+[-121.998,62.4266],
+[-121.22,62.4091],
+[-120.442,62.3875],
+[-119.666,62.3619],
+[-118.891,62.3323],
+[-118.118,62.2987],
+[-117.346,62.2612],
+[-116.576,62.2196],
+[-115.808,62.1741],
+[-115.043,62.1246],
+[-114.28,62.0713],
+[-113.519,62.014],
+[-112.761,61.9528],
+[-112.007,61.8878],
+[-111.255,61.8189],
+[-110.506,61.7462],
+[-109.761,61.6696],
+[-109.019,61.5893],
+[-108.281,61.5053],
+[-107.547,61.4175],
+[-107.547,61.4175],
+[-107.732,61.067],
+[-107.914,60.7159],
+[-108.092,60.3644],
+[-108.266,60.0125],
+[-108.437,59.6602],
+[-108.604,59.3075],
+[-108.768,58.9544],
+[-108.929,58.601],
+[-109.087,58.2473],
+[-109.242,57.8933],
+[-109.394,57.539],
+[-109.543,57.1844],
+[-109.689,56.8296],
+[-109.833,56.4745],
+[-109.973,56.1193],
+[-110.112,55.7639],
+[-110.248,55.4083],
+[-110.381,55.0525],
+[-110.512,54.6966],
+[-110.641,54.3406],
+[-110.768,53.9845],
+[-110.892,53.6283],
+[-111.014,53.2721],
+[-111.134,52.9158],
+[-111.253,52.5595],
+[-111.369,52.2031],
+[-111.483,51.8468],
+[-111.595,51.4904],
+[-111.706,51.1341],
+[-111.815,50.7779],
+[-111.922,50.4217],
+[-112.027,50.0655],
+[-112.131,49.7095],
+[-112.233,49.3536],
+[-112.333,48.9978],
+[-112.432,48.6421],
+[-112.529,48.2866],
+[-112.625,47.9312],
+[-112.72,47.576],
+[-112.813,47.221],
+[-112.904,46.8662],
+[-112.995,46.5116],
+[-112.995,46.5116],
+[-113.51,46.572],
+[-114.027,46.6298],
+[-114.546,46.6849],
+[-115.065,46.7374],
+[-115.586,46.7872],
+[-116.107,46.8343],
+[-116.63,46.8788],
+[-117.153,46.9206],
+[-117.678,46.9598],
+[-118.203,46.9962],
+[-118.729,47.0299],
+[-119.255,47.0609],
+[-119.783,47.0893],
+[-120.311,47.1148],
+[-120.839,47.1377],
+[-121.368,47.1578],
+[-121.898,47.1753],
+[-122.428,47.1899],
+[-122.958,47.2019],
+[-123.488,47.211],
+[-124.018,47.2175],
+[-124.549,47.2212],
+[-125.08,47.2222],
+[-125.61,47.2204],
+[-126.141,47.2158],
+[-126.671,47.2086],
+[-127.202,47.1986],
+[-127.732,47.1858],
+[-128.261,47.1703],
+[-128.791,47.1521],
+[-129.319,47.1311],
+[-129.848,47.1075],
+[-130.376,47.081],
+[-130.903,47.0519],
+[-131.429,47.0201],
+[-131.955,46.9855],
+[-132.48,46.9483],
+[-133.004,46.9084],
+[-133.527,46.8658],
+[-134.05,46.8205],
+[-134.571,46.7725],
+[-135.091,46.7219],
+[-135.61,46.6686],
+[-136.128,46.6127],
+[-136.644,46.5542],
+[-137.16,46.493],
+[-137.674,46.4292]
 		]
 	 };
-
 	const simpleFillSymbol = {
 		type: "simple-fill",
 		color: [227, 139, 79, 0.1],  // Orange, opacity 80%
@@ -701,15 +908,15 @@ require([
 			width: 1
 		}
 	 };
-
-	 const polygonGraphic = new Graphic({
+	 const polygonBoundaryGraphic = new Graphic({
 		geometry: boundaryPolygon,
 		symbol: simpleFillSymbol,
 	
 	 });
-
 	 map.add(boundaryGraphicsLayer);
-	 boundaryGraphicsLayer.add(polygonGraphic);
+	 boundaryGraphicsLayer.add(polygonBoundaryGraphic);
 
+
+	
 
 });
