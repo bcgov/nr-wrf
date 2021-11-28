@@ -677,6 +677,9 @@ require([
 
 		view.center = [maxLongitude, maxLatitude];
 
+		downloadDialog({ latitude: maxLatitude, longitude: maxLongitude });
+
+
 	}
 
 	search3 = function () {
@@ -699,6 +702,8 @@ require([
 		}
 
 		view.center = graphicsLayer.graphics.getItemAt(0).geometry.centroid;
+
+		downloadDialog({ latitude: topRightYGlobal, longitude: topRightXGlobal });
 
 		
 	}
