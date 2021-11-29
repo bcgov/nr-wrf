@@ -10,6 +10,7 @@ require([
 	"esri/widgets/CoordinateConversion",
 	"esri/geometry/support/webMercatorUtils",
 	"esri/geometry/geometryEngine",
+	"esri/layers/GraphicsLayer",
 	"dojo/domReady!"
 ], function (esriConfig,
 	Map,
@@ -21,7 +22,8 @@ require([
 	geodesicUtils,
 	CoordinateConversion,
 	webMercatorUtils,
-	geometryEngine) {
+	geometryEngine,
+	GraphicsLayer) {
 
 	var lines;
 	var polygonGraphic;
@@ -60,7 +62,7 @@ require([
 	});
 	const view = new MapView({
 		map: map,
-		center: [-124.8563, 55.6913],
+		center: [-124.8563, 55.1],
 		zoom: 5, // scale: 72223.819286
 		container: "viewDiv",
 	});
@@ -100,6 +102,29 @@ require([
 	});
 
 	sketch.on("create", function(event){  
+
+		var stroke = {
+			color: [255, 255, 255],
+			width: 1
+		  };
+		  
+		  //*** White fill color with 50% transparency ***//
+		  var fillColor = [227, 139, 79, 0.8];
+		  
+		  //*** Override all of the default symbol colors and sizes ***//
+		  var pointSymbol = sketch.viewModel.pointSymbol;
+		  pointSymbol.color = fillColor;
+		  pointSymbol.outline = stroke;
+		  pointSymbol.size = 8;
+		  
+		  var polylineSymbol = sketch.viewModel.polylineSymbol;
+		  polylineSymbol.color = stroke.color;
+		  polylineSymbol.width = stroke.width;
+		  
+		  var polygonSymbol = sketch.viewModel.polygonSymbol;
+		  polygonSymbol.color = fillColor;
+		  polygonSymbol.outline = stroke;
+
 		// when draw rectangle create event is completed  
 		if (event.state === "complete" && event.tool === "rectangle"){
 			var minLatLong =  webMercatorUtils.xyToLngLat(event.graphic.geometry.extent.xmin,event.graphic.geometry.extent.ymin)
@@ -108,7 +133,10 @@ require([
 			bottomLeftYGlobal = minLatLong[1];
 			topRightXGlobal = maxLatLong[0];
 			topRightYGlobal = maxLatLong[1];
+		
 		}
+              
+
 	});
 
 	var coordsWidget = document.createElement("div");
@@ -444,6 +472,12 @@ require([
 			});
 		});
 
+	}
+
+	clearResults = function() {
+		view.popup.close();
+							view.popup.clear();
+							graphicsLayer.removeAll();
 	}
 
 	// Perform the "Search 1" function.  Given a point (lat/long), draw a square
