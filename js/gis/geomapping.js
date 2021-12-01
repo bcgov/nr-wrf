@@ -223,7 +223,7 @@ require([
 
 		var minJ = 2;
 
-		for (var jScan = previousMinJ; jScan <= previousMaxJ; jScan++) {
+		for (var jScan = 2; jScan <= MAX_J; jScan++) {
 
 			var inDomain = true;
 
@@ -265,21 +265,14 @@ require([
 
 		var maxJ = MAX_J;
 
-		for (var jScan = previousMinJ; jScan <= 425; jScan++) {
+		for (var jScan = 2; jScan <= 425; jScan++) {
 
 			var inDomain = true;
 
-			// we're not going to find a better match
-			if (jScan > previousMaxJ) {
-				maxJ = previousMaxJ;
-				break;
-			}
-			
 			// ignore j values outside the boundaries of any previous searches
-			if (jScan < previousMinJ) {
+			if (jScan < previousMinJ || jScan > previousMaxJ) {
 				continue;
 			}
-
 
 			// see if there are any values at the current J where all js are inside the boundary
 			for (var n = 3; n < lines.length; n++) {
@@ -315,73 +308,42 @@ require([
 	}
 
 	// calculate the largest I value less than the western boundary that the user selected, constrained by the norther/southern boundaries selected by the user
-	function calculateMinimumI(longitude, minJ, maxJ) {
+	function calculateMinimumI(longitude, maxJ) {
 		var minI = 2;
+		var previousLongitude = -200;
 
-		for (var iScan = 2; iScan <= MAX_I; iScan++) {
+		for (var n = 3; n < lines.length; n++) {
+			var currentLine = lines[n].split(",");
+			var currentI = parseInt(currentLine[0]);
+			var currentLongitude = parseFloat(currentLine[3]);
+			var currentJ = parseInt(currentLine[1]);
 
-			var inDomain = true;
-
-			// see if there are any values at the current I where all is are inside the boundary
-			for (var n = 3; n < lines.length; n++) {
-				var currentLine = lines[n].split(",");
-				var currentI = parseInt(currentLine[0]);
-				var currentJ = parseInt(currentLine[1]);
-				var currentLongitude = parseFloat(currentLine[3]);
-
-				// constrain based on min/max i values
-				if (currentJ < minJ || currentJ > maxJ) {
-					continue;
-				}
-
-				// we're only checking j values that match jScan.  More specifically, we're
-				// ensuring that for each jScan value, every corresponding j is less than the southern latitude entered by the user
-				if (iScan == currentI && currentLongitude >= longitude) {
-					inDomain = false;
-				}
+			if ((currentJ == maxJ) && (currentLongitude > previousLongitude) && (currentLongitude < longitude)) {
+				previousLongitude = currentLongitude;
+				minI = currentI;
 			}
-
-			if (inDomain && iScan > minI) {
-				minI = iScan;
-			}
-			
 		}
-		return (minI);
+		return minI;
 	}
 
 	// calculate the smallest I value greater than the eastern boundary that the user selected, constrained by the norther/southern boundaries selected by the user
-	function calculateMaximumI(longitude, minJ, maxJ) {
-		var maxI = MAX_I;
+	function calculateMaximumI(longitude, maxJ) {
+		var maxI = 2;
+		var previousLongitude = 200;
 
-		for (var iScan = 2; iScan <= MAX_I; iScan++) {
+		for (var n = 3; n < lines.length; n++) {
+			var currentLine = lines[n].split(",");
+			var currentI = parseInt(currentLine[0]);
+			var currentLongitude = parseFloat(currentLine[3]);
+			var currentJ = parseInt(currentLine[1]);
 
-			var inDomain = true;
-
-			// see if there are any values at the current I where all is are inside the boundary
-			for (var n = 3; n < lines.length; n++) {
-				var currentLine = lines[n].split(",");
-				var currentI = parseInt(currentLine[0]);
-				var currentJ = parseInt(currentLine[1]);
-				var currentLongitude = parseFloat(currentLine[3]);
-
-				// constrain based on min/max i values
-				if (currentJ < minJ || currentJ > maxJ) {
-					continue;
-				}
-
-				// we're only checking j values that match jScan.  More specifically, we're
-				// ensuring that for each jScan value, every corresponding j is less than the southern latitude entered by the user
-				if (iScan == currentI && currentLongitude <= longitude) {
-					inDomain = false;
-				}
+			if ((currentJ == maxJ) && (currentLongitude < previousLongitude) && (currentLongitude > longitude)) {
+						   previousLongitude = currentLongitude;
+						   maxI = currentI;
 			}
-
-			if (inDomain && iScan < maxI) {
-				maxI = iScan;
-			}
-			
 		}
-		return (maxI);
+		
+		return maxI;
 	}
 
 
