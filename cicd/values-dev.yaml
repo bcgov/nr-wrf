@@ -2,5 +2,5 @@ env: dev
 commit_id: ""
 role: frontend
 app: wrf
-imagetag: 20211124-1821
+imagetag: 20211129-1842
 routehost: wrf-frontend-route-227e79-dev.apps.silver.devops.gov.bc.ca
