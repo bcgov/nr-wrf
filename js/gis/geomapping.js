@@ -430,7 +430,7 @@ require([
 		maxJ = calculateMaximumJ(topRightYGlobal, minJ, maxJ, minI, maxI);
 		console.log("Refined maxJ: " + maxJ);
 		
-/*
+
 		for (var i = calculateMinimumTileNumber(minI); i <= maxI; i += 10) {
 			for (var j = calculateMinimumTileNumber(minJ); j <= maxJ; j += 10) {
 				var x1 = String("000" + i).slice(-3); //left pad x1 with zeroes
@@ -519,7 +519,7 @@ require([
 				}
 			});
 		});
-*/
+
 	}
 
 	clearResults = function() {
@@ -550,6 +550,11 @@ require([
 			return;
 		}
 
+		if (s1Longitude >= 0) {
+			alert("Longitude values must be negative");
+			return;
+		} 
+
 		if (isNaN(s1Latitude) || s1Latitude == 0) {
 			alert("You must enter a valid latitude in the format ##.######");
 			return;
@@ -563,6 +568,8 @@ require([
 			alert("You have entered a coordinate outside of the bounds of this application.");
 			return;
 		}
+
+
 		distanceFromPoint = distanceFromPoint * 1000; // convert km to meters
 
 		var centerPoint = {
@@ -702,6 +709,16 @@ require([
 		if (!validateDateSelection(s2StartDate, s2EndDate)) {
 			return;
 		}
+
+		if (s2Longitude1 >= 0) {
+			alert("Longitude values must be negative");
+			return;
+		} 
+
+		if (s2Longitude2 >= 0) {
+			alert("Longitude values must be negative");
+			return;
+		} 
 
 		if (isNaN(s2Latitude1) || s1Latitude == 0) {
 			alert("You must enter a valid latitude in the format ##.######");
