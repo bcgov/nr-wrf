@@ -219,38 +219,109 @@ require([
 	}
 
 	// calculate the largest J value less than the southern boundary that the user selected
-	function calculateMinimumJ(latitude) {
+	function calculateMinimumJ(latitude, minI = 1, maxI = 500) {
 
-		var mminJ = 2;
+		var minJ = 2;
 		var previousLatitude = -200;
+		var previousJ = 1;
 
 		for (var n = 3; n < lines.length; n++) {
 			var currentLine = lines[n].split(",");
 			var currentJ = parseInt(currentLine[1]);
+			var currentI = parseInt(currentLine[0]);
 			var currentLatitude = parseFloat(currentLine[2]);
+			var possibleMatch = false;
 
-			if (currentLatitude > previousLatitude && currentLatitude < latitude) {
+
+			// no need to check the J value more than once,.
+			if (previousJ == currentJ) {
+				continue;
+			}
+
+			if (currentI < minI || currentI > maxI) {
+				continue;
+			}
+
+			previousJ = currentJ;
+
+			// discard current southern boundary candidate if the currentLatitude is >= the target latitude
+			if (currentLatitude >= latitude || currentLatitude <= previousLatitude) {
+				continue;
+			}
+
+
+			// see if there are any values at the current J where all js are inside the boundary
+			for (var o = 3; o < lines.length; o++) {
+				var currentLine2 = lines[o].split(",");
+				var currentJ2 = parseInt(currentLine2[1]);
+				var currentLatitude2 = parseFloat(currentLine2[2]);
+
+				// we've already checked the current J, so no use looking further
+				if (currentJ2 != currentJ && possibleMatch) {
+					break;
+				}
+
+				// we want to check all other j values for the current J to see if all latitudes are less than the target latitude
+				if (currentJ2 != currentJ) {
+					possibleMatch = false;	
+					continue;
+				}
+
+				if (currentLatitude2 >= latitude) {
+					possibleMatch = false;
+					continue;
+				}
+
+				// if we got this far, we've found a candidate j value where all j values are south of the boundary
+				possibleMatch = true;
+			}
+			if (possibleMatch) {
 				previousLatitude = currentLatitude;
 				minJ = currentJ;
 			}
+			
 		}
 		return (minJ);
 	}
 
-	// calculate the smallest J value greater than the northern boundary that the user selected
-	function calculateMaximumJ(latitude) {
+	// calculate the largest J value less than the southern boundary that the user selected
+	function calculateMaximumJ(latitude, previousMinJ = 2, previousMaxJ = 425,  minI = 2, maxI = 476) {
+
 		var maxJ = 425;
-		var previousLatitude = 200;
 
-		for (var n = 3; n < lines.length; n++) {
-			var currentLine = lines[n].split(",");
-			var currentJ = parseInt(currentLine[1]);
-			var currentLatitude = parseFloat(currentLine[2]);
+		for (var jScan = 2; jScan <= 425; jScan++) {
 
-			if (currentLatitude < previousLatitude && currentLatitude > latitude) {
-				previousLatitude = currentLatitude;
-				maxJ = currentJ;
+			var inDomain = true;
+
+			// see if there are any values at the current J where all js are inside the boundary
+			for (var o = 3; o < lines.length; o++) {
+				var currentLine = lines[o].split(",");
+				var currentI = parseInt(currentLine[0]);
+				var currentJ = parseInt(currentLine[1]);
+				var currentLatitude = parseFloat(currentLine[2]);
+
+				// constrain based on min/max i values
+				if (currentI < minI || currentI > maxI) {
+					continue;
+				}
+
+				// we're only checking j values that match jScan.  More specifically, we're
+				// ensuring that for each jScan value, every corresponding j is greater than the northernmost latitude entered by the user
+				if (jScan != currentJ) {
+					continue;
+				}
+
+				if (currentLatitude <= latitude) {
+					inDomain = false;
+				} else {
+					inDomain = true;
+				}
 			}
+
+			if (inDomain && jScan < maxJ) {
+				maxJ = jScan;
+			}
+			
 		}
 		return (maxJ);
 	}
@@ -287,7 +358,6 @@ require([
 				maxI2 = currentI;
 			}
 		}
-		console.log("MaxI1: " + maxI1 + ", maxI2: " + maxI2)
 		return Math.min(maxI1, maxI2);
 	}
 
@@ -344,6 +414,23 @@ require([
 		return n;
 	}
 
+	// tiles have i/j coordinates ending in 2 (since each tile is 10 square kms and the i/j values start at 2)
+	// Given a number n, this function returns the smallest number greater than or equal to n that ends in 2.  
+	function calculateMaximumTileNumber(n) {
+		if (n % 10 == 2) {
+			return n;
+		} else if (n < 12) {
+			n = 12;
+		} else if (n % 10 < 2) {
+			n = n + (n % 10);
+
+		} else {
+			n = n + (n % 10) + 2;
+		}
+
+		return n;
+	}
+
 	// download the data from the objects store
 	function downloadModelData() {
 
@@ -379,10 +466,16 @@ require([
 		var maxJ = calculateMaximumJ(topRightYGlobal);
 		var minI = calculateMinimumI(bottomLeftXGlobal, minJ, maxJ);
 		var maxI = calculateMaximumI(topRightXGlobal, minJ, maxJ);
-
-		console.log("minJ and maxJ: " + minJ + " " + maxJ);
-		console.log("minI and maxI: " + minI + " " + maxI);
-
+		console.log("minJ: " + minJ);
+		console.log("maxJ: " + maxJ)
+		console.log("minI: " + minI);
+		console.log("maxI: " + maxI);
+		minJ = calculateMinimumJ(bottomLeftYGlobal, minI, maxI);
+		maxJ = calculateMaximumJ(topRightYGlobal, minJ, maxJ, 270, 293);
+		console.log("Refined minJ: " + minJ);
+		console.log("Refined maxJ: " + maxJ);
+		
+/*
 		for (var i = calculateMinimumTileNumber(minI); i <= maxI; i += 10) {
 			for (var j = calculateMinimumTileNumber(minJ); j <= maxJ; j += 10) {
 				var x1 = String("000" + i).slice(-3); //left pad x1 with zeroes
@@ -471,7 +564,7 @@ require([
 				}
 			});
 		});
-
+*/
 	}
 
 	clearResults = function() {
