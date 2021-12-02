@@ -154,11 +154,18 @@ require([
 
 	view.popup.on("trigger-action", function (event) {
 		// Execute the measureThis() function if the measure-this action is clicked
+
+
+		
 		if (event.action.id === "download-action") {
 			view.popup.actions.removeAll(); // to prevent clicking the download again
 			
-			view.popup.content = "Determining files to download..."
-			downloadModelData();
+			view.popup.content = "Determining files to download, please wait..."
+
+			setTimeout(function(){
+				downloadModelData();	
+			  }, 1000);
+			
 		}
 	});
 
@@ -223,14 +230,9 @@ require([
 
 		var minJ = 2;
 
-		for (var jScan = 2; jScan <= MAX_J; jScan++) {
+		for (var jScan = previousMinJ; jScan <= previousMaxJ; jScan++) {
 
 			var inDomain = true;
-
-			// ignore j values outside the boundaries of any previous searches
-			if (jScan < previousMinJ || jScan > previousMaxJ) {
-				continue;
-			}
 
 			// see if there are any values at the current J where all js are inside the boundary
 			for (var n = 3; n < lines.length; n++) {
@@ -238,6 +240,16 @@ require([
 				var currentI = parseInt(currentLine[0]);
 				var currentJ = parseInt(currentLine[1]);
 				var currentLatitude = parseFloat(currentLine[2]);
+
+				// we're only interested in the latitudes at jScan, ignore everything until we get to jScan
+				if (currentJ < jScan) {
+					continue;
+				}
+
+				// we're beyond jScan, stop searching
+				if (currentJ > jScan) {
+					break;
+				}
 
 				// constrain based on min/max i values
 				if (currentI < minI || currentI > maxI || jScan < previousMinJ || jScan > previousMaxJ) {
@@ -248,6 +260,7 @@ require([
 				// ensuring that for each jScan value, every corresponding j is less than the southern latitude entered by the user
 				if (jScan == currentJ && currentLatitude >= latitude) {
 					inDomain = false;
+					break;
 				}
 			}
 
@@ -265,14 +278,9 @@ require([
 
 		var maxJ = MAX_J;
 
-		for (var jScan = 2; jScan <= 425; jScan++) {
+		for (var jScan = previousMinJ; jScan <= previousMaxJ; jScan++) {
 
 			var inDomain = true;
-
-			// ignore j values outside the boundaries of any previous searches
-			if (jScan < previousMinJ || jScan > previousMaxJ) {
-				continue;
-			}
 
 			// see if there are any values at the current J where all js are inside the boundary
 			for (var n = 3; n < lines.length; n++) {
@@ -280,6 +288,16 @@ require([
 				var currentI = parseInt(currentLine[0]);
 				var currentJ = parseInt(currentLine[1]);
 				var currentLatitude = parseFloat(currentLine[2]);
+
+				// we're only interested in the latitudes at jScan, ignore everything until we get to jScan
+				if (currentJ < jScan) {
+					continue;
+				}
+
+				// we're beyond jScan, stop searching
+				if (currentJ > jScan) {
+					break;
+				}
 
 				// constrain based on min/max i values
 				if (currentI < minI || currentI > maxI || jScan < previousMinJ || jScan > previousMaxJ) {
@@ -296,6 +314,7 @@ require([
 				// ensuring that for each jScan value, every corresponding j is greater than the northernmost latitude entered by the user
 				if (jScan == currentJ && currentLatitude <= latitude) {
 					inDomain = false;
+					break;
 				}
 			}
 
@@ -364,23 +383,6 @@ require([
 		return n;
 	}
 
-	// tiles have i/j coordinates ending in 2 (since each tile is 10 square kms and the i/j values start at 2)
-	// Given a number n, this function returns the smallest number greater than or equal to n that ends in 2.  
-	function calculateMaximumTileNumber(n) {
-		if (n % 10 == 2) {
-			return n;
-		} else if (n < 12) {
-			n = 12;
-		} else if (n % 10 < 2) {
-			n = n + (n % 10);
-
-		} else {
-			n = n + (n % 10) + 2;
-		}
-
-		return n;
-	}
-
 	// download the data from the objects store
 	function downloadModelData() {
 
@@ -411,6 +413,8 @@ require([
 		var endMonth = endDate.getMonth() + 1;
 		var endDay = endDate.getDate();
 		var endHour = endDate.getHours();
+
+		
 
 		var minJ = calculateMinimumJ(bottomLeftYGlobal);
 		console.log("minJ: " + minJ);
