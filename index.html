@@ -129,7 +129,7 @@ html, body, #topicTemplate {
 	}
 
 </script>
-<script src="js/gis/geomapping.js?version=1.0.2"></script>
+<script src="js/gis/geomapping.js?version=1.0.3"></script>
 
 
 </head>
@@ -434,7 +434,9 @@ html, body, #topicTemplate {
 				onSelect: function(dateText) {
 					var sourceDate = new Date(this.value);
 					sourceDate.setFullYear(sourceDate.getFullYear()+1);
+					sourceDate.setHours(23,0,0);
 					$( "#endDate" ).datepicker( "option", "maxDate", sourceDate);
+					$( "#endDate" ).datepicker( "setDate", sourceDate);
 					
 				}
 			});
