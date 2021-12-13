@@ -445,12 +445,13 @@ require([
 				var startingDate = new Date();
 				startingDate.setFullYear(startDate.getFullYear());
 				startingDate.setMonth(startDate.getMonth());
+				startingDate.setDate(1);
 
 				var endingDate = new Date();
 				endingDate.setFullYear(endDate.getFullYear());
 				endingDate.setMonth(endDate.getMonth());
 
-				for (var tileDate = startingDate; tileDate < endingDate; tileDate.setMonth(tileDate.getMonth() + 1)) {
+				for (var tileDate = startingDate; tileDate <= endingDate; tileDate.setMonth(tileDate.getMonth() + 1)) {
 					var year = tileDate.getFullYear();
 					var month = tileDate.getMonth() + 1;
 					month = String("00" + month).slice(-2);
@@ -554,9 +555,9 @@ require([
 			return;
 		}
 
+		// if users enter a positive longitude, convert to a negative value for them.
 		if (s1Longitude >= 0) {
-			alert("Longitude values must be negative");
-			return;
+			s1Longitude = s1Longitude*-1;
 		} 
 
 		if (isNaN(s1Latitude) || s1Latitude == 0) {
@@ -714,14 +715,14 @@ require([
 			return;
 		}
 
+		// if users enter a positive longitude, convert to a negative value for them.
 		if (s2Longitude1 >= 0) {
-			alert("Longitude values must be negative");
-			return;
+			s2Longitude1 = s2Longitude1*-1;
 		} 
-
+		
+		// if users enter a positive longitude, convert to a negative value for them.
 		if (s2Longitude2 >= 0) {
-			alert("Longitude values must be negative");
-			return;
+			s2Longitude2 = s2Longitude2*-1;
 		} 
 
 		if (isNaN(s2Latitude1) || s1Latitude == 0) {
