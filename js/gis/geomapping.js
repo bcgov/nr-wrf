@@ -204,6 +204,9 @@ require([
 		request.send(null);
 		if (request.status === 200) {
 			var configText = request.responseText;
+
+			var outputFileName = "".concat(isyear).concat(String(ismonth).padStart(2,'0')).concat(String(isday).padStart(2,'0')).concat(String(ishour).padStart(2,'0')).concat("_").concat(ieyear).concat(String(iemonth).padStart(2,'0')).concat(String(ieday).padStart(2,'0')).concat(String(iehour).padStart(2,'0')).concat(".output.m3d"); // the name that the batch file generates, based on the selected starting and ending dates.  In the fromat YYYYMMDDHH_YYYYMMDDHH.m3d.
+			configText = configText.replace("! OUTUSER = output.m3d !", "! OUTUSER = ".concat(outputFileName).concat(" !"));
 			configText = configText.replace("! ISYEAR = 2012 !", "! ISYEAR = ".concat(isyear).concat(" !"));
 			configText = configText.replace("! ISMONTH = 1 !", "! ISMONTH = ".concat(ismonth).concat(" !"));
 			configText = configText.replace("! ISDAY = 1 !", "! ISDAY = ".concat(isday).concat(" !"));
