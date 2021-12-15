@@ -672,6 +672,17 @@ require([
 		var s2StartDate = $("#startDate").val();
 		var s2EndDate = $("#endDate").val();
 
+		// if users enter a positive longitude, convert to a negative value for them.
+		if (s2Longitude1 >= 0) {
+			s2Longitude1 = s2Longitude1*-1;
+		} 
+		
+		// if users enter a positive longitude, convert to a negative value for them.
+		if (s2Longitude2 >= 0) {
+			s2Longitude2 = s2Longitude2*-1;
+		} 
+
+
 		bottomLeftXGlobal = s2Longitude1;
 		bottomLeftYGlobal = s2Latitude1;
 		topRightXGlobal = s2Longitude2;
@@ -718,15 +729,6 @@ require([
 			return;
 		}
 
-		// if users enter a positive longitude, convert to a negative value for them.
-		if (s2Longitude1 >= 0) {
-			s2Longitude1 = s2Longitude1*-1;
-		} 
-		
-		// if users enter a positive longitude, convert to a negative value for them.
-		if (s2Longitude2 >= 0) {
-			s2Longitude2 = s2Longitude2*-1;
-		} 
 
 		if (isNaN(s2Latitude1) || s1Latitude == 0) {
 			alert("You must enter a valid latitude in the format ##.######");
