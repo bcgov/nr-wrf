@@ -28,7 +28,6 @@ require([
 	const MAX_J = 425;
 	const MAX_I = 476
 
-
 	fetch('https://nrs.objectstore.gov.bc.ca/kadkvt/domaininfo_bcwrf.csv')
 		.then(function (response) {
 			return response.text()
@@ -54,8 +53,14 @@ require([
 
 	const graphicsLayer = new GraphicsLayer();
 	const boundaryGraphicsLayer = new GraphicsLayer();
+
+	const request = new XMLHttpRequest();
+	request.open('GET','/esriConfig', false);
+	request.send(null);
+	if (request.status === 200) {
+		esriConfig.apiKey = request.responseText;
+	}
 	
-	esriConfig.apiKey = "AAPK1c42e0bed09a4c5e9cd405eb8aa385be8iJCXX-m6zsVighHNzd5NLLVAhwtmAUOE5ZqrPseB8GuryyEHumQSDFtQJjjY3g_";
 	const map = new Map({
 		basemap: "arcgis-topographic", // Basemap layer
 		layers: [graphicsLayer]
@@ -228,147 +233,6 @@ require([
 		}
 	}
 
-	// calculate the largest J value less than the southern boundary that the user selected
-	function calculateMinimumJ(latitude, previousMinJ = 2, previousMaxJ = MAX_J,  minI = 2, maxI = MAX_I) {
-
-		var minJ = 2;
-
-		for (var jScan = previousMinJ; jScan <= previousMaxJ; jScan++) {
-
-			var inDomain = true;
-
-			// see if there are any values at the current J where all js are inside the boundary
-			for (var n = 3; n < lines.length; n++) {
-				var currentLine = lines[n].split(",");
-				var currentI = parseInt(currentLine[0]);
-				var currentJ = parseInt(currentLine[1]);
-				var currentLatitude = parseFloat(currentLine[2]);
-
-				// we're only interested in the latitudes at jScan, ignore everything until we get to jScan
-				if (currentJ < jScan) {
-					continue;
-				}
-
-				// we're beyond jScan, stop searching
-				if (currentJ > jScan) {
-					break;
-				}
-
-				// constrain based on min/max i values
-				if (currentI < minI || currentI > maxI || jScan < previousMinJ || jScan > previousMaxJ) {
-					continue;
-				}
-
-				// we're only checking j values that match jScan.  More specifically, we're
-				// ensuring that for each jScan value, every corresponding j is less than the southern latitude entered by the user
-				if (jScan == currentJ && currentLatitude >= latitude) {
-					inDomain = false;
-					break;
-				}
-			}
-
-			if (inDomain && jScan > minJ) {
-				minJ = jScan;
-			}
-			
-		}
-		return (minJ);
-	}
-
-	// calculate the largest J value less than the southern boundary that the user selected
-	// Default parameters are used if we haven't yet calculated the J or I values
-	function calculateMaximumJ(latitude, previousMinJ = 2, previousMaxJ = MAX_J,  minI = 2, maxI = MAX_I) {
-
-		var maxJ = MAX_J;
-
-		for (var jScan = previousMinJ; jScan <= previousMaxJ; jScan++) {
-
-			var inDomain = true;
-
-			// see if there are any values at the current J where all js are inside the boundary
-			for (var n = 3; n < lines.length; n++) {
-				var currentLine = lines[n].split(",");
-				var currentI = parseInt(currentLine[0]);
-				var currentJ = parseInt(currentLine[1]);
-				var currentLatitude = parseFloat(currentLine[2]);
-
-				// we're only interested in the latitudes at jScan, ignore everything until we get to jScan
-				if (currentJ < jScan) {
-					continue;
-				}
-
-				// we're beyond jScan, stop searching
-				if (currentJ > jScan) {
-					break;
-				}
-
-				// constrain based on min/max i values
-				if (currentI < minI || currentI > maxI || jScan < previousMinJ || jScan > previousMaxJ) {
-					continue;
-				}
-
-				// we're only checking j values that match jScan.  More specifically, we're
-				// ensuring that for each jScan value, every corresponding j is greater than the northernmost latitude entered by the user
-				if (jScan != currentJ) {
-					continue;
-				}
-
-				// we're only checking j values that match jScan.  More specifically, we're
-				// ensuring that for each jScan value, every corresponding j is greater than the northernmost latitude entered by the user
-				if (jScan == currentJ && currentLatitude <= latitude) {
-					inDomain = false;
-					break;
-				}
-			}
-
-			if (inDomain && jScan < maxJ) {
-				maxJ = jScan;
-			}
-			
-		}
-		return (maxJ);
-	}
-
-	// calculate the largest I value less than the western boundary that the user selected, constrained by the norther/southern boundaries selected by the user
-	function calculateMinimumI(longitude, maxJ) {
-		var minI = 2;
-		var previousLongitude = -200;
-
-		for (var n = 3; n < lines.length; n++) {
-			var currentLine = lines[n].split(",");
-			var currentI = parseInt(currentLine[0]);
-			var currentLongitude = parseFloat(currentLine[3]);
-			var currentJ = parseInt(currentLine[1]);
-
-			if ((currentJ == maxJ) && (currentLongitude > previousLongitude) && (currentLongitude < longitude)) {
-				previousLongitude = currentLongitude;
-				minI = currentI;
-			}
-		}
-		return minI;
-	}
-
-	// calculate the smallest I value greater than the eastern boundary that the user selected, constrained by the norther/southern boundaries selected by the user
-	function calculateMaximumI(longitude, maxJ) {
-		var maxI = 2;
-		var previousLongitude = 200;
-
-		for (var n = 3; n < lines.length; n++) {
-			var currentLine = lines[n].split(",");
-			var currentI = parseInt(currentLine[0]);
-			var currentLongitude = parseFloat(currentLine[3]);
-			var currentJ = parseInt(currentLine[1]);
-
-			if ((currentJ == maxJ) && (currentLongitude < previousLongitude) && (currentLongitude > longitude)) {
-						   previousLongitude = currentLongitude;
-						   maxI = currentI;
-			}
-		}
-		
-		return maxI;
-	}
-
-
 	// tiles have i/j coordinates ending in 2 (since each tile is 10 square kms and the i/j values start at 2)
 	// Given a number n, this function returns the greatest number less than or equal to n that ends in 2.  
 	function calculateMinimumTileNumber(n) {
@@ -387,11 +251,8 @@ require([
 	}
 
 	// download the data from the objects store
-	function downloadModelData() {
-
+	async function downloadModelData() {
 		var urls = [];
-		var zip = new JSZip();
-		var count = 0;
 		var zipFilename = "nr-wrf.zip";
 
 		var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
@@ -417,27 +278,40 @@ require([
 		var endDay = endDate.getDate();
 		var endHour = endDate.getHours();
 
-		
+		var url2 = '/zip-file/calculateVars'
+		var data = {
+			bottomLeftYGlobal: bottomLeftYGlobal, 
+			topRightYGlobal: topRightYGlobal,
+			bottomLeftXGlobal: bottomLeftXGlobal,
+			topRightXGlobal: topRightXGlobal,
+		};
+		var c = await fetch(url2, {
+			method: 'POST',
+			responseType: 'application/json',
+			headers: {
+			'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(data),
+		})
+		.then((res) => {
+			return res.json()
+		})
+		.catch(() => {
+			alert('Something went wrong');
+		});
 
-		var minJ = calculateMinimumJ(bottomLeftYGlobal);
+		var minJ = c.minJ;
 		console.log("minJ: " + minJ);
 		
-		var maxJ = calculateMaximumJ(topRightYGlobal, minJ);
+		var maxJ = c.maxJ;
 		console.log("maxJ: " + maxJ)
 
-		var minI = calculateMinimumI(bottomLeftXGlobal, minJ, maxJ);
+		var minI = c.minI;
 		console.log("minI: " + minI);
 		
-		var maxI = calculateMaximumI(topRightXGlobal, minJ, maxJ);
+		var maxI = c.maxI;
 		console.log("maxI: " + maxI);
-				
-		minJ = calculateMinimumJ(bottomLeftYGlobal, minJ, maxJ, minI, maxI);
-		console.log("Refined minJ: " + minJ);
 		
-		maxJ = calculateMaximumJ(topRightYGlobal, minJ, maxJ, minI, maxI);
-		console.log("Refined maxJ: " + maxJ);
-		
-
 		for (var i = calculateMinimumTileNumber(minI); i <= maxI; i += 10) {
 			for (var j = calculateMinimumTileNumber(minJ); j <= maxJ; j += 10) {
 				var x1 = String("000" + i).slice(-3); //left pad x1 with zeroes
@@ -493,47 +367,47 @@ require([
 
 		view.popup.content = "Preparing download... please wait";
 
-		zip.file("m3d_bild.inp", stitchingConfig);
-
 		// add the files required to unzip all the files, and process them
 		urls.push(baseUrl + "7z.exe");
 		urls.push(baseUrl + "m3d_bild.exe");
 		urls.push(baseUrl + "start.bat");
 		urls.push(baseUrl + "readme.txt");
-
-		urls.forEach(function (url) {
-			var msg = "Downloading Files";
-			// loading a file and add it in a zip file
-			JSZipUtils.getBinaryContent(url, function (err, data) {
-				if (err) {
-					throw err; // or handle the error
-				}
-				count++;
-				msg = "Downloading file " + count + " of " + (urls.length + 1);
-				view.popup.content = "<div>" + msg + "</div>";
-				// add the zip file
-				zip.file(url.substring(url.lastIndexOf('/') + 1), data, { binary: true });
-				if (count == urls.length) {
-					zip.generateAsync({ type: 'blob' }, function updateCallback(metadata) {
-						msg = "Packaging Download : " + metadata.percent.toFixed(2) + "%";
-						view.popup.content = msg;
-					})
-						.then(function callback(content) {
-							view.popup.close();
-							view.popup.clear();
-							graphicsLayer.removeAll();
-							saveAs(content, zipFilename);
-						});
-				}
-			});
-		});
-
+		
+		var zipFileUrl = '/zip-file/zip'
+		var zipData = {
+			stitchingConfig: stitchingConfig,
+			urls: urls
+		};
+		var c = await fetch(zipFileUrl, {
+			method: 'POST',
+			responseType: 'arraybuffer',
+			headers: {
+			'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(zipData),
+		})
+		.then((res) => res.blob())
+		.then((blob) => {
+			view.popup.close();
+			view.popup.clear();
+			graphicsLayer.removeAll();
+			const url = window.URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.style.display = 'none';
+			a.href = url;
+			a.download = zipFilename;
+			document.body.appendChild(a);
+			a.click();
+			window.URL.revokeObjectURL(url);
+		}).catch(() => {
+			alert('Something went wrong');
+		});	
 	}
 
 	clearResults = function() {
 		view.popup.close();
-							view.popup.clear();
-							graphicsLayer.removeAll();
+		view.popup.clear();
+		graphicsLayer.removeAll();
 	}
 
 	// Perform the "Search 1" function.  Given a point (lat/long), draw a square
