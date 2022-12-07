@@ -38,4 +38,4 @@ EXPOSE 3000
 USER app
 
 # Start up command
-ENTRYPOINT ["node", "dist/main"]
+ENTRYPOINT ["node", "dist/src/main"]
