@@ -8,6 +8,6 @@ async function bootstrap () {
   app.useStaticAssets(join(__dirname, '..', 'public'));
   app.setViewEngine('html');
 
-  await app.listen(8080);
+  await app.listen(3000);
 }
 bootstrap()
