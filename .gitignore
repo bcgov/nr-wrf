@@ -10,4 +10,3 @@ Caddyfile_save2
 Caddyfile_save1
 data/oldWRFIndexFile.csv
 data/wrf_fileindex_v2.csv
-data/
