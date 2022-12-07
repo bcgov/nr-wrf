@@ -87,6 +87,9 @@ objects:
             - image: ${NAME}-${ZONE}-${COMPONENT}:${IMAGE_TAG}
               imagePullPolicy: Always
               name: ${NAME}
+              env:
+                - name: NODE_TLS_REJECT_UNAUTHORIZED 
+                  value: '0'
               ports:
                 - containerPort: 3000
                   protocol: TCP

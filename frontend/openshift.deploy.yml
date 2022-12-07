@@ -90,6 +90,8 @@ objects:
               env:
                 - name: BACKEND_URL
                   value: https://${NAME}-${ZONE}-backend.${DOMAIN}
+                - name: NODE_TLS_REJECT_UNAUTHORIZED 
+                  value: '0'
               ports:
                 - containerPort: 3000
                   protocol: TCP
