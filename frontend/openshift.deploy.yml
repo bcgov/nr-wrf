@@ -106,11 +106,11 @@ objects:
               name: ${NAME}
               env:
                 - name: BACKEND_URL
-                  value: https://${NAME}-${ZONE}-backend.${DOMAIN}
+                  value: http://${NAME}-${ZONE}-backend
                 - name: NODE_TLS_REJECT_UNAUTHORIZED 
                   value: '0'
                 - name: filePath
-                  value: /mnt/wrf-files
+                  value: /mnt/wrf-files/
                 - name: esriConfigApiKey
                   valueFrom:
                     secretKeyRef:
