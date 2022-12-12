@@ -82,7 +82,6 @@ export class ZipFileService {
    * @returns readstream
    */
   async zipFiles2(stitchingConfig: string, urls: string[]): Promise<any> {
-    let count = 0;
     const filePath = process.env.filePath;
     let fileName = "m3d_bild.inp";
     let files = [];
@@ -94,7 +93,6 @@ export class ZipFileService {
     });
 
     for (let url of urls) {
-      count++;
       const data = await lastValueFrom(
         this.httpService.get(url).pipe(map((response) => response.data))
       );
@@ -109,7 +107,21 @@ export class ZipFileService {
     console.log("Zipping files.");
     const zipFileName = await zipFiles2(files);
     console.log("Zipping complete.");
-    const rs = fs.createReadStream(zipFileName);
-    return rs;
+    const readStream = fs.createReadStream(zipFileName);
+    for (let file of files) {
+      fs.unlink(file, (err) => {
+        if (err) {
+          throw new Error(`Error deleting file: ${err}`);
+        }
+      });
+    }
+    readStream.on("close", () =>
+      fs.unlinkSync(zipFileName, (err) => {
+        if (err) {
+          throw new Error(`Error deleting zip file: ${err}`);
+        }
+      })
+    );
+    return readStream;
   }
 }

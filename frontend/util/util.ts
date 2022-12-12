@@ -42,7 +42,7 @@ export async function zipFiles(files) {
 
 export async function zipFiles2(files: string[]): Promise<string> {
   const zipFile = new ZipFile();
-  const zipFileName = "C:/files/zipped_files.zip";
+  const zipFileName = process.env.zipFilePath;
 
   for (const file of files) {
     const fileName = file.substring(file.lastIndexOf("/") + 1);
