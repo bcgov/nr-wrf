@@ -55,6 +55,19 @@ objects:
             name: ${REGISTRY}/${PROMOTE}
           referencePolicy:
             type: Local
+  - kind: PersistentVolumeClaim
+    apiVersion: v1
+    metadata:
+      name: wrf-files
+      labels:
+        app: ${NAME}-${ZONE}
+    spec:
+      accessModes:
+        - ReadWriteMany
+      resources:
+        requests:
+          storage: "2Gi"
+      storageClassName: netapp-file-standard
   - apiVersion: v1
     kind: DeploymentConfig
     metadata:
