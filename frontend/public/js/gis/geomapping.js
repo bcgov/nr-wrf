@@ -253,7 +253,6 @@ require([
 	// download the data from the objects store
 	async function downloadModelData() {
 		var urls = [];
-		var zipFilename = "nr-wrf.zip";
 
 		var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
 
@@ -373,18 +372,65 @@ require([
 		urls.push(baseUrl + "start.bat");
 		urls.push(baseUrl + "readme.txt");
 		
-		var zipFileUrl = '/zip-file/zip'
+		var zipRequestUrl = '/zip-file/zip';
+		var zipCheckUrl = '/zip-file/checkZipFile/';
+		var zipFileUrl = '/zip-file/zipDownload/';
 		var zipData = {
 			stitchingConfig: stitchingConfig,
 			urls: urls
 		};
-		var c = await fetch(zipFileUrl, {
+		await fetch(zipRequestUrl, {
 			method: 'POST',
 			responseType: 'arraybuffer',
 			headers: {
 			'Content-Type': 'application/json',
 			},
 			body: JSON.stringify(zipData),
+		})
+		.then((res) => res.json())
+		.then((json) => {
+			console.log(json);
+			zipCheckUrl = zipCheckUrl.concat(json.subFolder);
+			zipFileUrl = zipFileUrl.concat(json.subFolder);
+		});
+
+		await checkZipFile(zipCheckUrl, zipFileUrl);
+	}
+
+	async function checkZipFile(zipCheckUrl, zipFileUrl) {
+		const interval = setInterval(function() {
+			fetch(zipCheckUrl)
+				.then(function(response) {
+				if (response.status === 200) {
+					return response.text();
+				} else {
+					throw new Error('Failed to ping route');
+				}
+				})
+				.then(function(responseText) {
+					console.log(responseText);
+				if (responseText === 'Ready') {
+					// Do something here when the route is ready
+					downloadZip(zipFileUrl);
+					clearInterval(interval);
+				}
+				})
+				.catch(function(error) {
+				console.error(error);
+				});
+		}, 3000); // Ping the route every 3 seconds
+	  }
+	  
+
+	function downloadZip(zipFileUrl) {
+		var zipFilename = "nr-wrf.zip";
+		console.log('downloading zip');
+		fetch(zipFileUrl, {
+			method: 'GET',
+			responseType: 'arraybuffer',
+			headers: {
+			'Content-Type': 'application/json',
+			},
 		})
 		.then((res) => res.blob())
 		.then((blob) => {
@@ -399,7 +445,8 @@ require([
 			document.body.appendChild(a);
 			a.click();
 			window.URL.revokeObjectURL(url);
-		}).catch(() => {
+		}).catch((err) => {
+			console.log(err);
 			alert('Something went wrong');
 		});	
 	}
