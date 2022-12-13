@@ -42,7 +42,10 @@ export class ZipFileController {
   }
 
   @Get("checkZipFile/:uuid")
-  checkZipFile(@Param("uuid") uuid: string): string {
+  checkZipFile(@Param("uuid") uuid: string): {
+    status: string;
+    num: string;
+  } {
     return this.zipFileService.checkZipFile(uuid);
   }
 

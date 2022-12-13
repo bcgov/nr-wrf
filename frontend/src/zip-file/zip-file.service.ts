@@ -153,14 +153,18 @@ export class ZipFileService {
    * @param subFolder
    * @returns true or false
    */
-  checkZipFile(subFolder: string): string {
+  checkZipFile(subFolder: string): { status: string; num: string } {
     const filePath = process.env.filePath;
     const folder =
       filePath.charAt(filePath.length - 1) == "/"
         ? filePath + subFolder + "/"
         : filePath + "/" + subFolder + "/";
     const completionFileName = folder + "Complete";
-    return fs.existsSync(completionFileName) ? "Ready" : "Not Ready";
+    const files = fs.readdirSync(folder);
+    return {
+      status: fs.existsSync(completionFileName) ? "Ready" : "Not Ready",
+      num: files.length,
+    };
   }
 
   /**
