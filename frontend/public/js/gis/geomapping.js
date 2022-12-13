@@ -412,10 +412,10 @@ require([
 			zipFileUrl = zipFileUrl.concat(json.subFolder);
 		});
 
-		await checkZipFile(zipCheckUrl, zipFileUrl);
+		checkZipFile(zipCheckUrl, zipFileUrl);
 	}
 
-	async function checkZipFile(zipCheckUrl, zipFileUrl) {
+	function checkZipFile(zipCheckUrl, zipFileUrl) {
 		var prevNum = 0;
 		var zipping = false;
 		const interval = setInterval(function() {
@@ -456,9 +456,9 @@ require([
 	  }
 	  
 
-	function downloadZip() {
+	async function downloadZip() {
 		var zipFilename = "nr-wrf.zip";
-		fetch(zipFileUrl, {
+		await fetch(zipFileUrl, {
 			method: 'GET',
 			responseType: 'arraybuffer',
 			headers: {
