@@ -45,6 +45,7 @@
     "@nestjs/common": "^9.1.2",
     "@nestjs/core": "^9.1.2",
     "@nestjs/platform-express": "^9.1.2",
+    "@nestjs/schedule": "^2.1.0",
     "@nestjs/schematics": "^9.0.3",
     "@nestjs/serve-static": "^3.0.0",
     "@nestjs/testing": "^9.1.2",
@@ -56,6 +57,7 @@
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.5.7",
     "stream": "^0.0.2",
+    "uuid": "^9.0.0",
     "yazl": "^2.5.1"
   },
   "devDependencies": {

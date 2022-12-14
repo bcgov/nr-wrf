@@ -1,7 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { lastValueFrom, map } from "rxjs";
+import * as uuid from "uuid";
 import { zipFiles, zipFiles2 } from "../../util/util";
+import { Cron } from "@nestjs/schedule";
 const fs = require("fs");
 
 let hostname: string;
@@ -73,21 +75,48 @@ export class ZipFileService {
   }
 
   /**
-   * Saves each file to a path designated by variable filePath,
-   * A util function then zips the files on the disk
-   * The function then reads that zip file and sends it back to the front.
+   * Creates a uuid subfolder, tells the server to start downloading and zipping the files
+   * and returns early with the uuid that the frontend can use to ping Nest with to check
+   * if the file is finished downloading and zipping.
+   *
+   * @param stitchingConfig
+   * @param urls
+   * @returns
+   */
+  beginZipping(stitchingConfig: string, urls: string[]): { subFolder: string } {
+    const subFolder = uuid.v4();
+    const filePath = process.env.filePath;
+    const folder =
+      filePath.charAt(filePath.length - 1) == "/"
+        ? filePath + subFolder + "/"
+        : filePath + "/" + subFolder + "/";
+    this.zipFiles2(stitchingConfig, urls, folder);
+    return { subFolder: subFolder };
+  }
+
+  /**
+   * Saves each file to a path designated by variable folder,
+   * A util function then zips the files on the disk and non-zipped files
+   * are cleaned up.
+   * This function does not return the file, that is done elsewhere.
    *
    * @param stitchingConfig
    * @param urls
    * @returns readstream
    */
-  async zipFiles2(stitchingConfig: string, urls: string[]): Promise<any> {
-    const filePath = process.env.filePath;
+  async zipFiles2(
+    stitchingConfig: string,
+    urls: string[],
+    folder: string
+  ): Promise<void> {
+    if (!fs.existsSync(folder)) {
+      fs.mkdirSync(folder);
+    }
     let fileName = "m3d_bild.inp";
     let files = [];
 
-    files.push(filePath + fileName);
-    await fs.writeFile(filePath + fileName, stitchingConfig, function (err) {
+    files.push(folder + fileName);
+    fs.writeFile(folder + fileName, stitchingConfig, function (err) {
       if (err) throw err;
       console.log("Saved " + fileName);
     });
@@ -98,16 +127,14 @@ export class ZipFileService {
       );
       console.log("Downloading file from " + url);
       fileName = url.split("/").pop();
-      files.push(filePath + fileName);
-      await fs.writeFile(filePath + fileName, data, function (err) {
+      files.push(folder + fileName);
+      fs.writeFile(folder + fileName, data, function (err) {
         if (err) throw err;
-        console.log("Saved " + fileName);
       });
+      console.log("Saved " + fileName);
     }
     console.log("Zipping files.");
-    const zipFileName = await zipFiles2(files);
-    console.log("Zipping complete.");
-    const readStream = fs.createReadStream(zipFileName);
+    await zipFiles2(files, folder);
     for (let file of files) {
       fs.unlink(file, (err) => {
         if (err) {
@@ -115,13 +142,102 @@ export class ZipFileService {
         }
       });
     }
-    readStream.on("close", () =>
-      fs.unlinkSync(zipFileName, (err) => {
-        if (err) {
-          throw new Error(`Error deleting zip file: ${err}`);
-        }
-      })
-    );
-    return readStream;
+    fs.writeFile(folder + "Complete", "", function (err) {
+      if (err) throw err;
+      console.log("Zipping Complete");
+    });
+  }
+
+  /**
+   * Checks if the files have been zipped yet.
+   *
+   * @param subFolder
+   * @returns true or false
+   */
+  checkZipFile(subFolder: string): { status: string; num: string } {
+    const filePath = process.env.filePath;
+    const folder =
+      filePath.charAt(filePath.length - 1) == "/"
+        ? filePath + subFolder + "/"
+        : filePath + "/" + subFolder + "/";
+    const completionFileName = folder + "Complete";
+    const files = fs.readdirSync(folder);
+    return {
+      status: fs.existsSync(completionFileName) ? "Ready" : "Not Ready",
+      num: files.length,
+    };
+  }
+
+  /**
+   * After the files are zipped, there will be a zip file in the subFolder specified
+   * by the subFolder variable. Return that zip file and then delete it.
+   *
+   * @param subFolder
+   * @returns the zip file as a readstream
+   */
+  async serveZipFile(subFolder: string): Promise<any> {
+    const filePath = process.env.filePath;
+    const folder =
+      filePath.charAt(filePath.length - 1) == "/"
+        ? filePath + subFolder + "/"
+        : filePath + "/" + subFolder + "/";
+    const zipFileName = folder + process.env.zipFileName;
+    const completionFileName = folder + "Complete";
+    const dirPath = folder.slice(0, -1);
+    try {
+      const readStream = fs.createReadStream(zipFileName);
+      readStream.on("close", () => {
+        fs.unlinkSync(zipFileName, (err) => {
+          if (err) {
+            throw new Error(`Error deleting zip file: ${err}`);
+          }
+        });
+        fs.unlinkSync(completionFileName, (err) => {
+          if (err) {
+            throw new Error(`Error deleting completion file: ${err}`);
+          }
+        });
+        fs.rmdir(dirPath, (err) => {
+          if (err) {
+            throw new Error(`Error deleting directory: ${err}`);
+          }
+        });
+      });
+      return readStream;
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  @Cron("0 0 0 * * *")
+  cleanFolder() {
+    console.log("Cleaning folders");
+    let numDeleted = 0;
+    let folderPath = process.env.filePath;
+    if (folderPath.charAt(folderPath.length - 1) == "/") {
+      folderPath = folderPath.slice(0, -1);
+    }
+
+    // Get an array of all the subfolders in the specified folder
+    const subfolders: string[] = fs.readdirSync(folderPath).filter((file) => {
+      const filePath: string = `${folderPath}/${file}`;
+      return fs.statSync(filePath).isDirectory();
+    });
+
+    // Loop through each subfolder and check its creation date
+    subfolders.forEach((subfolder) => {
+      // Get the full path to the subfolder
+      const subfolderPath: string = `${folderPath}/${subfolder}`;
+
+      // Get the creation date of the subfolder
+      const creationDate: Date = fs.statSync(subfolderPath).birthtime;
+      // Check if the subfolder is more than a day old
+      if (Date.now() - creationDate.getTime() > 86400000) {
+        // Delete the subfolder and all files inside
+        fs.rmSync(subfolderPath, { recursive: true });
+        numDeleted++;
+      }
+    });
+    console.log(`Deleted ${numDeleted} folders.`);
   }
 }

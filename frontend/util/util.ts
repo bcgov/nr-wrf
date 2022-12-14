@@ -40,9 +40,12 @@ export async function zipFiles(files) {
   });
 }
 
-export async function zipFiles2(files: string[]): Promise<string> {
+export async function zipFiles2(
+  files: string[],
+  folder: string
+): Promise<string> {
   const zipFile = new ZipFile();
-  const zipFileName = process.env.zipFilePath;
+  const zipFilePath = folder + process.env.zipFileName;
 
   for (const file of files) {
     const fileName = file.substring(file.lastIndexOf("/") + 1);
@@ -51,8 +54,8 @@ export async function zipFiles2(files: string[]): Promise<string> {
 
   return new Promise((resolve, reject) => {
     zipFile.outputStream
-      .pipe(createWriteStream(zipFileName))
-      .on("finish", () => resolve(zipFileName))
+      .pipe(createWriteStream(zipFilePath))
+      .on("finish", () => resolve(zipFilePath))
       .on("error", (error) => reject(error));
     zipFile.end();
   });

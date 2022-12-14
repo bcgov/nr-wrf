@@ -1,4 +1,11 @@
-import { Body, Controller, Post, StreamableFile } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  StreamableFile,
+} from "@nestjs/common";
 import { ZipFileService } from "./zip-file.service";
 
 @Controller("zip-file")
@@ -25,11 +32,25 @@ export class ZipFileController {
   }
 
   @Post("zip")
-  async zipFiles(
+  async beginZipping(
     @Body() dataDto: { stitchingConfig: string; urls: string[] }
-  ): Promise<StreamableFile> {
-    return new StreamableFile(
-      await this.zipFileService.zipFiles2(dataDto.stitchingConfig, dataDto.urls)
+  ): Promise<{ subFolder: string }> {
+    return this.zipFileService.beginZipping(
+      dataDto.stitchingConfig,
+      dataDto.urls
     );
+  }
+
+  @Get("checkZipFile/:uuid")
+  checkZipFile(@Param("uuid") uuid: string): {
+    status: string;
+    num: string;
+  } {
+    return this.zipFileService.checkZipFile(uuid);
+  }
+
+  @Get("zipDownload/:uuid")
+  async zipDownload(@Param("uuid") uuid: string): Promise<StreamableFile> {
+    return new StreamableFile(await this.zipFileService.serveZipFile(uuid));
   }
 }

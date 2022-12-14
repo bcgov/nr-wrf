@@ -27,6 +27,8 @@ require([
 
 	const MAX_J = 425;
 	const MAX_I = 476
+	var zipFileUrl;
+	var urlsLength;
 
 	fetch('https://nrs.objectstore.gov.bc.ca/kadkvt/domaininfo_bcwrf.csv')
 		.then(function (response) {
@@ -157,6 +159,12 @@ require([
 		image: "images/download-icon-256.png"
 	};
 
+	var downloadZipAction = {
+		title: "Click Here to Download",
+		id: "download-zip-action",
+		image: "images/download-icon-256.png"
+	};
+
 	view.popup.on("trigger-action", function (event) {
 		// Execute the measureThis() function if the measure-this action is clicked
 
@@ -171,6 +179,16 @@ require([
 				downloadModelData();	
 			  }, 1000);
 			
+		}
+
+		if (event.action.id === "download-zip-action") {
+			view.popup.actions.removeAll(); // to prevent clicking the download again
+			
+			view.popup.content = "Downloading..."
+
+			setTimeout(function(){
+				downloadZip();	
+			  }, 1000);
 		}
 	});
 
@@ -253,7 +271,6 @@ require([
 	// download the data from the objects store
 	async function downloadModelData() {
 		var urls = [];
-		var zipFilename = "nr-wrf.zip";
 
 		var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
 
@@ -372,19 +389,81 @@ require([
 		urls.push(baseUrl + "m3d_bild.exe");
 		urls.push(baseUrl + "start.bat");
 		urls.push(baseUrl + "readme.txt");
+		urlsLength = urls.length;
 		
-		var zipFileUrl = '/zip-file/zip'
+		var zipRequestUrl = '/zip-file/zip';
+		var zipCheckUrl = '/zip-file/checkZipFile/';
+		zipFileUrl = '/zip-file/zipDownload/';
 		var zipData = {
 			stitchingConfig: stitchingConfig,
 			urls: urls
 		};
-		var c = await fetch(zipFileUrl, {
+		await fetch(zipRequestUrl, {
 			method: 'POST',
 			responseType: 'arraybuffer',
 			headers: {
 			'Content-Type': 'application/json',
 			},
 			body: JSON.stringify(zipData),
+		})
+		.then((res) => res.json())
+		.then((json) => {
+			zipCheckUrl = zipCheckUrl.concat(json.subFolder);
+			zipFileUrl = zipFileUrl.concat(json.subFolder);
+		});
+
+		checkZipFile(zipCheckUrl, zipFileUrl);
+	}
+
+	function checkZipFile(zipCheckUrl, zipFileUrl) {
+		var prevNum = 0;
+		var zipping = false;
+		const interval = setInterval(function() {
+			fetch(zipCheckUrl)
+				.then(function(response) {
+				if (response.status === 200) {
+					return response.json();
+				} else {
+					throw new Error('Failed to ping route');
+				}
+				})
+				.then(function(resJson) {
+				if (resJson.status === 'Ready') {
+					clearInterval(interval);
+					view.popup.close();
+					view.popup.clear();
+					view.popup.open({
+						title: "Model Data For Area",
+						actions: [downloadZipAction],
+						content: "Your files are ready, click the link below to download them."
+					});
+				} else {
+					if (resJson.num <= urlsLength && (resJson.num >= prevNum || !zipping)) {
+						view.popup.content = `Downloading ${resJson.num}/${urlsLength}... please wait`;
+					} else if (!zipping) {
+						zipping = true;
+						view.popup.content = `Downloading ${urlsLength}/${urlsLength}... please wait`;
+					}
+					else {
+						view.popup.content = `Zipping files... please wait`;
+					}
+				}
+				})
+				.catch(function(error) {
+				console.error(error);
+				});
+		}, 3000); // Ping the route every 3 seconds
+	  }
+	  
+
+	async function downloadZip() {
+		var zipFilename = "nr-wrf.zip";
+		await fetch(zipFileUrl, {
+			method: 'GET',
+			responseType: 'arraybuffer',
+			headers: {
+			'Content-Type': 'application/json',
+			},
 		})
 		.then((res) => res.blob())
 		.then((blob) => {
@@ -399,7 +478,8 @@ require([
 			document.body.appendChild(a);
 			a.click();
 			window.URL.revokeObjectURL(url);
-		}).catch(() => {
+		}).catch((err) => {
+			console.log(err);
 			alert('Something went wrong');
 		});	
 	}
