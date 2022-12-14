@@ -3,6 +3,7 @@ import { HttpService } from "@nestjs/axios";
 import { lastValueFrom, map } from "rxjs";
 import * as uuid from "uuid";
 import { zipFiles, zipFiles2 } from "../../util/util";
+import { Cron } from "@nestjs/schedule";
 const fs = require("fs");
 
 let hostname: string;
@@ -206,5 +207,37 @@ export class ZipFileService {
     } catch (err) {
       console.log(err);
     }
+  }
+
+  @Cron("0 0 0 * * *")
+  cleanFolder() {
+    console.log("Cleaning folders");
+    let numDeleted = 0;
+    let folderPath = process.env.filePath;
+    if (folderPath.charAt(folderPath.length - 1) == "/") {
+      folderPath = folderPath.slice(0, -1);
+    }
+
+    // Get an array of all the subfolders in the specified folder
+    const subfolders: string[] = fs.readdirSync(folderPath).filter((file) => {
+      const filePath: string = `${folderPath}/${file}`;
+      return fs.statSync(filePath).isDirectory();
+    });
+
+    // Loop through each subfolder and check its creation date
+    subfolders.forEach((subfolder) => {
+      // Get the full path to the subfolder
+      const subfolderPath: string = `${folderPath}/${subfolder}`;
+
+      // Get the creation date of the subfolder
+      const creationDate: Date = fs.statSync(subfolderPath).birthtime;
+      // Check if the subfolder is more than a day old
+      if (Date.now() - creationDate.getTime() > 86400000) {
+        // Delete the subfolder and all files inside
+        fs.rmSync(subfolderPath, { recursive: true });
+        numDeleted++;
+      }
+    });
+    console.log(`Deleted ${numDeleted} folders.`);
   }
 }
