@@ -49,11 +49,10 @@ export async function zipFiles2(
 
   console.log("Waiting 5 seconds before zipping...");
   await new Promise((resolve) => setTimeout(resolve, 5000));
-  console.log("Zipping.");
+  console.log("Zipping files.");
 
   for (const file of files) {
     const fileName = file.substring(file.lastIndexOf("/") + 1);
-    console.log(file);
     zipFile.addFile(file, fileName);
   }
 
