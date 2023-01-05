@@ -1,8 +1,8 @@
 const archiver = require("archiver");
+const https = require("https");
+const fs = require("fs");
 import { Writable } from "stream";
 declare const Buffer;
-
-import { createReadStream, createWriteStream } from "fs";
 import { ZipFile } from "yazl";
 
 /**
@@ -47,16 +47,27 @@ export async function zipFiles2(
   const zipFile = new ZipFile();
   const zipFilePath = folder + process.env.zipFileName;
 
+  console.log("Waiting 5 seconds before zipping...");
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  console.log("Zipping files.");
+
   for (const file of files) {
     const fileName = file.substring(file.lastIndexOf("/") + 1);
-    zipFile.addReadStream(createReadStream(file), fileName);
+    zipFile.addFile(file, fileName);
   }
 
   return new Promise((resolve, reject) => {
     zipFile.outputStream
-      .pipe(createWriteStream(zipFilePath))
+      .pipe(fs.createWriteStream(zipFilePath))
       .on("finish", () => resolve(zipFilePath))
       .on("error", (error) => reject(error));
     zipFile.end();
+  });
+}
+
+export async function downloadFile(url: string, dir: string): Promise<void> {
+  const file = fs.createWriteStream(dir);
+  https.get(url, function (response) {
+    response.pipe(file);
   });
 }

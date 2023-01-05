@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { lastValueFrom, map } from "rxjs";
 import * as uuid from "uuid";
-import { zipFiles, zipFiles2 } from "../../util/util";
+import { downloadFile, zipFiles, zipFiles2 } from "../../util/util";
 import { Cron } from "@nestjs/schedule";
 const fs = require("fs");
 
@@ -90,7 +90,15 @@ export class ZipFileService {
       filePath.charAt(filePath.length - 1) == "/"
         ? filePath + subFolder + "/"
         : filePath + "/" + subFolder + "/";
-    this.zipFiles2(stitchingConfig, urls, folder);
+    // split urls array, urls contains the search data urls which are added to a .bat file
+    // urls2 contains the static files
+    let urls2 = [];
+    for (let i = urls.length - 4; i < urls.length; i++) {
+      urls2.push(urls[i]);
+    }
+    urls.splice(urls.length - 4, 4);
+    const downloadBat = this.createDownloadBat(urls);
+    this.zipFiles2(stitchingConfig, downloadBat, urls2, folder);
     return { subFolder: subFolder };
   }
 
@@ -106,6 +114,7 @@ export class ZipFileService {
    */
   async zipFiles2(
     stitchingConfig: string,
+    downloadBat: string,
     urls: string[],
     folder: string
   ): Promise<void> {
@@ -113,6 +122,7 @@ export class ZipFileService {
       fs.mkdirSync(folder);
     }
     let fileName = "m3d_bild.inp";
+    const downloadBatFileName = "download.bat";
     let files = [];
 
     files.push(folder + fileName);
@@ -120,20 +130,42 @@ export class ZipFileService {
       if (err) throw err;
       console.log("Saved " + fileName);
     });
+    files.push(folder + downloadBatFileName);
+    fs.writeFile(folder + downloadBatFileName, downloadBat, function (err) {
+      if (err) throw err;
+      console.log("Saved " + downloadBatFileName);
+    });
 
     for (let url of urls) {
-      const data = await lastValueFrom(
-        this.httpService.get(url).pipe(map((response) => response.data))
-      );
       console.log("Downloading file from " + url);
       fileName = url.split("/").pop();
       files.push(folder + fileName);
-      fs.writeFile(folder + fileName, data, function (err) {
-        if (err) throw err;
-      });
-      console.log("Saved " + fileName);
+      if (fileName == "start.bat") {
+        const data = await lastValueFrom(
+          this.httpService.get(url).pipe(map((response) => response.data))
+        );
+        fs.writeFile(folder + fileName, data, function (err) {
+          if (err) throw err;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        let startBatContent = fs.readFileSync(
+          folder + fileName,
+          "utf8",
+          (err, data) => {}
+        );
+        startBatContent = startBatContent.replace(
+          "rem Batch file extract zip files, runs Fortran code",
+          "rem Batch file extract zip files, runs Fortran code\n\ncall download.bat"
+        );
+        fs.writeFile(folder + fileName, startBatContent, function (err) {
+          if (err) throw err;
+        });
+        console.log("Saved " + fileName);
+      } else {
+        await downloadFile(url, folder + fileName);
+        console.log("Saved " + fileName);
+      }
     }
-    console.log("Zipping files.");
     await zipFiles2(files, folder);
     for (let file of files) {
       fs.unlink(file, (err) => {
@@ -207,6 +239,14 @@ export class ZipFileService {
     } catch (err) {
       console.log(err);
     }
+  }
+
+  createDownloadBat(downloadUrls: string[]): string {
+    let batchFileContent = "";
+    downloadUrls.forEach((url) => {
+      batchFileContent += `curl -O ${url}\n`;
+    });
+    return batchFileContent;
   }
 
   @Cron("0 0 0 * * *")

@@ -438,11 +438,11 @@ require([
 						content: "Your files are ready, click the link below to download them."
 					});
 				} else {
-					if (resJson.num <= urlsLength && (resJson.num >= prevNum || !zipping)) {
-						view.popup.content = `Downloading ${resJson.num}/${urlsLength}... please wait`;
+					if (resJson.num <= 6 && (resJson.num >= prevNum || !zipping)) {
+						view.popup.content = `Downloading ${resJson.num}/6... please wait`;
 					} else if (!zipping) {
 						zipping = true;
-						view.popup.content = `Downloading ${urlsLength}/${urlsLength}... please wait`;
+						view.popup.content = `Downloading ${urlsLength}/6... please wait`;
 					}
 					else {
 						view.popup.content = `Zipping files... please wait`;
@@ -450,7 +450,8 @@ require([
 				}
 				})
 				.catch(function(error) {
-				console.error(error);
+					console.log('interval closed error');
+					console.error(error);
 				});
 		}, 3000); // Ping the route every 3 seconds
 	  }
