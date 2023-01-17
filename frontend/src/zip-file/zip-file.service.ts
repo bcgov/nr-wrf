@@ -244,7 +244,7 @@ export class ZipFileService {
   createDownloadBat(downloadUrls: string[]): string {
     let batchFileContent = "";
     downloadUrls.forEach((url) => {
-      batchFileContent += `curl -O ${url} -X --retry 10\n`;
+      batchFileContent += `curl -O ${url} --retry 10\n`;
     });
     return batchFileContent;
   }
