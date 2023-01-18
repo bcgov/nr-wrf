@@ -120,7 +120,7 @@ html, body, #topicTemplate {
 
 	// verify that the start date is before the end date
 	function validateDateSelection(startDate, endDate) {
-		if (startDate > endDate) {
+		if (Date.parse(startDate) > Date.parse(endDate)) {
 			alert("The start date must be before the end date")
 			return false;
 		} else {
