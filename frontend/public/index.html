@@ -430,15 +430,7 @@ html, body, #topicTemplate {
 				defaultDate: new Date(2011,0,1),
 				timeFormat: "HH:mm",
 				controlType: 'select',
-				showMinute: false,
-				onSelect: function(dateText) {
-					var sourceDate = new Date(this.value);
-					sourceDate.setFullYear(sourceDate.getFullYear()+1);
-					sourceDate.setHours(23,0,0);
-					$( "#endDate" ).datepicker( "option", "maxDate", sourceDate);
-					$( "#endDate" ).datepicker( "setDate", sourceDate);
-					
-				}
+				showMinute: false
 			});
 			$("#endDate").datetimepicker({
 				changeMonth : true,
