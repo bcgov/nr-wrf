@@ -374,14 +374,6 @@ require([
 			maxJ
 		);
 
-		if (urls.length > 500) {
-			alert("The area you have selected contains more than 500 files for the given date range.  Please constrain your search to a small area or time period.");
-			view.popup.close();
-			view.popup.clear();
-
-			return;
-		}
-
 		view.popup.content = "Preparing download... please wait";
 
 		// add the files required to unzip all the files, and process them
