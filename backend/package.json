@@ -43,7 +43,7 @@
     "@nestjs/cli": "^9.1.4",
     "@nestjs/common": "^9.1.2",
     "@nestjs/config": "^2.2.0",
-    "@nestjs/core": "^9.1.2",
+    "@nestjs/core": "^9.3.3",
     "@nestjs/platform-express": "^9.1.2",
     "@nestjs/schedule": "^2.1.0",
     "@nestjs/schematics": "^9.0.3",
