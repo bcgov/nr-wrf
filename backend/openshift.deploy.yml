@@ -6,7 +6,7 @@ labels:
 parameters:
   - name: NAME
     description: Module name
-    value: nr-wrf-typescript
+    value: wrf
   - name: COMPONENT
     description: Component name
     value: backend
