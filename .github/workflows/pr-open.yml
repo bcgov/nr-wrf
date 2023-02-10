@@ -96,6 +96,6 @@ jobs:
           overwrite: ${{ matrix.overwrite }}
           penetration_test: false
           parameters:
-            -p ZONE=${{ github.event.number }} -p NAME=${{ github.event.repository.name }}
+            -p ZONE=${{ github.event.number }} -p NAME=wrf
             -p PROMOTE=${{ github.repository }}/${{ matrix.name }}:${{ github.event.number }}
             ${{ matrix.parameters }}
