@@ -1,5 +1,5 @@
 {
-  "name": "nr-wrf",
+  "name": "wrf",
   "version": "0.0.1",
   "description": "Weather Research and Forecasting Model.",
   "main": "index.js",

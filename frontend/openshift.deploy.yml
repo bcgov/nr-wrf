@@ -6,7 +6,7 @@ labels:
 parameters:
   - name: NAME
     description: Module name
-    value: nr-wrf-typescript
+    value: wrf
   - name: COMPONENT
     description: Component name
     value: frontend
@@ -55,6 +55,19 @@ objects:
             name: ${REGISTRY}/${PROMOTE}
           referencePolicy:
             type: Local
+  - kind: PersistentVolumeClaim
+    apiVersion: v1
+    metadata:
+      name: wrf-files
+      labels:
+        app: ${NAME}-${ZONE}
+    spec:
+      accessModes:
+        - ReadWriteMany
+      resources:
+        requests:
+          storage: "1Gi"
+      storageClassName: netapp-file-standard
   - apiVersion: v1
     kind: DeploymentConfig
     metadata:
@@ -83,25 +96,36 @@ objects:
             app: ${NAME}-${ZONE}
             deploymentconfig: ${NAME}-${ZONE}-${COMPONENT}
         spec:
+          volumes:
+            - name: wrf-files
+              persistentVolumeClaim:
+                claimName: wrf-files
           containers:
             - image: ${NAME}-${ZONE}-${COMPONENT}:${IMAGE_TAG}
               imagePullPolicy: Always
               name: ${NAME}
               env:
                 - name: BACKEND_URL
-                  value: https://${NAME}-${ZONE}-backend.${DOMAIN}
+                  value: http://${NAME}-${ZONE}-backend
                 - name: NODE_TLS_REJECT_UNAUTHORIZED 
                   value: '0'
+                - name: filePath
+                  value: /mnt/wrf-files/
+                - name: esriConfigApiKey
+                  valueFrom:
+                    secretKeyRef:
+                      name: esri-config-api-key
+                      key: esriConfigApiKey
               ports:
                 - containerPort: 3000
                   protocol: TCP
+              volumeMounts:
+                - mountPath: /mnt/wrf-files
+                  name: wrf-files
               resources:
                 requests:
                   cpu: ${CPU_REQUEST}
                   memory: ${MEMORY_REQUEST}
-                limits:
-                  cpu: ${CPU_LIMIT}
-                  memory: ${MEMORY_LIMIT}
               readinessProbe:
                 httpGet:
                   path: /

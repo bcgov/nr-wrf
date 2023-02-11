@@ -5,12 +5,12 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: daily
+      interval: monthly
 
   - package-ecosystem: npm
     directory: /backend
     schedule:
-      interval: daily
+      interval: monthly
     commit-message:
       prefix: "Backend"
       include: "scope"
@@ -18,7 +18,7 @@ updates:
   - package-ecosystem: npm
     directory: /frontend
     schedule:
-      interval: daily
+      interval: monthly
     commit-message:
       prefix: "Frontend"
       include: "scope"

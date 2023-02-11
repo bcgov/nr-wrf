@@ -6,7 +6,7 @@ labels:
 parameters:
   - name: NAME
     description: Module name
-    value: nr-wrf-typescript
+    value: wrf
   - name: COMPONENT
     description: Component name
     value: backend
@@ -97,9 +97,6 @@ objects:
                 requests:
                   cpu: ${CPU_REQUEST}
                   memory: ${MEMORY_REQUEST}
-                limits:
-                  cpu: ${CPU_LIMIT}
-                  memory: ${MEMORY_LIMIT}
               readinessProbe:
                 httpGet:
                   path: /
@@ -128,7 +125,7 @@ objects:
       ports:
         - name: 3000-tcp
           protocol: TCP
-          port: 80
+          port: 3000
           targetPort: 3000
       selector:
         deploymentconfig: ${NAME}-${ZONE}-${COMPONENT}
