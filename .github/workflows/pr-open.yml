@@ -67,6 +67,8 @@ jobs:
           triggers: ${{ matrix.triggers }}
 
   deploys:
+    environment:
+      name: dev
     name: Deploys
     needs:
       - builds
