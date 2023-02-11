@@ -48,7 +48,7 @@
     "@nestjs/schedule": "^2.1.0",
     "@nestjs/schematics": "^9.0.3",
     "@nestjs/swagger": "^6.1.2",
-    "@nestjs/testing": "^9.1.2",
+    "@nestjs/testing": "^9.3.8",
     "@nestjs/typeorm": "^9.0.1",
     "cross-fetch": "^3.1.5",
     "dotenv": "^16.0.3",
