@@ -7,7 +7,6 @@ on:
     paths-ignore:
       - ".github/ISSUE_TEMPLATE/*"
       - "**.md"
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}
