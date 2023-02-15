@@ -49,7 +49,6 @@ jobs:
           - name: backend
             file: backend/openshift.deploy.yml
             overwrite: true
-            overwrite: false
           - name: frontend
             file: frontend/openshift.deploy.yml
             overwrite: true
@@ -82,7 +81,6 @@ jobs:
           - name: backend
             file: backend/openshift.deploy.yml
             overwrite: true
-            overwrite: false
           - name: frontend
             file: frontend/openshift.deploy.yml
             overwrite: true
