@@ -157,6 +157,10 @@ export class ZipFileService {
           "rem Batch file extract zip files, runs Fortran code",
           "rem Batch file extract zip files, runs Fortran code\n\ncall download.bat"
         );
+        startBatContent = startBatContent.replace(
+          "7z x *.m3d.7z",
+          "7z x *.m3d.7z -aoa"
+        );
         fs.writeFile(folder + fileName, startBatContent, function (err) {
           if (err) throw err;
         });
