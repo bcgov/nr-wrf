@@ -764,6 +764,43 @@ require([
 		
 	}
 
+	search4 = function () {
+		var sStartDate = $('#startDate').val();
+		var sEndDate = $('#endDate').val();
+		var sLatitude = $("#sLatitude").val();
+		var sLongitude = $("#sLongitude").val();
+
+		// if users enter a positive longitude, convert to a negative value for them.
+		if (sLongitude >= 0) {
+			sLongitude = sLongitude*-1;
+		} 
+
+		if (isNaN(sLatitude) || sLatitude == 0) {
+			alert("You must enter a valid latitude in the format ##.######");
+			return;
+		}
+		if (isNaN(sLongitude) || sLongitude == 0) {
+			alert("You must enter a valid longitude in the format ##.######");
+			return;
+		}
+
+		if (sLatitude > 63 || sLatitude < 45 || sLongitude < -146 || sLongitude > -106) {
+			alert("You have entered a coordinate outside of the bounds of this application.");
+			return;
+		}
+
+		if (!validateDate(sStartDate)) {
+			return;
+		}
+
+		if (!validateDate(sEndDate)) {
+			return;
+		}
+
+		// TODO change this
+		downloadDialog({ latitude: sLatitude, longitude: sLongitude });
+	}
+
 	sketch.on("create", function (event) {
 		// clear the screen of any popups or previous graphics
 		if (event.state === "start") {

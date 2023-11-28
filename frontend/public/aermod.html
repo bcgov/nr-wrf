@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="HandheldFriendly" content="true" />
+    <meta name="description" content="" />
+    <meta name="author" content="Ministry of Environment" />
+    <meta
+      name="title"
+      content=" Weather Research and Forecasting Dataset Interactive Map "
+    />
+    <meta
+      name="navigaton_title"
+      content=" Weather Research and Forecasting Dataset Interactive Map "
+    />
+    <meta
+      name="description"
+      content="Weather Research and Forecasting Dataset Interactive Map - a three-dimensional gridded data base using the Weather Research and Forecasting (WRF) model. "
+    />
+    <meta
+      name="author"
+      content=" Ministry of Environment and Climate Change Strategy "
+    />
+    <meta name="MBCTERMS.subjectCategory" content="Nature and Environment" />
+    <meta name="DCTERMS.subject" content="Air quality" />
+    <meta name="DCTERMS.subject" content="Modelling" />
+    <meta name="DCTERMS.publisher" content="Province of British Columbia" />
+    <link
+      rel="apple-touch-icon"
+      sizes="57x57"
+      href="icons/apple-icon-57x57.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="60x60"
+      href="icons/apple-icon-60x60.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="72x72"
+      href="icons/apple-icon-72x72.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="76x76"
+      href="icons/apple-icon-76x76.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="114x114"
+      href="icons/apple-icon-114x114.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="120x120"
+      href="icons/apple-icon-120x120.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="144x144"
+      href="icons/apple-icon-144x144.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="152x152"
+      href="icons/apple-icon-152x152.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="icons/apple-icon-180x180.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="icons/android-icon-192x192.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="icons/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="96x96"
+      href="icons/favicon-96x96.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="icons/favicon-16x16.png"
+    />
+    <link rel="manifest" href="icons/manifest.json" />
+    <link rel="icon" type="image/png" href="images/favicon.ico" />
+    <meta name="msapplication-TileColor" content="#ffffff" />
+    <meta name="msapplication-TileImage" content="icons/ms-icon-144x144.png" />
+    <meta name="theme-color" content="#ffffff" />
+
+    <title>BC Air Quality</title>
+
+    <!-- BOOTSTRAP CORE CSS v3.3.6 -->
+    <link rel="stylesheet" href="css/bootstrap.min.css" />
+
+    <!-- STANDARD CSS -->
+    <link
+      type="text/css"
+      href="css/main.css?refresh=160106102"
+      rel="stylesheet"
+    />
+
+    <!-- Timepicker CSS -->
+    <link rel="stylesheet" href="css/jquery-ui-timepicker-addon.min.css" />
+
+    <!-- FONTS -->
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css"
+    />
+
+    <!-- CUSTOM ENV CSS -->
+    <link href="css/custom-main.css" rel="stylesheet" />
+    <link href="css/custom-form.css" rel="stylesheet" />
+
+    <link
+      rel="stylesheet"
+      href="js/jquery-ui-1.12.1.custom/jquery-ui.min.css"
+    />
+    <script src="js/jszip.min.js"></script>
+    <script src="js/jszip-utils.min.js"></script>
+    <script src="js/bluebird.min.js"></script>
+    <script src="js/FileSaver.min.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script src="js/timepicker/jquery-ui-sliderAccess.js"></script>
+    <script src="js/timepicker/jquery-ui-timepicker-addon.min.js"></script>
+
+    <!-- Include all compiled plugins (below), or include individual files as needed -->
+    <script src="js/bootstrap.min.js"></script>
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    <!-- <div id="topicTemplate" class="template container gov-container"> -->
+    <style>
+      html,
+      body,
+      #topicTemplate {
+        width: auto;
+        margin: 0;
+        padding: 0;
+      }
+
+      #viewDiv {
+        height: 900px;
+      }
+    </style>
+
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.19/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.19/"></script>
+    <script>
+      function validateDate(date) {
+        var reg = /^\d{2}[./-]\d{2}[./-]\d{4}\s\d{2}:\d{2}$/;
+        if (date.match(reg)) {
+          return true;
+        } else {
+          alert("Invalid date format, please use the format mm/dd/yyyy");
+          return false;
+        }
+      }
+
+      // verify that the start date is before the end date
+      function validateDateSelection(startDate, endDate) {
+        if (Date.parse(startDate) > Date.parse(endDate)) {
+          alert("The start date must be before the end date");
+          return false;
+        } else {
+          return true;
+        }
+      }
+    </script>
+    <script src="js/gis/geomapping.js?version=1.0.4"></script>
+  </head>
+
+  <body>
+    <!-- HEADER -->
+    <div id="header">
+      <div id="header-main" class="navbar navbar-default navbar-fixed-top">
+        <div class="container">
+          <div id="header-main-row" class="row">
+            <!-- GOV & ENV TITLE -->
+            <div class="col-sm-3 col-md-2 col-lg-2 header-main-left">
+              <div id="logo">
+                <a href="http://gov.bc.ca"
+                  ><img
+                    src="images/gov3_bc_logo.png"
+                    alt="Government of B.C."
+                    title="Government of B.C."
+                /></a>
+              </div>
+              <div id="access">
+                <ul>
+                  <li aria-label="Keyboard Tab Skip">
+                    <a
+                      accesskey="1"
+                      href="#main-content-anchor"
+                      aria-label="Skip to main content"
+                      >Skip to main content</a
+                    >
+                  </li>
+                  <li aria-label="Keyboard Tab Skip">
+                    <a
+                      accesskey="n"
+                      href="#main-content-anchor"
+                      onclick="$('.menu-button').focus();"
+                      aria-label="Skip to navigation"
+                      >Skip to navigation</a
+                    >
+                  </li>
+                  <li aria-label="Keyboard Tab Skip">
+                    <a
+                      accesskey="0"
+                      href="http://gov.bc.ca/webaccessibility/"
+                      aria-label="Accessibility Statement"
+                      >Accessibility Statement</a
+                    >
+                  </li>
+                </ul>
+              </div>
+              <button
+                type="button"
+                class="navbar-toggle gov-button-custom collapsed"
+                data-toggle="collapse"
+                data-target="#navbar"
+                aria-expanded="true"
+                aria-label="Burger Navigation"
+              >
+                <img
+                  src="images/menu-open-mobile.png"
+                  alt="Mobile Menu Button"
+                />
+              </button>
+            </div>
+            <div class="col-sm-8 col-md-8 col-lg-6 hidden-xs">
+              <div class="bcgov-title">
+                <h1>BC Air Quality</h1>
+              </div>
+            </div>
+            <!-- /GOV & ENV TITLE -->
+
+            <!-- COLLAPSING NAVBAR -->
+            <div id="navbar" class="collapse navbar-collapse">
+              <ul class="nav navbar-nav">
+                <li><a href="..">CALPUFF</a></li>
+                <li><a href="./aermod.html" class="current">AERMOD</a></li>
+              </ul>
+            </div>
+            <!-- /COLLAPSING NAVBAR -->
+          </div>
+        </div>
+        <div class="navigationRibbon">
+          <div class="level2Navigation">
+            <div class="container">
+              <a href="..">CALPUFF</a>
+              <a href="./aermod.html" class="current">AERMOD</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- /Header -->
+    <!-- BODY CONTENT -->
+    <template id="dateFieldset">
+      <fieldset>
+        <legend>Date Range</legend>
+        <div class="form-group">
+          <label class="col-lg-4 control-label">Timezone</label>
+          <div class="col-lg-10">
+            <div class="radio">
+              <label>
+                <input
+                  type="radio"
+                  name="timezone"
+                  id="timezonePST"
+                  value="8"
+                  checked
+                />PST (-0800)
+              </label>
+            </div>
+            <div class="radio">
+              <label>
+                <input
+                  type="radio"
+                  name="timezone"
+                  id="timezoneMST"
+                  value="7"
+                />MST (-0700)
+              </label>
+            </div>
+
+            <div class="radio">
+              <label>
+                <input
+                  type="radio"
+                  name="timezone"
+                  id="timezoneUTC"
+                  value="0"
+                />UTC
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="form-group row">
+          <div class="col-lg-10">
+            <label for="startDate">Start</label>
+            <input
+              type="text"
+              id="startDate"
+              class="form-control"
+              readonly="readonly"
+              style="background: white"
+            />
+          </div>
+        </div>
+        <div class="form-group row">
+          <div class="col-lg-10">
+            <label class="" for="endDate">End</label>
+            <input
+              type="text"
+              id="endDate"
+              class="form-control"
+              readonly="readonly"
+              style="background: white"
+            />
+          </div>
+        </div>
+      </fieldset>
+    </template>
+
+    <div id="topicTemplate" class="template container gov-container">
+      <a id="main-content-anchor"></a>
+      <!-- PAGE CONTENT -->
+      <div class="row">
+        <div id="main-content" class="contentPageMainColumn col-xs-12">
+          <h1>Weather Research and Forecasting Model (WRF) Data</h1>
+          <div id="introduction">
+            <p>
+              Click the "Search" button after specifying the spatial domain and
+              time range using any of the search tab options below. Locate and
+              select the "DOWNLOAD Data" icon that pops up to begin downloading
+              the WRF data package. Extract the content of the package into a
+              dedicated folder and open the included readme file (i.e.,
+              Readme.txt) for instructions on next steps. If you have any
+              questions, please email
+              <a href="mailto:bcdispersion.model@gov.bc.ca"
+                >bcdispersion.model@gov.bc.ca</a
+              >.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div style="float: left; width: 350px">
+        <div id="tabs">
+          <ul>
+            <li>
+              <a
+                href="#search"
+                onclick="fillTemplate('sDateDiv');clearResults()"
+                >Search</a
+              >
+            </li>
+          </ul>
+          <div id="search">
+            <div id="sDateDiv"></div>
+            <fieldset>
+              <legend>Location</legend>
+              <div class="form-group row">
+                <div class="col-lg-6">
+                  <label for="sLatitude">Latitude (&deg;N)</label>
+                  <input
+                    type="text"
+                    id="sLatitude"
+                    maxlength="12"
+                    class="form-control"
+                  />
+                </div>
+              </div>
+              <div class="form-group row">
+                <div class="col-lg-6">
+                  <label for="sLongitude">Longitude (&deg;W)</label>
+                  <input
+                    type="text"
+                    id="sLongitude"
+                    maxlength="12"
+                    class="form-control"
+                  />
+                </div>
+              </div>
+            </fieldset>
+            <br />
+            <button
+              class="btn btn-primary"
+              type="button"
+              id="searchButton"
+              onclick="search4()"
+              value="Search"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="viewDiv" style="max-height: 700px"></div>
+    </div>
+
+    <!-- /BODY CONTENT -->
+    <div id="shareIcons"></div>
+
+    <!-- FOOTER -->
+    <div id="footer" style="clear: both">
+      <img
+        class="back-to-top"
+        src="images/back-to-top.png"
+        alt="Back to top"
+        title="Back to top"
+        style="display: inline"
+      />
+      <div id="footerWrapper">
+        <div id="footerAdminSection">
+          <div id="footerAdminLinksContainer" class="container">
+            <div id="footerAdminLinks" class="row">
+              <ul class="inline">
+                <li><a href="https://gov.bc.ca">Home</a></li>
+                <li>
+                  <a
+                    href="https://www2.gov.bc.ca/gov/content?id=6C49603C7EAA4050979CF908162EA91D"
+                    >About this site</a
+                  >
+                </li>
+                <li>
+                  <a href="http://gov.bc.ca/disclaimer/" target="_self"
+                    >Disclaimer</a
+                  >
+                </li>
+                <li>
+                  <a href="http://gov.bc.ca/privacy/" target="_self">Privacy</a>
+                </li>
+                <li>
+                  <a href="http://gov.bc.ca/webaccessibility/" target="_self"
+                    >Accessibility</a
+                  >
+                </li>
+                <li>
+                  <a href="http://gov.bc.ca/copyright" target="_self"
+                    >Copyright</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="https://www2.gov.bc.ca/gov/content?id=8D53E57633F94760A3BC8D5426FB1D4B"
+                    >Contact Us</a
+                  >
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /FOOTER -->
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <script>
+      const template = document.getElementById("dateFieldset");
+
+      const xhr = new XMLHttpRequest();
+      const url = "https://nrs.objectstore.gov.bc.ca/kadkvt";
+      xhr.open("GET", url);
+      xhr.send();
+
+      $(function () {
+        // initialize various UI elements
+        $("#tabs").tabs(); //init the tabs
+      });
+
+      function removeAllChildNodes(parent) {
+        while (parent.firstChild) {
+          parent.removeChild(parent.firstChild);
+        }
+      }
+
+      fillTemplate("sDateDiv");
+
+      function fillTemplate(divName) {
+        var sDateDiv = document.getElementById("sDateDiv");
+
+        sDateDiv.innerHTML = "";
+        document.getElementById(divName).innerHTML = template.innerHTML;
+
+        //init date pickers
+        $("#startDate").datetimepicker({
+          changeMonth: true,
+          changeYear: true,
+          dateFormat: "mm/dd/yy",
+          minDate: new Date(2011, 0, 1),
+          maxDate: new Date(2016, 0, 1),
+          defaultDate: new Date(2011, 0, 1),
+          timeFormat: "HH:mm",
+          controlType: "select",
+          showMinute: false,
+        });
+        $("#endDate").datetimepicker({
+          changeMonth: true,
+          changeYear: true,
+          dateFormat: "mm/dd/yy",
+          minDate: new Date(2011, 0, 1),
+          maxDate: new Date(2016, 0, 1),
+          timeFormat: "HH:mm",
+          controlType: "select",
+          showMinute: false,
+        });
+      }
+    </script>
+  </body>
+</html>
