@@ -2,7 +2,7 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "assets": [  
+    "assets": [
       {
         "include": "../public",
         "outDir": "dist/public",

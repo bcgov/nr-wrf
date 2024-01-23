@@ -6,6 +6,7 @@ import { ServeStaticModule } from "@nestjs/serve-static";
 import { join } from "path";
 import { HttpModule } from "@nestjs/axios";
 import { ZipFileModule } from "./zip-file/zip-file.module";
+import { MappingModule } from './mapping/mapping.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ZipFileModule } from "./zip-file/zip-file.module";
     HttpModule,
     ZipFileModule,
     ScheduleModule.forRoot(),
+    MappingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -7,6 +7,7 @@ import {
   StreamableFile,
 } from "@nestjs/common";
 import { ZipFileService } from "./zip-file.service";
+import { TileDownloadInfo } from "../../util/types";
 
 @Controller("zip-file")
 export class ZipFileController {
@@ -22,6 +23,7 @@ export class ZipFileController {
       topRightXGlobal: number;
     }
   ) {
+    console.log(dataDto);
     const vars = await this.zipFileService.calculateVars(
       dataDto.bottomLeftYGlobal,
       dataDto.topRightYGlobal,
@@ -37,6 +39,20 @@ export class ZipFileController {
   ): Promise<{ subFolder: string }> {
     return this.zipFileService.beginZipping(
       dataDto.stitchingConfig,
+      dataDto.urls
+    );
+  }
+
+  @Post("zipAermod")
+  async beginZippingAermod(
+    @Body()
+    dataDto: {
+      tileDownloadInfo: TileDownloadInfo;
+      urls: string[];
+    }
+  ): Promise<{ subFolder: string }> {
+    return this.zipFileService.beginZippingAermod(
+      dataDto.tileDownloadInfo,
       dataDto.urls
     );
   }

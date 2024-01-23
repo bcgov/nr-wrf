@@ -172,60 +172,13 @@ require([
       },
     });
 
-    // const center = getPolygonCenter(coordinates);
-
-    // const textSymbol = {
-    //   type: "text",
-    //   color: [0, 0, 0, 1], // Black color
-    //   text: tile_id.toString().padStart(4, "0"),
-    //   font: {
-    //     size: "24px",
-    //     family: "Arial",
-    //     weight: "normal",
-    //   },
-    //   haloColor: [255, 255, 255, 0.8], // White halo for better visibility
-    //   haloSize: 1,
-    // };
-
-    // const textGraphic = new Graphic({
-    //   geometry: center,
-    //   symbol: textSymbol,
-    // });
-
     graphicsLayer.add(polygonGraphic);
-    // labelGraphicsLayer.add(textGraphic);
 
     // Add the polygon to the R-tree
     const bbox = calculateBoundingBox(coordinates);
     const item = { ...bbox, tile_id: tile_id, polygonGraphic };
     rtree.insert(item);
   }
-
-  //   /**
-  //  * Used to position the tile_id text on each polygon
-  //  *
-  //  * @param {*} coordinates
-  //  * @returns
-  //  */
-  //   function getPolygonCenter(coordinates) {
-  //     const centroid = coordinates.reduce(
-  //       (acc, coord) => {
-  //         acc[0] += parseFloat(coord[0]);
-  //         acc[1] += parseFloat(coord[1]);
-  //         return acc;
-  //       },
-  //       [0, 0]
-  //     );
-
-  //     const centerX = centroid[0] / coordinates.length;
-  //     const centerY = centroid[1] / coordinates.length - 0.015;
-
-  //     return new Point({
-  //       x: centerX,
-  //       y: centerY,
-  //       spatialReference: view.spatialReference,
-  //     });
-  //   }
 
   /** Function to calculate the bounding box of a polygon
    *
@@ -244,32 +197,38 @@ require([
   /**
    * Reduces the tile_domain_info data to just tile corner points
    *
-   * @param {*} tileData
+   * @param {*} td
    * @returns
    */
-  function filterCornerPoints(tileData) {
-    // Convert string properties to appropriate types
-    const convertedData = tileData.map((point) => ({
-      i: parseInt(point.i, 10),
-      j: parseInt(point.j, 10),
-      lat: parseFloat(point.lat),
-      lon: parseFloat(point.lon),
-      tile_id: parseInt(point.tile_id, 10),
-    }));
+  function filterCornerPoints(parsedData) {
+    // Assuming parsedData is the output from Papa.parse
+    const points = parsedData.data;
 
-    const pointsByTile = convertedData.reduce((acc, point) => {
+    // Group points by tile_id
+    const pointsByTile = points.reduce((acc, point) => {
       acc[point.tile_id] = acc[point.tile_id] || [];
       acc[point.tile_id].push(point);
       return acc;
     }, {});
 
     const cornerPoints = Object.values(pointsByTile).flatMap((group) => {
-      const minI = Math.min(...group.map((point) => point.i));
-      const maxI = Math.max(...group.map((point) => point.i));
-      const minJ = Math.min(...group.map((point) => point.j));
-      const maxJ = Math.max(...group.map((point) => point.j));
+      // Ensure 'i', 'j', 'tile_id' are integers, and 'lat', 'lon' are floats
+      const groupWithParsedNumbers = group.map((point) => ({
+        ...point,
+        i: parseInt(point.i),
+        j: parseInt(point.j),
+        lat: parseFloat(point.lat),
+        lon: parseFloat(point.lon),
+        tile_id: parseInt(point.tile_id),
+      }));
 
-      return group.filter(
+      // Determine the min and max of i and j to find corner points
+      const minI = Math.min(...groupWithParsedNumbers.map((point) => point.i));
+      const maxI = Math.max(...groupWithParsedNumbers.map((point) => point.i));
+      const minJ = Math.min(...groupWithParsedNumbers.map((point) => point.j));
+      const maxJ = Math.max(...groupWithParsedNumbers.map((point) => point.j));
+
+      return groupWithParsedNumbers.filter(
         (point) =>
           (point.i === minI && point.j === minJ) ||
           (point.i === minI && point.j === maxJ) ||
@@ -354,75 +313,14 @@ require([
     return flattenedOutput;
   }
 
-  /**
-   * Called when the search button is clicked.
-   *
-   * @returns
-   */
-  search = function () {
-    var startDate = $("#startDate").val();
-    var endDate = $("#endDate").val();
-    var latitude = $("#latitude").val();
-    var longitude = $("#longitude").val();
+  /** Search and download section */
 
-    // if users enter a positive longitude, convert to a negative value for them.
-    if (longitude >= 0) {
-      longitude = longitude * -1;
-    }
-
-    if (isNaN(latitude) || latitude == 0) {
-      alert("You must enter a valid latitude in the format ##.######");
-      return;
-    }
-    if (isNaN(longitude) || longitude == 0) {
-      alert("You must enter a valid longitude in the format ##.######");
-      return;
-    }
-
-    if (
-      latitude > 63 ||
-      latitude < 45 ||
-      longitude < -146 ||
-      longitude > -106
-    ) {
-      alert(
-        "You have entered a coordinate outside of the bounds of this application."
-      );
-      return;
-    }
-
-    if (!validateDate(startDate)) {
-      return;
-    }
-
-    if (!validateDate(endDate)) {
-      return;
-    }
-
-    // TODO change this
-    downloadDialog(latitude, longitude);
-  };
-
-  //
-  // DOWNLOAD SECTION START
-  //
-
-  // display the download tooltip containing the results from the selected search
-  function downloadDialog(latitude, longitude) {
-    // close dialog if there's already one up.
-    view.popup.close();
-    view.popup.clear();
-
-    view.popup.open({
-      title: "Model Data For Area",
-      actions: [downloadAction],
-      content: "Click the download icon to download your data",
-      location: {
-        latitude: topRightPoint.latitude,
-        longitude: topRightPoint.longitude,
-      },
-    });
-  }
+  var cornerPoints;
+  var zipFileUrl;
+  var urlsLength;
+  var closestPoint;
+  var lat;
+  var lon;
 
   var downloadAction = {
     title: "Download Data",
@@ -460,28 +358,136 @@ require([
     }
   });
 
+  /**
+   * Called when the search button is clicked.
+   *
+   * @returns
+   */
+  search = function () {
+    var startDate = $("#startDate").val();
+    var endDate = $("#endDate").val();
+    var latitude = $("#latitude").val();
+    var longitude = $("#longitude").val();
+    // set globals for downloadDialog
+    lat = latitude;
+    lon = longitude;
+
+    // if users enter a positive longitude, convert to a negative value for them.
+    if (longitude >= 0) {
+      longitude = longitude * -1;
+    }
+
+    if (isNaN(latitude) || latitude == 0) {
+      alert("You must enter a valid latitude in the format ##.######");
+      return;
+    }
+    if (isNaN(longitude) || longitude == 0) {
+      alert("You must enter a valid longitude in the format ##.######");
+      return;
+    }
+
+    if (
+      latitude > 63 ||
+      latitude < 45 ||
+      longitude < -146 ||
+      longitude > -106
+    ) {
+      alert(
+        "You have entered a coordinate outside of the bounds of this application."
+      );
+      return;
+    }
+
+    if (!validateDate(startDate)) {
+      return;
+    }
+
+    if (!validateDate(endDate)) {
+      return;
+    }
+
+    downloadDialog(latitude, longitude);
+  };
+
   // display the download tooltip containing the results from the selected search
-  function downloadDialog(topRightPoint) {
+  const downloadDialog = async (latitude, longitude) => {
     // close dialog if there's already one up.
     view.popup.close();
     view.popup.clear();
+
+    const data = {
+      latitude: latitude,
+      longitude: longitude,
+    };
+    closestPoint = fetch("mapping/findClosestPoint", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    })
+      .then((response) => response.json())
+      .then((response) => {
+        return response;
+      })
+      .catch((error) => {
+        console.error("findClosestPoint Error:", error);
+      });
 
     view.popup.open({
       title: "Model Data For Area",
       actions: [downloadAction],
       content: "Click the download icon to download your data",
       location: {
-        latitude: topRightPoint.latitude,
-        longitude: topRightPoint.longitude,
+        latitude: latitude,
+        longitude: longitude,
       },
     });
-  }
+  };
+
+  // var downloadAction = {
+  //   title: "Download Data",
+  //   id: "download-action",
+  //   image: "images/download-icon-256.png",
+  // };
+
+  // var downloadZipAction = {
+  //   title: "Click Here to Download",
+  //   id: "download-zip-action",
+  //   image: "images/download-icon-256.png",
+  // };
+
+  // view.popup.on("trigger-action", function (event) {
+  //   // Execute the measureThis() function if the measure-this action is clicked
+
+  //   if (event.action.id === "download-action") {
+  //     view.popup.actions.removeAll(); // to prevent clicking the download again
+
+  //     view.popup.content = "Determining files to download, please wait...";
+
+  //     setTimeout(function () {
+  //       downloadModelData();
+  //     }, 1000);
+  //   }
+
+  //   if (event.action.id === "download-zip-action") {
+  //     view.popup.actions.removeAll(); // to prevent clicking the download again
+
+  //     view.popup.content = "Downloading...";
+
+  //     setTimeout(function () {
+  //       downloadZip();
+  //     }, 1000);
+  //   }
+  // });
 
   // download the data from the objects store
   async function downloadModelData() {
+    console.log(closestPoint);
+
     var urls = [];
 
-    var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
+    var baseUrl = "https://nrs.objectstore.gov.bc.ca/qfncae/support_files/";
 
     var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
 
@@ -502,87 +508,7 @@ require([
     var endDay = endDate.getDate();
     var endHour = endDate.getHours();
 
-    var url2 = "/zip-file/calculateVars";
-    var data = {
-      bottomLeftYGlobal: bottomLeftYGlobal,
-      topRightYGlobal: topRightYGlobal,
-      bottomLeftXGlobal: bottomLeftXGlobal,
-      topRightXGlobal: topRightXGlobal,
-    };
-    var c = await fetch(url2, {
-      method: "POST",
-      responseType: "application/json",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    })
-      .then((res) => {
-        return res.json();
-      })
-      .catch(() => {
-        alert("Something went wrong");
-      });
-
-    var minJ = c.minJ;
-    console.log("minJ: " + minJ);
-
-    var maxJ = c.maxJ;
-    console.log("maxJ: " + maxJ);
-
-    var minI = c.minI;
-    console.log("minI: " + minI);
-
-    var maxI = c.maxI;
-    console.log("maxI: " + maxI);
-
-    for (var i = calculateMinimumTileNumber(minI); i <= maxI; i += 10) {
-      for (var j = calculateMinimumTileNumber(minJ); j <= maxJ; j += 10) {
-        var x1 = String("000" + i).slice(-3); //left pad x1 with zeroes
-        var y1 = String("000" + j).slice(-3);
-        var x2 = String("000" + (i + 9)).slice(-3);
-        var y2 = String("000" + (j + 9)).slice(-3);
-
-        var startingDate = new Date();
-        startingDate.setFullYear(startDate.getFullYear());
-        startingDate.setMonth(startDate.getMonth());
-        startingDate.setDate(1);
-
-        var endingDate = new Date();
-        endingDate.setFullYear(endDate.getFullYear());
-        endingDate.setMonth(endDate.getMonth());
-
-        for (
-          var tileDate = startingDate;
-          tileDate <= endingDate;
-          tileDate.setMonth(tileDate.getMonth() + 1)
-        ) {
-          var year = tileDate.getFullYear();
-          var month = tileDate.getMonth() + 1;
-          month = String("00" + month).slice(-2);
-          var fileName =
-            "x" +
-            x1 +
-            "y" +
-            y1 +
-            "x" +
-            x2 +
-            "y" +
-            y2 +
-            "." +
-            year +
-            "" +
-            month +
-            ".10x10.m3d.7z";
-
-          urls.push(baseUrl + fileName);
-        }
-      }
-    }
-
-    // generate the m3d_bild_temp.ini file based on user selected parameters
-    var stitchingConfig = getConfig(
-      baseUrl + "m3d_bild_temp.inp",
+    var tileDownloadInfo = {
       startYear,
       startMonth,
       startDay,
@@ -591,11 +517,11 @@ require([
       endMonth,
       endDay,
       endHour,
-      minI,
-      maxI,
-      minJ,
-      maxJ
-    );
+      timeZone: timezoneOffset,
+      latitude: lat,
+      longitude: lon,
+      closestPoint: closestPoint,
+    };
 
     view.popup.content = "Preparing download... please wait";
 
@@ -604,13 +530,14 @@ require([
     urls.push(baseUrl + "m3d_bild.exe");
     urls.push(baseUrl + "start.bat");
     urls.push(baseUrl + "readme.txt");
+
     urlsLength = urls.length;
 
-    var zipRequestUrl = "/zip-file/zip";
+    var zipRequestUrl = "/zip-file/zipAermod";
     var zipCheckUrl = "/zip-file/checkZipFile/";
     zipFileUrl = "/zip-file/zipDownload/";
     var zipData = {
-      stitchingConfig: stitchingConfig,
+      tileDownloadInfo: tileDownloadInfo,
       urls: urls,
     };
     await fetch(zipRequestUrl, {
@@ -624,13 +551,13 @@ require([
       .then((res) => res.json())
       .then((json) => {
         zipCheckUrl = zipCheckUrl.concat(json.subFolder);
-        zipFileUrl = zipFileUrl.concat(json.subFolder);
       });
 
-    checkZipFile(zipCheckUrl, zipFileUrl);
+    checkZipFile(zipCheckUrl);
   }
 
-  function checkZipFile(zipCheckUrl, zipFileUrl) {
+  function checkZipFile(zipCheckUrl) {
+    console.log("checking Zip File");
     var prevNum = 0;
     var zipping = false;
     const interval = setInterval(function () {
@@ -667,12 +594,14 @@ require([
         .catch(function (error) {
           console.log("interval closed error");
           console.error(error);
+          view.popup.content = "An error occurred. Please try again later.";
+          clearInterval(interval);
         });
     }, 3000); // Ping the route every 3 seconds
   }
 
   async function downloadZip() {
-    var zipFilename = "nr-wrf.zip";
+    var zipFilename = "nr-wrf_aermod.zip";
     await fetch(zipFileUrl, {
       method: "GET",
       responseType: "arraybuffer",
@@ -711,36 +640,13 @@ require([
   //
 
   /**
-   * Receives a csv file, alters it to contain only tile corner points,
-   * then draws polygons (tiles) using those corner points.
+   * Receives corner points ordered by tile from the backend and
+   * draws polygons (tiles) using those corner points.
    *
    */
-  fetch("/js/gis/tile_domain_info.csv") // change to objectstore
-    .then((response) => response.text())
-    .then((csvData) => {
-      const parsedData = Papa.parse(csvData, {
-        header: true,
-        skipEmptyLines: true,
-      });
-
-      // Remove filename and full_url from each point
-      const filteredData = parsedData.data.map((point) => {
-        const { filename, full_url, ...filteredPoint } = point;
-        return filteredPoint;
-      });
-
-      // Reduce the dataset to just tile corner points and get rid of deadzones
-      const cornerPoints = updateCornerCoordinates(
-        filterCornerPoints(filteredData)
-      );
-
-      // Group points by tile_id
-      const pointsByTile = cornerPoints.reduce((acc, point) => {
-        acc[point.tile_id] = acc[point.tile_id] || [];
-        acc[point.tile_id].push(point);
-        return acc;
-      }, {});
-
+  fetch("/mapping/getCornerPoints") // change to objectstore
+    .then((response) => response.json())
+    .then((pointsByTile) => {
       // Iterate over tile groups and draw polygons for each group
       Object.values(pointsByTile).forEach((tileGroup) => {
         const tile_id = tileGroup[0].tile_id;
