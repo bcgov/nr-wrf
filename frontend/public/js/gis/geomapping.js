@@ -167,8 +167,6 @@ require([
 
 	view.popup.on("trigger-action", function (event) {
 		// Execute the measureThis() function if the measure-this action is clicked
-
-
 		
 		if (event.action.id === "download-action") {
 			view.popup.actions.removeAll(); // to prevent clicking the download again
@@ -283,7 +281,6 @@ require([
 		// factor in the timezone
 		startDate.setHours(startDate.getHours() + timezoneOffset);
 		endDate.setHours(endDate.getHours() + timezoneOffset);
-
 
 		var startYear = startDate.getFullYear();
 		var startMonth = startDate.getMonth() + 1;
@@ -404,10 +401,10 @@ require([
 			zipFileUrl = zipFileUrl.concat(json.subFolder);
 		});
 
-		checkZipFile(zipCheckUrl, zipFileUrl);
+		checkZipFile(zipCheckUrl);
 	}
 
-	function checkZipFile(zipCheckUrl, zipFileUrl) {
+	function checkZipFile(zipCheckUrl) {
 		var prevNum = 0;
 		var zipping = false;
 		const interval = setInterval(function() {

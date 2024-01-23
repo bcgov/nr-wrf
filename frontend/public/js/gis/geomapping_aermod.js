@@ -123,6 +123,33 @@ require([
     }
   });
 
+  function highlightPolygonByLatLon(lat, lon) {
+    // Create a bounding box around the provided lat/lon point for querying the R-tree
+    const clickBBox = {
+      minX: lon,
+      minY: lat,
+      maxX: lon,
+      maxY: lat,
+    };
+
+    const intersectedItems = rtree.search(clickBBox);
+
+    if (intersectedItems.length > 0) {
+      const clickedPolygon = intersectedItems[0].polygonGraphic;
+
+      if (clickedPolygon) {
+        // If another polygon was previously selected, reset its color
+        if (selectedPolygon && selectedPolygon !== clickedPolygon) {
+          selectedPolygon.symbol = polygonSymbol;
+        }
+
+        // Make the newly selected polygon green
+        clickedPolygon.symbol = greenPolygonSymbol;
+        selectedPolygon = clickedPolygon;
+      }
+    }
+  }
+
   /**
    * Polygons draw counter-clockwise, this function organizes the corner points
    * in that order.
@@ -194,128 +221,8 @@ require([
     };
   }
 
-  /**
-   * Reduces the tile_domain_info data to just tile corner points
-   *
-   * @param {*} td
-   * @returns
-   */
-  function filterCornerPoints(parsedData) {
-    // Assuming parsedData is the output from Papa.parse
-    const points = parsedData.data;
-
-    // Group points by tile_id
-    const pointsByTile = points.reduce((acc, point) => {
-      acc[point.tile_id] = acc[point.tile_id] || [];
-      acc[point.tile_id].push(point);
-      return acc;
-    }, {});
-
-    const cornerPoints = Object.values(pointsByTile).flatMap((group) => {
-      // Ensure 'i', 'j', 'tile_id' are integers, and 'lat', 'lon' are floats
-      const groupWithParsedNumbers = group.map((point) => ({
-        ...point,
-        i: parseInt(point.i),
-        j: parseInt(point.j),
-        lat: parseFloat(point.lat),
-        lon: parseFloat(point.lon),
-        tile_id: parseInt(point.tile_id),
-      }));
-
-      // Determine the min and max of i and j to find corner points
-      const minI = Math.min(...groupWithParsedNumbers.map((point) => point.i));
-      const maxI = Math.max(...groupWithParsedNumbers.map((point) => point.i));
-      const minJ = Math.min(...groupWithParsedNumbers.map((point) => point.j));
-      const maxJ = Math.max(...groupWithParsedNumbers.map((point) => point.j));
-
-      return groupWithParsedNumbers.filter(
-        (point) =>
-          (point.i === minI && point.j === minJ) ||
-          (point.i === minI && point.j === maxJ) ||
-          (point.i === maxI && point.j === minJ) ||
-          (point.i === maxI && point.j === maxJ)
-      );
-    });
-
-    return cornerPoints;
-  }
-
-  /**
-   * Removes deadzones between tiles by shifting tile borders closer
-   *
-   * @param {*} points
-   * @returns
-   */
-  function updateCornerCoordinates(points) {
-    const groupedPoints = {};
-
-    // Iterate over each point and group based on conditions
-    points.forEach((point1, index1) => {
-      if (point1 !== null) {
-        const similarPoints = [point1]; // Array to store points that need averaging
-
-        points.forEach((point2, index2) => {
-          if (
-            point2 !== null &&
-            ((point1.j === point2.j && Math.abs(point1.i - point2.i) === 1) ||
-              (point1.i === point2.i && Math.abs(point1.j - point2.j) === 1) ||
-              (Math.abs(point1.i - point2.i) === 1 &&
-                Math.abs(point1.j - point2.j) === 1))
-          ) {
-            similarPoints.push(point2);
-            // Mark the point to be skipped in the next iterations
-            points[index2] = null;
-          }
-        });
-
-        // Calculate averages
-        const avgI =
-          similarPoints.reduce((sum, p) => sum + p.i, 0) / similarPoints.length;
-        const avgJ =
-          similarPoints.reduce((sum, p) => sum + p.j, 0) / similarPoints.length;
-        const avgLat =
-          similarPoints.reduce((sum, p) => sum + p.lat, 0) /
-          similarPoints.length;
-        const avgLon =
-          similarPoints.reduce((sum, p) => sum + p.lon, 0) /
-          similarPoints.length;
-
-        // Update the points with averaged values and their tile_id
-        similarPoints.forEach((p) => {
-          p.i = avgI;
-          p.j = avgJ;
-          p.lat = avgLat;
-          p.lon = avgLon;
-        });
-
-        // Group by the averaged point's tile_id
-        const key = `${avgI.toFixed(4)},${avgJ.toFixed(4)},${avgLat.toFixed(
-          4
-        )},${avgLon.toFixed(4)}`;
-        if (!groupedPoints[key]) {
-          groupedPoints[key] = [];
-        }
-        groupedPoints[key].push(...similarPoints);
-      }
-    });
-
-    // Flatten and format the output
-    const flattenedOutput = Object.values(groupedPoints)
-      .flat()
-      .map((point) => ({
-        i: point.i.toFixed(4),
-        j: point.j.toFixed(4),
-        lon: point.lon.toFixed(4),
-        lat: point.lat.toFixed(4),
-        tile_id: point.tile_id,
-      }));
-
-    return flattenedOutput;
-  }
-
   /** Search and download section */
 
-  var cornerPoints;
   var zipFileUrl;
   var urlsLength;
   var closestPoint;
@@ -335,8 +242,6 @@ require([
   };
 
   view.popup.on("trigger-action", function (event) {
-    // Execute the measureThis() function if the measure-this action is clicked
-
     if (event.action.id === "download-action") {
       view.popup.actions.removeAll(); // to prevent clicking the download again
 
@@ -371,6 +276,7 @@ require([
     // set globals for downloadDialog
     lat = latitude;
     lon = longitude;
+    highlightPolygonByLatLon(lat, lon);
 
     // if users enter a positive longitude, convert to a negative value for them.
     if (longitude >= 0) {
@@ -419,7 +325,7 @@ require([
       latitude: latitude,
       longitude: longitude,
     };
-    closestPoint = fetch("mapping/findClosestPoint", {
+    fetch("mapping/findClosestPoint", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -428,58 +334,23 @@ require([
     })
       .then((response) => response.json())
       .then((response) => {
-        return response;
+        closestPoint = response;
       })
       .catch((error) => {
         console.error("findClosestPoint Error:", error);
+      })
+      .finally(() => {
+        view.popup.open({
+          title: "Model Data For Area",
+          actions: [downloadAction],
+          content: "Click the download icon to download your data",
+          location: {
+            latitude: latitude,
+            longitude: longitude,
+          },
+        });
       });
-
-    view.popup.open({
-      title: "Model Data For Area",
-      actions: [downloadAction],
-      content: "Click the download icon to download your data",
-      location: {
-        latitude: latitude,
-        longitude: longitude,
-      },
-    });
   };
-
-  // var downloadAction = {
-  //   title: "Download Data",
-  //   id: "download-action",
-  //   image: "images/download-icon-256.png",
-  // };
-
-  // var downloadZipAction = {
-  //   title: "Click Here to Download",
-  //   id: "download-zip-action",
-  //   image: "images/download-icon-256.png",
-  // };
-
-  // view.popup.on("trigger-action", function (event) {
-  //   // Execute the measureThis() function if the measure-this action is clicked
-
-  //   if (event.action.id === "download-action") {
-  //     view.popup.actions.removeAll(); // to prevent clicking the download again
-
-  //     view.popup.content = "Determining files to download, please wait...";
-
-  //     setTimeout(function () {
-  //       downloadModelData();
-  //     }, 1000);
-  //   }
-
-  //   if (event.action.id === "download-zip-action") {
-  //     view.popup.actions.removeAll(); // to prevent clicking the download again
-
-  //     view.popup.content = "Downloading...";
-
-  //     setTimeout(function () {
-  //       downloadZip();
-  //     }, 1000);
-  //   }
-  // });
 
   // download the data from the objects store
   async function downloadModelData() {
@@ -526,11 +397,9 @@ require([
     view.popup.content = "Preparing download... please wait";
 
     // add the files required to unzip all the files, and process them
-    urls.push(baseUrl + "7z.exe");
-    urls.push(baseUrl + "m3d_bild.exe");
     urls.push(baseUrl + "start.bat");
     urls.push(baseUrl + "readme.txt");
-
+    urls.push(baseUrl + "mmif.inp");
     urlsLength = urls.length;
 
     var zipRequestUrl = "/zip-file/zipAermod";
@@ -551,13 +420,13 @@ require([
       .then((res) => res.json())
       .then((json) => {
         zipCheckUrl = zipCheckUrl.concat(json.subFolder);
+        zipFileUrl = zipFileUrl.concat(json.subFolder);
       });
 
     checkZipFile(zipCheckUrl);
   }
 
   function checkZipFile(zipCheckUrl) {
-    console.log("checking Zip File");
     var prevNum = 0;
     var zipping = false;
     const interval = setInterval(function () {
@@ -581,11 +450,11 @@ require([
                 "Your files are ready, click the link below to download them.",
             });
           } else {
-            if (resJson.num <= 6 && (resJson.num >= prevNum || !zipping)) {
-              view.popup.content = `Downloading ${resJson.num}/6... please wait`;
+            if (resJson.num <= 3 && (resJson.num >= prevNum || !zipping)) {
+              view.popup.content = `Downloading ${resJson.num}/3... please wait`;
             } else if (!zipping) {
               zipping = true;
-              view.popup.content = `Downloading ${urlsLength}/6... please wait`;
+              view.popup.content = `Downloading ${urlsLength}/3... please wait`;
             } else {
               view.popup.content = `Zipping files... please wait`;
             }
@@ -613,7 +482,6 @@ require([
       .then((blob) => {
         view.popup.close();
         view.popup.clear();
-        graphicsLayer.removeAll();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.style.display = "none";
@@ -632,7 +500,6 @@ require([
   clearResults = function () {
     view.popup.close();
     view.popup.clear();
-    graphicsLayer.removeAll();
   };
 
   //
