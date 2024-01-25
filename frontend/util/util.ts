@@ -1,46 +1,46 @@
-const archiver = require("archiver");
+// const archiver = require("archiver");
+// import { Writable } from "stream";
+// declare const Buffer;
 const https = require("https");
 const fs = require("fs");
-import { Writable } from "stream";
-declare const Buffer;
 import { ZipFile } from "yazl";
 
-/**
- * @param {array<{data: Buffer, name: String}>} files
- * @returns {Promise<Buffer>}
- */
-export async function zipFiles(files) {
-  return new Promise((resolve, reject) => {
-    const buffs = [];
+// /**
+//  * @param {array<{data: Buffer, name: String}>} files
+//  * @returns {Promise<Buffer>}
+//  */
+// export async function zipFiles(files) {
+//   return new Promise((resolve, reject) => {
+//     const buffs = [];
 
-    const converter = new Writable();
+//     const converter = new Writable();
 
-    converter._write = (chunk, encoding, cb) => {
-      buffs.push(chunk);
-      process.nextTick(cb);
-    };
+//     converter._write = (chunk, encoding, cb) => {
+//       buffs.push(chunk);
+//       process.nextTick(cb);
+//     };
 
-    converter.on("finish", () => {
-      resolve(Buffer.concat(buffs));
-    });
+//     converter.on("finish", () => {
+//       resolve(Buffer.concat(buffs));
+//     });
 
-    const archive = archiver("zip");
+//     const archive = archiver("zip");
 
-    archive.on("error", (err) => {
-      reject(err);
-    });
+//     archive.on("error", (err) => {
+//       reject(err);
+//     });
 
-    archive.pipe(converter);
+//     archive.pipe(converter);
 
-    for (const file of files) {
-      archive.append(file.data, { name: file.name });
-    }
+//     for (const file of files) {
+//       archive.append(file.data, { name: file.name });
+//     }
 
-    return archive.finalize();
-  });
-}
+//     return archive.finalize();
+//   });
+// }
 
-export async function zipFiles2(
+export async function zipFiles(
   files: string[],
   folder: string
 ): Promise<string> {

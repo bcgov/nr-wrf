@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { lastValueFrom, map } from "rxjs";
 import * as uuid from "uuid";
-import { downloadFile, zipFiles, zipFiles2 } from "../../util/util";
+import { downloadFile, zipFiles } from "../../util/util";
 import { TileDownloadInfo } from "../../util/types";
 import { Cron } from "@nestjs/schedule";
 const fs = require("fs");
@@ -42,38 +42,38 @@ export class ZipFileService {
     return data;
   }
 
-  /**
-   * Downloads each file into a buffer which gets passed
-   * to a util function which zips them and returns them.
-   * Done in memory, large memory size.
-   *
-   * @param stitchingConfig
-   * @param urls
-   * @returns readstream
-   */
-  async zipFiles(stitchingConfig: string, urls: string[]): Promise<any> {
-    let count = 0;
-    const files = [
-      { data: Buffer.from(stitchingConfig), name: "m3d_bild.inp" },
-    ];
+  // /**
+  //  * Downloads each file into a buffer which gets passed
+  //  * to a util function which zips them and returns them.
+  //  * Done in memory, large memory size.
+  //  *
+  //  * @param stitchingConfig
+  //  * @param urls
+  //  * @returns readstream
+  //  */
+  // async zipFiles(stitchingConfig: string, urls: string[]): Promise<any> {
+  //   let count = 0;
+  //   const files = [
+  //     { data: Buffer.from(stitchingConfig), name: "m3d_bild.inp" },
+  //   ];
 
-    for (let url of urls) {
-      count++;
-      // add the zip file
-      const data = await lastValueFrom(
-        this.httpService.get(url).pipe(map((response) => response.data))
-      );
-      console.log("Downloading file from " + url);
-      files.push({
-        data: Buffer.from(data),
-        name: url.substring(url.lastIndexOf("/") + 1),
-      });
-      if (count == urls.length) {
-        console.log("Returning zip file");
-        return await zipFiles(files);
-      }
-    }
-  }
+  //   for (let url of urls) {
+  //     count++;
+  //     // add the zip file
+  //     const data = await lastValueFrom(
+  //       this.httpService.get(url).pipe(map((response) => response.data))
+  //     );
+  //     console.log("Downloading file from " + url);
+  //     files.push({
+  //       data: Buffer.from(data),
+  //       name: url.substring(url.lastIndexOf("/") + 1),
+  //     });
+  //     if (count == urls.length) {
+  //       console.log("Returning zip file");
+  //       return await zipFiles(files);
+  //     }
+  //   }
+  // }
 
   /**
    * Creates a uuid subfolder, tells the server to start downloading and zipping the files
@@ -99,7 +99,7 @@ export class ZipFileService {
     }
     urls.splice(urls.length - 4, 4);
     const downloadBat = this.createDownloadBat(urls);
-    this.zipFiles2(stitchingConfig, downloadBat, urls2, folder);
+    this.zipFiles(stitchingConfig, downloadBat, urls2, folder);
     return { subFolder: subFolder };
   }
 
@@ -130,7 +130,7 @@ export class ZipFileService {
    * @param urls
    * @returns readstream
    */
-  async zipFiles2(
+  async zipFiles(
     stitchingConfig: string,
     downloadBat: string,
     urls: string[],
@@ -144,7 +144,6 @@ export class ZipFileService {
     let files = [];
 
     files.push(folder + fileName);
-    // aermod doesn't contain stiching config
     if (stitchingConfig) {
       fs.writeFile(folder + fileName, stitchingConfig, function (err) {
         if (err) throw err;
@@ -191,7 +190,7 @@ export class ZipFileService {
         console.log("Saved " + fileName);
       }
     }
-    await zipFiles2(files, folder);
+    await zipFiles(files, folder);
     for (let file of files) {
       fs.unlink(file, (err) => {
         if (err) {
@@ -319,7 +318,7 @@ export class ZipFileService {
           console.log("Saved " + fileName);
         }
       }
-      await zipFiles2(files, folder);
+      await zipFiles(files, folder);
       for (let file of files) {
         fs.unlink(file, (err) => {
           if (err) {

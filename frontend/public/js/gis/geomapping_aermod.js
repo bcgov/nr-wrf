@@ -1,24 +1,15 @@
 require([
-  "esri/config",
-  "esri/Map",
-  "esri/views/MapView",
-  "esri/layers/GraphicsLayer",
-  "esri/Graphic",
-  "esri/geometry/Point",
-  "esri/geometry/support/webMercatorUtils",
-  "esri/widgets/CoordinateConversion",
-], function (
-  esriConfig,
-  Map,
-  MapView,
-  GraphicsLayer,
-  Graphic,
-  Point,
-  webMercatorUtils,
-  CoordinateConversion
-) {
+  'esri/config',
+  'esri/Map',
+  'esri/views/MapView',
+  'esri/layers/GraphicsLayer',
+  'esri/Graphic',
+  'esri/geometry/Point',
+  'esri/geometry/support/webMercatorUtils',
+  'esri/widgets/CoordinateConversion',
+], function (esriConfig, Map, MapView, GraphicsLayer, Graphic, Point, webMercatorUtils, CoordinateConversion) {
   const request = new XMLHttpRequest();
-  request.open("GET", "/esriConfig", false);
+  request.open('GET', '/esriConfig', false);
   request.send(null);
   if (request.status === 200) {
     esriConfig.apiKey = request.responseText;
@@ -29,7 +20,7 @@ require([
   const labelGraphicsLayer = new GraphicsLayer();
 
   const map = new Map({
-    basemap: "arcgis-topographic",
+    basemap: 'arcgis-topographic',
     layers: [graphicsLayer, boundaryGraphicsLayer, labelGraphicsLayer],
   });
 
@@ -37,7 +28,7 @@ require([
     map: map,
     center: [-123.329, 48.407],
     zoom: 10,
-    container: "viewDiv",
+    container: 'viewDiv',
   });
 
   // widget for displaying lat, lon of cursor
@@ -45,10 +36,10 @@ require([
     view: view,
   });
 
-  view.ui.add(ccWidget, "bottom-right");
+  view.ui.add(ccWidget, 'bottom-right');
 
   // hide tiles when zoomed out
-  view.watch("zoom", (newZoom) => {
+  view.watch('zoom', (newZoom) => {
     if (newZoom <= 7) {
       graphicsLayer.visible = false;
       labelGraphicsLayer.visible = false;
@@ -60,7 +51,7 @@ require([
 
   // hilighted polygon
   const greenPolygonSymbol = {
-    type: "simple-fill",
+    type: 'simple-fill',
     color: [144, 238, 144, 0.5], // Light green with 50% transparency
     outline: {
       color: [0, 128, 0, 1], // Dark green outline
@@ -70,8 +61,8 @@ require([
 
   // default polygon
   const polygonSymbol = {
-    type: "simple-fill",
-    color: [169, 169, 169, 0.25], // Light gray with 25% transparency
+    type: 'simple-fill',
+    color: [169, 169, 169, 0.1], // Light gray with 10% transparency
     outline: {
       color: [69, 69, 69, 1], // Dark gray outline
       width: 1,
@@ -86,16 +77,13 @@ require([
    *
    * Will also be made to fill in lat/lon in the search bar.
    */
-  view.on("click", function (event) {
+  view.on('click', function (event) {
     const clickedPoint = view.toMap({ x: event.x, y: event.y });
-    const [lon, lat] = webMercatorUtils.xyToLngLat(
-      clickedPoint.x,
-      clickedPoint.y
-    );
+    const [lon, lat] = webMercatorUtils.xyToLngLat(clickedPoint.x, clickedPoint.y);
 
     // fill the search lat/lon filds on click
-    document.getElementById("latitude").value = lat.toFixed(6);
-    document.getElementById("longitude").value = lon.toFixed(6);
+    document.getElementById('latitude').value = lat.toFixed(6);
+    document.getElementById('longitude').value = lon.toFixed(6);
 
     // Create a bounding box around the clicked point for querying the R-tree
     const clickBBox = {
@@ -123,6 +111,12 @@ require([
     }
   });
 
+  /**
+   * Used when searching to select the correct tile based on lat/lon
+   *
+   * @param {*} lat
+   * @param {*} lon
+   */
   function highlightPolygonByLatLon(lat, lon) {
     // Create a bounding box around the provided lat/lon point for querying the R-tree
     const clickBBox = {
@@ -187,7 +181,7 @@ require([
    */
   function drawPolygon(coordinates, tile_id) {
     const polygon = {
-      type: "polygon",
+      type: 'polygon',
       rings: [coordinates],
     };
 
@@ -221,6 +215,23 @@ require([
     };
   }
 
+  /**
+   * Receives corner points ordered by tile from the backend and
+   * draws polygons (tiles) using those corner points.
+   *
+   */
+  fetch('/mapping/getCornerPoints') // change to objectstore
+    .then((response) => response.json())
+    .then((pointsByTile) => {
+      // Iterate over tile groups and draw polygons for each group
+      Object.values(pointsByTile).forEach((tileGroup) => {
+        const tile_id = tileGroup[0].tile_id;
+        const coordinates = orderCoordinates(tileGroup.map((point) => [point.lon, point.lat]));
+        drawPolygon(coordinates, tile_id);
+      });
+    })
+    .catch((error) => console.error(error));
+
   /** Search and download section */
 
   var zipFileUrl;
@@ -230,32 +241,32 @@ require([
   var lon;
 
   var downloadAction = {
-    title: "Download Data",
-    id: "download-action",
-    image: "images/download-icon-256.png",
+    title: 'Download Data',
+    id: 'download-action',
+    image: 'images/download-icon-256.png',
   };
 
   var downloadZipAction = {
-    title: "Click Here to Download",
-    id: "download-zip-action",
-    image: "images/download-icon-256.png",
+    title: 'Click Here to Download',
+    id: 'download-zip-action',
+    image: 'images/download-icon-256.png',
   };
 
-  view.popup.on("trigger-action", function (event) {
-    if (event.action.id === "download-action") {
+  view.popup.on('trigger-action', function (event) {
+    if (event.action.id === 'download-action') {
       view.popup.actions.removeAll(); // to prevent clicking the download again
 
-      view.popup.content = "Determining files to download, please wait...";
+      view.popup.content = 'Determining files to download, please wait...';
 
       setTimeout(function () {
         downloadModelData();
       }, 1000);
     }
 
-    if (event.action.id === "download-zip-action") {
+    if (event.action.id === 'download-zip-action') {
       view.popup.actions.removeAll(); // to prevent clicking the download again
 
-      view.popup.content = "Downloading...";
+      view.popup.content = 'Downloading...';
 
       setTimeout(function () {
         downloadZip();
@@ -269,10 +280,10 @@ require([
    * @returns
    */
   search = function () {
-    var startDate = $("#startDate").val();
-    var endDate = $("#endDate").val();
-    var latitude = $("#latitude").val();
-    var longitude = $("#longitude").val();
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
+    var latitude = $('#latitude').val();
+    var longitude = $('#longitude').val();
     // set globals for downloadDialog
     lat = latitude;
     lon = longitude;
@@ -284,23 +295,16 @@ require([
     }
 
     if (isNaN(latitude) || latitude == 0) {
-      alert("You must enter a valid latitude in the format ##.######");
+      alert('You must enter a valid latitude in the format ##.######');
       return;
     }
     if (isNaN(longitude) || longitude == 0) {
-      alert("You must enter a valid longitude in the format ##.######");
+      alert('You must enter a valid longitude in the format ##.######');
       return;
     }
 
-    if (
-      latitude > 63 ||
-      latitude < 45 ||
-      longitude < -146 ||
-      longitude > -106
-    ) {
-      alert(
-        "You have entered a coordinate outside of the bounds of this application."
-      );
+    if (latitude > 63 || latitude < 45 || longitude < -146 || longitude > -106) {
+      alert('You have entered a coordinate outside of the bounds of this application.');
       return;
     }
 
@@ -309,6 +313,10 @@ require([
     }
 
     if (!validateDate(endDate)) {
+      return;
+    }
+
+    if (!validateDateSelection(startDate, endDate)) {
       return;
     }
 
@@ -325,10 +333,10 @@ require([
       latitude: latitude,
       longitude: longitude,
     };
-    fetch("mapping/findClosestPoint", {
-      method: "POST",
+    fetch('mapping/findClosestPoint', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
     })
@@ -337,13 +345,13 @@ require([
         closestPoint = response;
       })
       .catch((error) => {
-        console.error("findClosestPoint Error:", error);
+        console.error('findClosestPoint Error:', error);
       })
       .finally(() => {
         view.popup.open({
-          title: "Model Data For Area",
+          title: 'Model Data For Area',
           actions: [downloadAction],
-          content: "Click the download icon to download your data",
+          content: 'Click the download icon to download your data',
           location: {
             latitude: latitude,
             longitude: longitude,
@@ -358,12 +366,12 @@ require([
 
     var urls = [];
 
-    var baseUrl = "https://nrs.objectstore.gov.bc.ca/qfncae/support_files/";
+    var baseUrl = 'https://nrs.objectstore.gov.bc.ca/qfncae/support_files/';
 
     var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
 
-    var startDate = $("#startDate").datetimepicker("getDate");
-    var endDate = $("#endDate").datetimepicker("getDate");
+    var startDate = $('#startDate').datetimepicker('getDate');
+    var endDate = $('#endDate').datetimepicker('getDate');
 
     // factor in the timezone
     startDate.setHours(startDate.getHours() + timezoneOffset);
@@ -394,26 +402,26 @@ require([
       closestPoint: closestPoint,
     };
 
-    view.popup.content = "Preparing download... please wait";
+    view.popup.content = 'Preparing download... please wait';
 
     // add the files required to unzip all the files, and process them
-    urls.push(baseUrl + "start.bat");
-    urls.push(baseUrl + "readme.txt");
-    urls.push(baseUrl + "mmif.inp");
+    urls.push(baseUrl + 'start.bat');
+    urls.push(baseUrl + 'readme.txt');
+    urls.push(baseUrl + 'mmif.inp');
     urlsLength = urls.length;
 
-    var zipRequestUrl = "/zip-file/zipAermod";
-    var zipCheckUrl = "/zip-file/checkZipFile/";
-    zipFileUrl = "/zip-file/zipDownload/";
+    var zipRequestUrl = '/zip-file/zipAermod';
+    var zipCheckUrl = '/zip-file/checkZipFile/';
+    zipFileUrl = '/zip-file/zipDownload/';
     var zipData = {
       tileDownloadInfo: tileDownloadInfo,
       urls: urls,
     };
     await fetch(zipRequestUrl, {
-      method: "POST",
-      responseType: "arraybuffer",
+      method: 'POST',
+      responseType: 'arraybuffer',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(zipData),
     })
@@ -435,19 +443,18 @@ require([
           if (response.status === 200) {
             return response.json();
           } else {
-            throw new Error("Failed to ping route");
+            throw new Error('Failed to ping route');
           }
         })
         .then(function (resJson) {
-          if (resJson.status === "Ready") {
+          if (resJson.status === 'Ready') {
             clearInterval(interval);
             view.popup.close();
             view.popup.clear();
             view.popup.open({
-              title: "Model Data For Area",
+              title: 'Model Data For Area',
               actions: [downloadZipAction],
-              content:
-                "Your files are ready, click the link below to download them.",
+              content: 'Your files are ready, click the link below to download them.',
             });
           } else {
             if (resJson.num <= 3 && (resJson.num >= prevNum || !zipping)) {
@@ -461,21 +468,21 @@ require([
           }
         })
         .catch(function (error) {
-          console.log("interval closed error");
+          console.log('interval closed error');
           console.error(error);
-          view.popup.content = "An error occurred. Please try again later.";
+          view.popup.content = 'An error occurred. Please try again later.';
           clearInterval(interval);
         });
     }, 3000); // Ping the route every 3 seconds
   }
 
   async function downloadZip() {
-    var zipFilename = "nr-wrf_aermod.zip";
+    var zipFilename = 'nr-wrf_aermod.zip';
     await fetch(zipFileUrl, {
-      method: "GET",
-      responseType: "arraybuffer",
+      method: 'GET',
+      responseType: 'arraybuffer',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     })
       .then((res) => res.blob())
@@ -483,8 +490,8 @@ require([
         view.popup.close();
         view.popup.clear();
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.style.display = "none";
+        const a = document.createElement('a');
+        a.style.display = 'none';
         a.href = url;
         a.download = zipFilename;
         document.body.appendChild(a);
@@ -493,7 +500,7 @@ require([
       })
       .catch((err) => {
         console.log(err);
-        alert("Something went wrong");
+        alert('Something went wrong');
       });
   }
 
@@ -501,27 +508,4 @@ require([
     view.popup.close();
     view.popup.clear();
   };
-
-  //
-  // DOWNLOAD SECTION END
-  //
-
-  /**
-   * Receives corner points ordered by tile from the backend and
-   * draws polygons (tiles) using those corner points.
-   *
-   */
-  fetch("/mapping/getCornerPoints") // change to objectstore
-    .then((response) => response.json())
-    .then((pointsByTile) => {
-      // Iterate over tile groups and draw polygons for each group
-      Object.values(pointsByTile).forEach((tileGroup) => {
-        const tile_id = tileGroup[0].tile_id;
-        const coordinates = orderCoordinates(
-          tileGroup.map((point) => [point.lon, point.lat])
-        );
-        drawPolygon(coordinates, tile_id);
-      });
-    })
-    .catch((error) => console.error(error));
 });

@@ -85,8 +85,6 @@ export class MappingService {
       const closestPoint = parsedData.find(
         (point) => point.i === minIndex[0] && point.j === minIndex[1]
       );
-      console.log("closestPoint: ");
-      console.log(closestPoint);
       return closestPoint;
     } catch (err) {
       console.log("Error in findClosestPoint:", err);
