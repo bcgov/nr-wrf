@@ -241,7 +241,7 @@ export class ZipFileService {
               : ''
             : '';
           for (let year = tileDownloadInfo.startYear; year <= tileDownloadInfo.endYear; year++) {
-            inputLines.push(`Input "${tileId}"\\wrfout_d02_${tileId}_${year}.nc`);
+            inputLines.push(`Input "${tileId}\\wrfout_d02_${tileId}_${year}.nc"`);
           }
           const inputString = inputLines.join('\n');
           mmifContent = mmifContent.replace('# AUTOINSERT POINT 03', inputString);
