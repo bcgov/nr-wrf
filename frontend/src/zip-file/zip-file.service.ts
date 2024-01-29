@@ -1,11 +1,11 @@
-import { Injectable } from "@nestjs/common";
-import { HttpService } from "@nestjs/axios";
-import { lastValueFrom, map } from "rxjs";
-import * as uuid from "uuid";
-import { downloadFile, zipFiles } from "../../util/util";
-import { TileDownloadInfo } from "../../util/types";
-import { Cron } from "@nestjs/schedule";
-const fs = require("fs");
+import { Injectable } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { lastValueFrom, map } from 'rxjs';
+import * as uuid from 'uuid';
+import { downloadFile, zipFiles } from '../../util/util';
+import { TileDownloadInfo } from '../../util/types';
+import { Cron } from '@nestjs/schedule';
+const fs = require('fs');
 
 let hostname: string;
 let port: number;
@@ -14,9 +14,7 @@ let port: number;
 export class ZipFileService {
   constructor(private httpService: HttpService) {
     // docker hostname is the container name, use localhost for local development
-    hostname = process.env.BACKEND_URL
-      ? process.env.BACKEND_URL
-      : `http://localhost`;
+    hostname = process.env.BACKEND_URL ? process.env.BACKEND_URL : `http://localhost`;
     // local development backend port is 3001, docker backend port is 3000
     // port = process.env.BACKEND_URL ? 3000 : 3001;
     port = 3000; // frontend = 8080, backend = 3000 for now
@@ -88,9 +86,7 @@ export class ZipFileService {
     const subFolder = uuid.v4();
     const filePath = process.env.filePath;
     const folder =
-      filePath.charAt(filePath.length - 1) == "/"
-        ? filePath + subFolder + "/"
-        : filePath + "/" + subFolder + "/";
+      filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
     // split urls array, urls contains the search data urls which are added to a .bat file
     // urls2 contains the static files
     let urls2 = [];
@@ -103,19 +99,12 @@ export class ZipFileService {
     return { subFolder: subFolder };
   }
 
-  beginZippingAermod(
-    tileDownloadInfo: TileDownloadInfo,
-    urls: string[]
-  ): { subFolder: string } {
+  beginZippingAermod(tileDownloadInfo: TileDownloadInfo, urls: string[]): { subFolder: string } {
     const subFolder = uuid.v4();
     const filePath = process.env.filePath;
     const folder =
-      filePath.charAt(filePath.length - 1) == "/"
-        ? filePath + subFolder + "/"
-        : filePath + "/" + subFolder + "/";
-    const downloadBat = this.createAermodDownloadBat(
-      tileDownloadInfo.closestPoint.full_url
-    );
+      filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
+    const downloadBat = this.createAermodDownloadBat(tileDownloadInfo.closestPoint.full_url);
     this.zipFilesAermod(downloadBat, urls, folder, tileDownloadInfo);
     return { subFolder: subFolder };
   }
@@ -130,64 +119,50 @@ export class ZipFileService {
    * @param urls
    * @returns readstream
    */
-  async zipFiles(
-    stitchingConfig: string,
-    downloadBat: string,
-    urls: string[],
-    folder: string
-  ): Promise<void> {
+  async zipFiles(stitchingConfig: string, downloadBat: string, urls: string[], folder: string): Promise<void> {
     if (!fs.existsSync(folder)) {
       fs.mkdirSync(folder);
     }
-    let fileName = "m3d_bild.inp";
-    const downloadBatFileName = "download.bat";
+    let fileName = 'm3d_bild.inp';
+    const downloadBatFileName = 'download.bat';
     let files = [];
 
     files.push(folder + fileName);
     if (stitchingConfig) {
       fs.writeFile(folder + fileName, stitchingConfig, function (err) {
         if (err) throw err;
-        console.log("Saved " + fileName);
+        console.log('Saved ' + fileName);
       });
     }
     files.push(folder + downloadBatFileName);
     fs.writeFile(folder + downloadBatFileName, downloadBat, function (err) {
       if (err) throw err;
-      console.log("Saved " + downloadBatFileName);
+      console.log('Saved ' + downloadBatFileName);
     });
 
     for (let url of urls) {
-      console.log("Downloading file from " + url);
-      fileName = url.split("/").pop();
+      console.log('Downloading file from ' + url);
+      fileName = url.split('/').pop();
       files.push(folder + fileName);
-      if (fileName == "start.bat") {
-        const data = await lastValueFrom(
-          this.httpService.get(url).pipe(map((response) => response.data))
-        );
+      if (fileName == 'start.bat') {
+        const data = await lastValueFrom(this.httpService.get(url).pipe(map((response) => response.data)));
         fs.writeFile(folder + fileName, data, function (err) {
           if (err) throw err;
         });
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        let startBatContent = fs.readFileSync(
-          folder + fileName,
-          "utf8",
-          (err, data) => {}
-        );
+        let startBatContent = fs.readFileSync(folder + fileName, 'utf8', (err, data) => {});
         startBatContent = startBatContent.replace(
-          "rem Batch file extract zip files, runs Fortran code",
-          "rem Batch file extract zip files, runs Fortran code\n\ncall download.bat"
+          'rem Batch file extract zip files, runs Fortran code',
+          'rem Batch file extract zip files, runs Fortran code\n\ncall download.bat'
         );
-        startBatContent = startBatContent.replace(
-          "7z x *.m3d.7z",
-          "7z x *.m3d.7z -aoa"
-        );
+        startBatContent = startBatContent.replace('7z x *.m3d.7z', '7z x *.m3d.7z -aoa');
         fs.writeFile(folder + fileName, startBatContent, function (err) {
           if (err) throw err;
         });
-        console.log("Saved " + fileName);
+        console.log('Saved ' + fileName);
       } else {
         await downloadFile(url, folder + fileName);
-        console.log("Saved " + fileName);
+        console.log('Saved ' + fileName);
       }
     }
     await zipFiles(files, folder);
@@ -198,9 +173,9 @@ export class ZipFileService {
         }
       });
     }
-    fs.writeFile(folder + "Complete", "", function (err) {
+    fs.writeFile(folder + 'Complete', '', function (err) {
       if (err) throw err;
-      console.log("Zipping Complete");
+      console.log('Zipping Complete');
     });
   }
 
@@ -217,105 +192,68 @@ export class ZipFileService {
 
     try {
       for (let url of urls) {
-        console.log("Downloading file from " + url);
-        let fileName = url.split("/").pop();
+        console.log('Downloading file from ' + url);
+        let fileName = url.split('/').pop();
         files.push(folder + fileName);
-        if (fileName == "start.bat") {
-          const data = await lastValueFrom(
-            this.httpService.get(url).pipe(map((response) => response.data))
-          );
+        if (fileName == 'start.bat') {
+          const data = await lastValueFrom(this.httpService.get(url).pipe(map((response) => response.data)));
           fs.writeFile(folder + fileName, data, function (err) {
             if (err) throw err;
           });
           await new Promise((resolve) => setTimeout(resolve, 1000));
-          let startBatContent = fs.readFileSync(
-            folder + fileName,
-            "utf8",
-            (err, data) => {}
-          );
-          startBatContent = startBatContent.replace(
-            "call download.bat",
-            downloadBat
-          );
-          startBatContent = startBatContent.replace(
-            "7z x *.m3d.7z",
-            "7z x *.m3d.7z -aoa"
-          );
+          let startBatContent = fs.readFileSync(folder + fileName, 'utf8', (err, data) => {});
+          startBatContent = startBatContent.replace('call download.bat', downloadBat);
+          startBatContent = startBatContent.replace('7z x *.m3d.7z', '7z x *.m3d.7z -aoa');
           fs.writeFile(folder + fileName, startBatContent, function (err) {
             if (err) throw err;
           });
-          console.log("Saved " + fileName);
-        } else if (fileName == "mmif.inp") {
-          const data = await lastValueFrom(
-            this.httpService.get(url).pipe(map((response) => response.data))
-          );
+          console.log('Saved ' + fileName);
+        } else if (fileName == 'mmif.inp') {
+          const data = await lastValueFrom(this.httpService.get(url).pipe(map((response) => response.data)));
           fs.writeFile(folder + fileName, data, function (err) {
             if (err) throw err;
           });
           await new Promise((resolve) => setTimeout(resolve, 1000));
-          let mmifContent = fs.readFileSync(
-            folder + fileName,
-            "utf8",
-            (err, data) => {}
-          );
+          let mmifContent = fs.readFileSync(folder + fileName, 'utf8', (err, data) => {});
           // Autoinsert point 1
-          const startDate = `Start ${
-            tileDownloadInfo.startYear
-          } ${tileDownloadInfo.startMonth
+          const startDate = `Start ${tileDownloadInfo.startYear} ${tileDownloadInfo.startMonth
             .toString()
-            .padStart(2, "0")} ${tileDownloadInfo.startDay
+            .padStart(2, '0')} ${tileDownloadInfo.startDay.toString().padStart(2, '0')} ${tileDownloadInfo.startHour
             .toString()
-            .padStart(2, "0")} ${tileDownloadInfo.startHour
+            .padStart(2, '0')}`;
+          const stopDate = `Stop ${tileDownloadInfo.endYear} ${tileDownloadInfo.endMonth
             .toString()
-            .padStart(2, "0")}`;
-          const stopDate = `Stop ${
-            tileDownloadInfo.endYear
-          } ${tileDownloadInfo.endMonth
+            .padStart(2, '0')} ${tileDownloadInfo.endDay.toString().padStart(2, '0')} ${tileDownloadInfo.endHour
             .toString()
-            .padStart(2, "0")} ${tileDownloadInfo.endDay
-            .toString()
-            .padStart(2, "0")} ${tileDownloadInfo.endHour
-            .toString()
-            .padStart(2, "0")}`;
-          const dateLines = startDate + "\n" + stopDate;
-          mmifContent = mmifContent.replace("# AUTOINSERT POINT 01", dateLines);
+            .padStart(2, '0')}`;
+          const dateLines = startDate + '\n' + stopDate;
+          mmifContent = mmifContent.replace('# AUTOINSERT POINT 01', dateLines);
           // Autoinsert point 2
           const tz = tileDownloadInfo.timeZone;
-          const timeZone = `TIMEZONE ${
-            tz > 0 ? "-" : ""
-          }${tz} !default is zero, i.e. GMT-00`;
-          mmifContent = mmifContent.replace("# AUTOINSERT POINT 02", timeZone);
+          const timeZone = `TIMEZONE ${tz > 0 ? '-' : ''}${tz} !default is zero, i.e. GMT-00`;
+          mmifContent = mmifContent.replace('# AUTOINSERT POINT 02', timeZone);
           // Autoinsert point 3
           const inputLines = [];
-          let tileId = "";
+          let tileId = '';
           tileId = tileDownloadInfo.closestPoint
             ? tileDownloadInfo.closestPoint.filename
-              ? tileDownloadInfo.closestPoint.filename.split(".")[0]
-              : ""
-            : "";
-          for (
-            let year = tileDownloadInfo.startYear;
-            year <= tileDownloadInfo.endYear;
-            year++
-          ) {
-            inputLines.push(
-              `Input "${tileId}"\\wrfout_d02_${tileId}_${year}.nc`
-            );
+              ? tileDownloadInfo.closestPoint.filename.split('.')[0]
+              : ''
+            : '';
+          for (let year = tileDownloadInfo.startYear; year <= tileDownloadInfo.endYear; year++) {
+            inputLines.push(`Input "${tileId}"\\wrfout_d02_${tileId}_${year}.nc`);
           }
-          const inputString = inputLines.join("\n");
-          mmifContent = mmifContent.replace(
-            "# AUTOINSERT POINT 03",
-            inputString
-          );
+          const inputString = inputLines.join('\n');
+          mmifContent = mmifContent.replace('# AUTOINSERT POINT 03', inputString);
 
           // Write the file
           fs.writeFile(folder + fileName, mmifContent, function (err) {
             if (err) throw err;
           });
-          console.log("Saved " + fileName);
+          console.log('Saved ' + fileName);
         } else {
           await downloadFile(url, folder + fileName);
-          console.log("Saved " + fileName);
+          console.log('Saved ' + fileName);
         }
       }
       await zipFiles(files, folder);
@@ -326,14 +264,12 @@ export class ZipFileService {
           }
         });
       }
-      fs.writeFile(folder + "Complete", "", function (err) {
+      fs.writeFile(folder + 'Complete', '', function (err) {
         if (err) throw err;
-        console.log("Zipping Complete");
+        console.log('Zipping Complete');
       });
     } catch (err) {
-      console.log(
-        "Something went wrong while downloading or zipping the files."
-      );
+      console.log('Something went wrong while downloading or zipping the files.');
       console.log(err);
     }
   }
@@ -347,13 +283,11 @@ export class ZipFileService {
   checkZipFile(subFolder: string): { status: string; num: string } {
     const filePath = process.env.filePath;
     const folder =
-      filePath.charAt(filePath.length - 1) == "/"
-        ? filePath + subFolder + "/"
-        : filePath + "/" + subFolder + "/";
-    const completionFileName = folder + "Complete";
+      filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
+    const completionFileName = folder + 'Complete';
     const files = fs.readdirSync(folder);
     return {
-      status: fs.existsSync(completionFileName) ? "Ready" : "Not Ready",
+      status: fs.existsSync(completionFileName) ? 'Ready' : 'Not Ready',
       num: files.length,
     };
   }
@@ -368,15 +302,13 @@ export class ZipFileService {
   async serveZipFile(subFolder: string): Promise<any> {
     const filePath = process.env.filePath;
     const folder =
-      filePath.charAt(filePath.length - 1) == "/"
-        ? filePath + subFolder + "/"
-        : filePath + "/" + subFolder + "/";
+      filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
     const zipFileName = folder + process.env.zipFileName;
-    const completionFileName = folder + "Complete";
+    const completionFileName = folder + 'Complete';
     const dirPath = folder.slice(0, -1);
     try {
       const readStream = fs.createReadStream(zipFileName);
-      readStream.on("close", () => {
+      readStream.on('close', () => {
         fs.unlinkSync(zipFileName, (err) => {
           if (err) {
             throw new Error(`Error deleting zip file: ${err}`);
@@ -400,7 +332,7 @@ export class ZipFileService {
   }
 
   createDownloadBat(downloadUrls: string[]): string {
-    let batchFileContent = "";
+    let batchFileContent = '';
     downloadUrls.forEach((url) => {
       batchFileContent += `curl -O ${url} --retry 10\n`;
     });
@@ -411,12 +343,12 @@ export class ZipFileService {
     return `curl -O ${tileDataUrl} --retry 10\n`;
   }
 
-  @Cron("0 0 0 * * *")
+  @Cron('0 0 0 * * *')
   cleanFolder() {
-    console.log("Cleaning folders");
+    console.log('Cleaning folders');
     let numDeleted = 0;
     let folderPath = process.env.filePath;
-    if (folderPath.charAt(folderPath.length - 1) == "/") {
+    if (folderPath.charAt(folderPath.length - 1) == '/') {
       folderPath = folderPath.slice(0, -1);
     }
 
