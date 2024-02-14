@@ -70,9 +70,10 @@ require([
   };
 
   let selectedPolygon = null;
+  let currentlyDrawnPoint = null;
 
   /**
-   * Handles clicks to highlight and unhilight polygons.
+   * Handles clicks to highlight and unhighlight polygons.
    * Uses an R-tree to speed up finding the correct polygon.
    *
    * Will also be made to fill in lat/lon in the search bar.
@@ -85,64 +86,61 @@ require([
     document.getElementById('latitude').value = lat.toFixed(6);
     document.getElementById('longitude').value = lon.toFixed(6);
 
-    // Create a bounding box around the clicked point for querying the R-tree
-    const clickBBox = {
-      minX: lon,
-      minY: lat,
-      maxX: lon,
-      maxY: lat,
+    const data = {
+      latitude: lat,
+      longitude: lon,
     };
+    fetch('mapping/findClosestPoint', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    })
+      .then((response) => response.json())
+      .then((response) => {
+        closestPoint = response;
+      })
+      .catch((error) => {
+        console.error('findClosestPoint Error:', error);
+      })
+      .finally(() => {
+        const matchingPolygon = graphicsLayer.graphics.find(
+          (graphic) => graphic.attributes && graphic.attributes.tile_id === closestPoint.tile_id
+        );
+        if (matchingPolygon) {
+          // If another polygon was previously selected, reset its color
+          if (selectedPolygon && selectedPolygon !== matchingPolygon) {
+            selectedPolygon.symbol = polygonSymbol;
+          }
 
-    const intersectedItems = rtree.search(clickBBox);
-
-    if (intersectedItems.length > 0) {
-      const clickedPolygon = intersectedItems[0].polygonGraphic;
-
-      if (clickedPolygon) {
-        // If another polygon was previously selected, reset its color
-        if (selectedPolygon && selectedPolygon !== clickedPolygon) {
-          selectedPolygon.symbol = polygonSymbol;
+          // Make the newly selected polygon green
+          matchingPolygon.symbol = greenPolygonSymbol;
+          selectedPolygon = matchingPolygon;
+        }
+        // draw a red dot on the map
+        if (currentlyDrawnPoint != null) {
+          view.graphics.remove(currentlyDrawnPoint);
         }
 
-        // Make the newly selected polygon green
-        clickedPolygon.symbol = greenPolygonSymbol;
-        selectedPolygon = clickedPolygon;
-      }
-    }
+        let point = {
+          type: 'point',
+          x: lon,
+          y: lat,
+        };
+
+        currentlyDrawnPoint = new Graphic({
+          geometry: point,
+          symbol: {
+            type: 'simple-marker',
+            size: 7,
+            color: [255, 0, 0],
+            outline: null,
+          },
+        });
+        view.graphics.add(currentlyDrawnPoint);
+      });
   });
-
-  /**
-   * Used when searching to select the correct tile based on lat/lon
-   *
-   * @param {*} lat
-   * @param {*} lon
-   */
-  function highlightPolygonByLatLon(lat, lon) {
-    // Create a bounding box around the provided lat/lon point for querying the R-tree
-    const clickBBox = {
-      minX: lon,
-      minY: lat,
-      maxX: lon,
-      maxY: lat,
-    };
-
-    const intersectedItems = rtree.search(clickBBox);
-
-    if (intersectedItems.length > 0) {
-      const clickedPolygon = intersectedItems[0].polygonGraphic;
-
-      if (clickedPolygon) {
-        // If another polygon was previously selected, reset its color
-        if (selectedPolygon && selectedPolygon !== clickedPolygon) {
-          selectedPolygon.symbol = polygonSymbol;
-        }
-
-        // Make the newly selected polygon green
-        clickedPolygon.symbol = greenPolygonSymbol;
-        selectedPolygon = clickedPolygon;
-      }
-    }
-  }
 
   /**
    * Polygons draw counter-clockwise, this function organizes the corner points
@@ -173,8 +171,6 @@ require([
     return orderedPoints;
   }
 
-  const rtree = new RBush();
-
   /**
    * Draws a polygon which when clicked turns green, also has tile id text
    *
@@ -195,23 +191,50 @@ require([
 
     graphicsLayer.add(polygonGraphic);
 
-    // Add the polygon to the R-tree
-    const bbox = calculateBoundingBox(coordinates);
-    const item = { ...bbox, tile_id: tile_id, polygonGraphic };
-    rtree.insert(item);
+    /** Start code for displaying tile id on tile */
+    const centerPoint = calculateCenter(coordinates);
+    const textSymbol = {
+      type: 'text',
+      color: 'black',
+      haloColor: 'white',
+      haloSize: '2px',
+      text: tile_id,
+      xoffset: 3,
+      yoffset: 3,
+      font: {
+        size: 14,
+        family: 'sans-serif',
+      },
+    };
+
+    const textGraphic = new Graphic({
+      geometry: {
+        type: 'point',
+        x: centerPoint.x,
+        y: centerPoint.y,
+      },
+      symbol: textSymbol,
+    });
+
+    graphicsLayer.add(textGraphic);
+    /** End */
   }
 
-  /** Function to calculate the bounding box of a polygon
-   *
-   */
-  function calculateBoundingBox(coordinates) {
-    const lats = coordinates.map((coord) => coord[1]);
-    const lons = coordinates.map((coord) => coord[0]);
+  /** Used to find the center of a tile for displaying the tile id */
+  function calculateCenter(coordinates) {
+    let sumX = 0;
+    let sumY = 0;
+
+    coordinates.forEach((coord) => {
+      let x = parseFloat(coord[0]);
+      let y = parseFloat(coord[1]);
+      sumX += x;
+      sumY += y;
+    });
+
     return {
-      minX: Math.min(...lons),
-      minY: Math.min(...lats),
-      maxX: Math.max(...lons),
-      maxY: Math.max(...lats),
+      x: sumX / 4,
+      y: sumY / 4,
     };
   }
 
@@ -220,7 +243,7 @@ require([
    * draws polygons (tiles) using those corner points.
    *
    */
-  fetch('/mapping/getCornerPoints') // change to objectstore
+  fetch('/mapping/getCornerPoints')
     .then((response) => response.json())
     .then((pointsByTile) => {
       // Iterate over tile groups and draw polygons for each group
@@ -284,10 +307,9 @@ require([
     var endDate = $('#endDate').val();
     var latitude = $('#latitude').val();
     var longitude = $('#longitude').val();
-    // set globals for downloadDialog
+    // set globals for downloadModelData
     lat = latitude;
     lon = longitude;
-    highlightPolygonByLatLon(lat, lon);
 
     // if users enter a positive longitude, convert to a negative value for them.
     if (longitude >= 0) {
@@ -319,19 +341,19 @@ require([
     if (!validateDateSelection(startDate, endDate)) {
       return;
     }
-
-    downloadDialog(latitude, longitude);
+    highlightAndSearch(latitude, longitude);
   };
 
-  // display the download tooltip containing the results from the selected search
-  const downloadDialog = async (latitude, longitude) => {
-    // close dialog if there's already one up.
-    view.popup.close();
-    view.popup.clear();
-
+  /**
+   * Used when searching to select the correct tile based on lat/lon
+   *
+   * @param {*} lat
+   * @param {*} lon
+   */
+  function highlightAndSearch(lat, lon) {
     const data = {
-      latitude: latitude,
-      longitude: longitude,
+      latitude: lat,
+      longitude: lon,
     };
     fetch('mapping/findClosestPoint', {
       method: 'POST',
@@ -348,16 +370,65 @@ require([
         console.error('findClosestPoint Error:', error);
       })
       .finally(() => {
-        view.popup.open({
-          title: 'Model Data For Area',
-          actions: [downloadAction],
-          content: 'Click the download icon to download your data',
-          location: {
-            latitude: latitude,
-            longitude: longitude,
-          },
-        });
+        const matchingPolygon = graphicsLayer.graphics.find(
+          (graphic) => graphic.attributes && graphic.attributes.tile_id === closestPoint.tile_id
+        );
+        if (matchingPolygon) {
+          // If another polygon was previously selected, reset its color
+          if (selectedPolygon && selectedPolygon !== matchingPolygon) {
+            selectedPolygon.symbol = polygonSymbol;
+          }
+
+          // Make the newly selected polygon green
+          matchingPolygon.symbol = greenPolygonSymbol;
+          selectedPolygon = matchingPolygon;
+        }
+        downloadDialog(lat, lon);
       });
+  }
+
+  // display the download tooltip containing the results from the selected search
+  const downloadDialog = async (latitude, longitude) => {
+    // close dialog if there's already one up.
+    view.popup.close();
+    view.popup.clear();
+
+    view.popup.open({
+      title: `Model Data For Area \n(I, J pair ${closestPoint.i}, ${closestPoint.j})`,
+      actions: [downloadAction],
+      content: 'Click the download icon to download your data',
+      location: {
+        latitude: latitude,
+        longitude: longitude,
+      },
+    });
+
+    // draw a red dot on the map
+    if (currentlyDrawnPoint) {
+      view.graphics.remove(currentlyDrawnPoint);
+    }
+
+    let point = {
+      type: 'point',
+      x: longitude,
+      y: latitude,
+    };
+
+    currentlyDrawnPoint = new Graphic({
+      geometry: point,
+      symbol: {
+        type: 'simple-marker',
+        size: 7,
+        color: [255, 0, 0],
+        outline: null,
+      },
+    });
+    view.goTo({
+      center: [longitude, latitude],
+      target: currentlyDrawnPoint,
+      zoom: 8,
+    });
+    view.graphics.add(currentlyDrawnPoint);
   };
 
   // download the data from the objects store
