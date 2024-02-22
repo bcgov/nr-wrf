@@ -1,66 +1,25 @@
-// const archiver = require("archiver");
-// import { Writable } from "stream";
-// declare const Buffer;
-const https = require("https");
-const fs = require("fs");
-import { ZipFile } from "yazl";
+const https = require('https');
+const fs = require('fs');
+import { ZipFile } from 'yazl';
 
-// /**
-//  * @param {array<{data: Buffer, name: String}>} files
-//  * @returns {Promise<Buffer>}
-//  */
-// export async function zipFiles(files) {
-//   return new Promise((resolve, reject) => {
-//     const buffs = [];
-
-//     const converter = new Writable();
-
-//     converter._write = (chunk, encoding, cb) => {
-//       buffs.push(chunk);
-//       process.nextTick(cb);
-//     };
-
-//     converter.on("finish", () => {
-//       resolve(Buffer.concat(buffs));
-//     });
-
-//     const archive = archiver("zip");
-
-//     archive.on("error", (err) => {
-//       reject(err);
-//     });
-
-//     archive.pipe(converter);
-
-//     for (const file of files) {
-//       archive.append(file.data, { name: file.name });
-//     }
-
-//     return archive.finalize();
-//   });
-// }
-
-export async function zipFiles(
-  files: string[],
-  folder: string
-): Promise<string> {
+export async function zipFiles(files: string[], folder: string): Promise<string> {
   const zipFile = new ZipFile();
   const zipFilePath = folder + process.env.zipFileName;
 
-  console.log("Waiting 5 seconds before zipping...");
+  console.log('Waiting 5 seconds before zipping...');
   await new Promise((resolve) => setTimeout(resolve, 5000));
-  console.log("Zipping files.");
+  console.log('Zipping files.');
 
   for (const file of files) {
-    const fileName = file.substring(file.lastIndexOf("/") + 1);
+    const fileName = file.substring(file.lastIndexOf('/') + 1);
     zipFile.addFile(file, fileName);
   }
 
   return new Promise((resolve, reject) => {
     zipFile.outputStream
       .pipe(fs.createWriteStream(zipFilePath))
-      .on("finish", () => resolve(zipFilePath))
-      .on("error", (error) => reject(error));
+      .on('finish', () => resolve(zipFilePath))
+      .on('error', (error) => reject(error));
     zipFile.end();
   });
 }
@@ -70,46 +29,6 @@ export async function downloadFile(url: string, dir: string): Promise<void> {
   https.get(url, function (response) {
     response.pipe(file);
   });
-}
-
-/**
- * AERMOD tile data operations section
- */
-
-export function getXLatMArray(data) {
-  const numRows = 500;
-  const xLatMArray = [];
-  for (let i = 0; i < numRows; i++) {
-    xLatMArray[i] = [];
-    for (let j = 0; j < numRows; j++) {
-      xLatMArray[i][j] = null;
-    }
-  }
-  for (const entry of data) {
-    const i = entry.i;
-    const j = entry.j;
-    const latitude = entry.lat;
-    xLatMArray[i][j] = latitude;
-  }
-  return xLatMArray;
-}
-
-export function getXLongMArray(data) {
-  const numRows = 500;
-  const xLongMArray = [];
-  for (let i = 0; i < numRows; i++) {
-    xLongMArray[i] = [];
-    for (let j = 0; j < numRows; j++) {
-      xLongMArray[i][j] = null;
-    }
-  }
-  for (const entry of data) {
-    const i = entry.i;
-    const j = entry.j;
-    const longitude = entry.lon;
-    xLongMArray[i][j] = longitude;
-  }
-  return xLongMArray;
 }
 
 /**
@@ -177,8 +96,7 @@ export function updateCornerCoordinates(points: any) {
           point2 !== null &&
           ((point1.j === point2.j && Math.abs(point1.i - point2.i) === 1) ||
             (point1.i === point2.i && Math.abs(point1.j - point2.j) === 1) ||
-            (Math.abs(point1.i - point2.i) === 1 &&
-              Math.abs(point1.j - point2.j) === 1))
+            (Math.abs(point1.i - point2.i) === 1 && Math.abs(point1.j - point2.j) === 1))
         ) {
           similarPoints.push(point2);
           // Mark the point to be skipped in the next iterations
@@ -187,14 +105,10 @@ export function updateCornerCoordinates(points: any) {
       });
 
       // Calculate averages
-      const avgI =
-        similarPoints.reduce((sum, p) => sum + p.i, 0) / similarPoints.length;
-      const avgJ =
-        similarPoints.reduce((sum, p) => sum + p.j, 0) / similarPoints.length;
-      const avgLat =
-        similarPoints.reduce((sum, p) => sum + p.lat, 0) / similarPoints.length;
-      const avgLon =
-        similarPoints.reduce((sum, p) => sum + p.lon, 0) / similarPoints.length;
+      const avgI = similarPoints.reduce((sum, p) => sum + p.i, 0) / similarPoints.length;
+      const avgJ = similarPoints.reduce((sum, p) => sum + p.j, 0) / similarPoints.length;
+      const avgLat = similarPoints.reduce((sum, p) => sum + p.lat, 0) / similarPoints.length;
+      const avgLon = similarPoints.reduce((sum, p) => sum + p.lon, 0) / similarPoints.length;
 
       // Update the points with averaged values and their tile_id
       similarPoints.forEach((p) => {
@@ -205,9 +119,7 @@ export function updateCornerCoordinates(points: any) {
       });
 
       // Group by the averaged point's tile_id
-      const key = `${avgI.toFixed(4)},${avgJ.toFixed(4)},${avgLat.toFixed(
-        4
-      )},${avgLon.toFixed(4)}`;
+      const key = `${avgI.toFixed(4)},${avgJ.toFixed(4)},${avgLat.toFixed(4)},${avgLon.toFixed(4)}`;
       if (!groupedPoints[key]) {
         groupedPoints[key] = [];
       }
