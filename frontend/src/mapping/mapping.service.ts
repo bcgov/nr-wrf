@@ -29,10 +29,7 @@ export class MappingService {
       const parentIJ = this.findParentGridCell(latitude, longitude);
       console.log('findParentGridCell(desiredLatitude, desiredLongitude)');
       console.log(parentIJ);
-      const rawData = Papa.parse(this.tileDomainInfo, {
-        header: true,
-        skipEmptyLines: true,
-      });
+      const rawData = this.parsedTileDomainInfo;
 
       const parsedData = rawData.data.map((entry) => ({
         i: parseInt(entry.i),
