@@ -71,6 +71,7 @@ require([
 
   let selectedPolygon = null;
   let currentlyDrawnPoint = null;
+  let currentlyDrawnText = null;
 
   /**
    * Handles clicks to highlight and unhighlight polygons.
@@ -117,6 +118,38 @@ require([
           // Make the newly selected polygon green
           matchingPolygon.symbol = greenPolygonSymbol;
           selectedPolygon = matchingPolygon;
+
+          /** Start code for debugging text */
+          const centerPoint = selectedPolygon.attributes.center_point;
+          const tileId = selectedPolygon.attributes.tile_id;
+          const pointI = closestPoint.i;
+          const pointJ = closestPoint.j;
+          const tileInfoText = `Tile ${tileId.toString().padStart(4, '0')}, (I, J pair ${pointI}, ${pointJ})`;
+          const textSymbol = {
+            type: 'text',
+            color: 'black',
+            haloColor: 'white',
+            haloSize: '2px',
+            text: tileInfoText,
+            xoffset: 3,
+            yoffset: 3,
+            font: {
+              size: 14,
+              family: 'sans-serif',
+            },
+          };
+          graphicsLayer.remove(currentlyDrawnText);
+          currentlyDrawnText = new Graphic({
+            geometry: {
+              type: 'point',
+              x: centerPoint.x,
+              y: centerPoint.y,
+            },
+            symbol: textSymbol,
+          });
+
+          graphicsLayer.add(currentlyDrawnText);
+          /** End */
         }
         // draw a red dot on the map
         if (currentlyDrawnPoint != null) {
@@ -181,43 +214,19 @@ require([
       rings: [coordinates],
     };
 
+    // used for drawing the tile id and i,j coordinates
+    const centerPoint = calculateCenter(coordinates);
+
     const polygonGraphic = new Graphic({
       geometry: polygon,
       symbol: polygonSymbol,
       attributes: {
         tile_id: tile_id,
+        center_point: centerPoint,
       },
     });
 
     graphicsLayer.add(polygonGraphic);
-
-    /** Start code for displaying tile id on tile */
-    const centerPoint = calculateCenter(coordinates);
-    const textSymbol = {
-      type: 'text',
-      color: 'black',
-      haloColor: 'white',
-      haloSize: '2px',
-      text: tile_id,
-      xoffset: 3,
-      yoffset: 3,
-      font: {
-        size: 14,
-        family: 'sans-serif',
-      },
-    };
-
-    const textGraphic = new Graphic({
-      geometry: {
-        type: 'point',
-        x: centerPoint.x,
-        y: centerPoint.y,
-      },
-      symbol: textSymbol,
-    });
-
-    graphicsLayer.add(textGraphic);
-    /** End */
   }
 
   /** Used to find the center of a tile for displaying the tile id */
