@@ -326,11 +326,6 @@
     <script>
       const template = document.getElementById('dateFieldset');
 
-      // const xhr = new XMLHttpRequest();
-      // const url = "https://nrs.objectstore.gov.bc.ca/qfncae";
-      // xhr.open("GET", url);
-      // xhr.send();
-
       $(function () {
         // initialize various UI elements
         $('#tabs').tabs(); //init the tabs
@@ -367,7 +362,8 @@
           changeYear: true,
           dateFormat: 'mm/dd/yy',
           minDate: new Date(2011, 0, 1),
-          maxDate: new Date(2016, 0, 1),
+          maxDate: new Date(2016, 0, 1, 23, 0),
+          defaultDate: new Date(2016, 0, 1, 23, 0),
           timeFormat: 'HH:mm',
           controlType: 'select',
           showMinute: false,
