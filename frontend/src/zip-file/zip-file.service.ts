@@ -227,12 +227,15 @@ export class ZipFileService {
             .toString()
             .padStart(2, '0')}`;
           const dateLines = startDate + '\n' + stopDate;
-          mmifContent = mmifContent.replace('# AUTOINSERT POINT 01', dateLines);
+          mmifContent = mmifContent.replace('# AUTOINSERT POINT 01', `# AUTOINSERT POINT 01\n${dateLines}`);
           // Autoinsert point 2
           const tz = tileDownloadInfo.timeZone;
           const timeZone = `TIMEZONE ${tz > 0 ? '-' : ''}${tz} !default is zero, i.e. GMT-00`;
-          mmifContent = mmifContent.replace('# AUTOINSERT POINT 02', timeZone);
+          mmifContent = mmifContent.replace('# AUTOINSERT POINT 02', `# AUTOINSERT POINT 02\n${timeZone}`);
           // Autoinsert point 3
+          const latLonLine = `POINT LATLON ${tileDownloadInfo.latitude} ${tileDownloadInfo.longitude}`;
+          mmifContent = mmifContent.replace('# AUTOINSERT POINT 03', `# AUTOINSERT POINT 03\n${latLonLine}`);
+          // Autoinsert point 4
           const inputLines = [];
           let tileId = '';
           tileId = tileDownloadInfo.closestPoint
@@ -244,7 +247,7 @@ export class ZipFileService {
             inputLines.push(`Input "${tileId}\\wrfout_d02_${tileId}_${year}.nc"`);
           }
           const inputString = inputLines.join('\n');
-          mmifContent = mmifContent.replace('# AUTOINSERT POINT 03', inputString);
+          mmifContent = mmifContent.replace('# AUTOINSERT POINT 04', `# AUTOINSERT POINT 04\n${inputString}`);
 
           // Write the file
           fs.writeFile(folder + fileName, mmifContent, function (err) {
