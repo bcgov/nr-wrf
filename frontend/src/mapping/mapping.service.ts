@@ -103,19 +103,20 @@ function csvToJson(csvStr) {
   lines.slice(1).forEach((line) => {
     const currentLine = line.split(',');
     const tile_id = currentLine[0];
-    const obj = {
-      i: currentLine[1],
-      j: currentLine[2],
-      lon: currentLine[3],
-      lat: currentLine[4],
-      tile_id: parseInt(tile_id, 10),
-    };
+    if (!isNaN(parseInt(tile_id, 10))) {
+      const obj = {
+        i: currentLine[1],
+        j: currentLine[2],
+        lon: currentLine[3],
+        lat: currentLine[4],
+        tile_id: parseInt(tile_id, 10),
+      };
+      if (!result[tile_id]) {
+        result[tile_id] = [];
+      }
 
-    if (!result[tile_id]) {
-      result[tile_id] = [];
+      result[tile_id].push(obj);
     }
-
-    result[tile_id].push(obj);
   });
 
   return result;
