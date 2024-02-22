@@ -39,15 +39,15 @@ require([
   view.ui.add(ccWidget, 'bottom-right');
 
   // hide tiles when zoomed out
-  view.watch('zoom', (newZoom) => {
-    if (newZoom <= 7) {
-      graphicsLayer.visible = false;
-      labelGraphicsLayer.visible = false;
-    } else {
-      graphicsLayer.visible = true;
-      labelGraphicsLayer.visible = true;
-    }
-  });
+  // view.watch('zoom', (newZoom) => {
+  //   if (newZoom <= 7) {
+  //     graphicsLayer.visible = false;
+  //     labelGraphicsLayer.visible = false;
+  //   } else {
+  //     graphicsLayer.visible = true;
+  //     labelGraphicsLayer.visible = true;
+  //   }
+  // });
 
   // hilighted polygon
   const greenPolygonSymbol = {
