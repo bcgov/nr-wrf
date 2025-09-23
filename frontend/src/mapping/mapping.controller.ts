@@ -1,18 +1,21 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
-import { MappingService } from "./mapping.service";
+import { Body, Controller, Get, Post } from '@nestjs/common';
+import { MappingService } from './mapping.service';
 
-@Controller("mapping")
+@Controller('mapping')
 export class MappingController {
   constructor(private readonly zipFileService: MappingService) {}
-  @Post("findClosestPoint")
-  async findClosestPoint(
-    @Body() data: { latitude: number; longitude: number }
-  ): Promise<any> {
+  @Post('findClosestPoint')
+  async findClosestPoint(@Body() data: { latitude: number; longitude: number }): Promise<any> {
     return this.zipFileService.findClosestPoint(data.latitude, data.longitude);
   }
 
-  @Get("getCornerPoints")
+  @Get('getCornerPoints')
   getCornerPoints(): any {
     return this.zipFileService.getCornerPoints();
+  }
+
+  @Get('getAllPoints')
+  getAllPoints(): any {
+    return this.zipFileService.getAllPoints();
   }
 }

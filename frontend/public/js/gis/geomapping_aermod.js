@@ -18,10 +18,11 @@ require([
   const graphicsLayer = new GraphicsLayer();
   const boundaryGraphicsLayer = new GraphicsLayer();
   const labelGraphicsLayer = new GraphicsLayer();
+  const pointsLayer = new GraphicsLayer();
 
   const map = new Map({
     basemap: 'arcgis-topographic',
-    layers: [graphicsLayer, boundaryGraphicsLayer, labelGraphicsLayer],
+    layers: [graphicsLayer, boundaryGraphicsLayer, labelGraphicsLayer, pointsLayer],
   });
 
   const view = new MapView({
@@ -29,7 +30,7 @@ require([
     // center: [-123.329, 48.407],
     // zoom: 9,
     center: [-122, 50.25],
-    zoom: 7,
+    zoom: 12,
     container: 'viewDiv',
   });
 
@@ -40,16 +41,19 @@ require([
 
   view.ui.add(ccWidget, 'bottom-right');
 
-  // hide tiles when zoomed out
-  // view.watch('zoom', (newZoom) => {
-  //   if (newZoom <= 7) {
-  //     graphicsLayer.visible = false;
-  //     labelGraphicsLayer.visible = false;
-  //   } else {
-  //     graphicsLayer.visible = true;
-  //     labelGraphicsLayer.visible = true;
-  //   }
-  // });
+  // hide tiles and points when zoomed out
+  view.watch('zoom', (newZoom) => {
+    // console.log('newZoom: ' + newZoom);
+    if (newZoom <= 10) {
+      // graphicsLayer.visible = false;
+      // labelGraphicsLayer.visible = false;
+      pointsLayer.visible = false;
+    } else {
+      // graphicsLayer.visible = true;
+      // labelGraphicsLayer.visible = true;
+      pointsLayer.visible = true;
+    }
+  });
 
   // hilighted polygon
   const greenPolygonSymbol = {
@@ -262,6 +266,31 @@ require([
         const tile_id = tileGroup[0].tile_id;
         const coordinates = orderCoordinates(tileGroup.map((point) => [point.lon, point.lat]));
         drawPolygon(coordinates, tile_id);
+      });
+    })
+    .catch((error) => console.error(error));
+
+  // for debugging, display all points on the map
+  fetch('/mapping/getAllPoints')
+    .then((response) => response.json())
+    .then((pointsByTile) => {
+      Object.values(pointsByTile).forEach((tileGroup) => {
+        tileGroup.forEach((point) => {
+          const graphic = new Graphic({
+            geometry: {
+              type: 'point',
+              longitude: point.lon,
+              latitude: point.lat,
+            },
+            symbol: {
+              type: 'simple-marker',
+              size: 5,
+              color: [0, 0, 0],
+              outline: null,
+            },
+          });
+          pointsLayer.add(graphic);
+        });
       });
     })
     .catch((error) => console.error(error));

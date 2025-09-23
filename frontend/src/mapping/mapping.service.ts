@@ -57,6 +57,10 @@ export class MappingService {
     return this.csvToJson(this.tileCorners);
   }
 
+  getAllPoints() {
+    return this.csvToJson2(this.tileDomainInfo);
+  }
+
   csvToJson(csvStr) {
     const lines = csvStr.split('\n');
     const result = {};
@@ -70,6 +74,32 @@ export class MappingService {
           j: currentLine[2],
           lon: currentLine[3],
           lat: currentLine[4],
+          tile_id: parseInt(tile_id, 10),
+        };
+        if (!result[tile_id]) {
+          result[tile_id] = [];
+        }
+
+        result[tile_id].push(obj);
+      }
+    });
+
+    return result;
+  }
+
+  csvToJson2(csvStr) {
+    const lines = csvStr.split('\n');
+    const result = {};
+
+    lines.slice(1).forEach((line) => {
+      const currentLine = line.split(',');
+      const tile_id = currentLine[4];
+      if (!isNaN(parseInt(tile_id, 10))) {
+        const obj = {
+          i: currentLine[0],
+          j: currentLine[1],
+          lat: currentLine[2],
+          lon: currentLine[3],
           tile_id: parseInt(tile_id, 10),
         };
         if (!result[tile_id]) {
