@@ -1080,10 +1080,7 @@ GET /index/availableDomains?dataType=AERMOD&minLat=49.0&maxLat=50.0&minLon=-123.
 
 ### Phase 1: Preparation (No Code Changes)
 
-1. Generate index CSV files for all domains: done
-2. Upload to appropriate locations: done
-3. Verify file accessibility
-4. Set up test environment: done
+Done
 
 ### Phase 2: Backend Implementation
 
