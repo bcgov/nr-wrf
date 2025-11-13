@@ -30,3 +30,60 @@ This application provides air quality dispersion data through two separate searc
 - **Output**: Packages selected files into a `nr-wrf_aermod.zip` file with processing utilities (start.bat, readme.txt, mmif.inp)
 
 Both search screens use the mapping service (`geomapping.js` and `geomapping_aermod.js`) to construct object store URLs, which are then processed by the backend zip-file service to package all searched files into downloadable archives.
+
+## Data Index Update (High-Resolution Support)
+
+The application has been updated to support a new data index structure with multiple resolution domains and organized sub-folders in object storage.
+
+### New Object Store Structure
+
+Data files are now organized by type (AERMOD/CALPUFF), resolution domain, and year/month:
+
+#### AERMOD Data Locations
+
+- **4km resolution (d02)** - Currently used by WRF:
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/d02/`
+- **High resolution domains**:
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/d03/`
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/d04/`
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/d05/`
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/d06/`
+
+#### CALPUFF Data Locations
+
+- **4km resolution (d02)**:
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/3ddat/YYYYMM/d02/`
+- **High resolution domains**:
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/3ddat/YYYYMM/d03/`
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/3ddat/YYYYMM/d04/`
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/3ddat/YYYYMM/d05/`
+  - `https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/3ddat/YYYYMM/d06/`
+
+Where `YYYYMM` represents the year and month (e.g., `201901` for January 2019).
+
+### Resolution Priority
+
+The application uses a resolution priority strategy:
+
+- **If high-resolution data is available for a search area**, the application will preferentially use that data
+- **Otherwise**, it falls back to the 4km resolution (d02) data
+- This ensures users get the most detailed data available for their area of interest
+
+### Index File Format
+
+The new index uses a CSV format with the following columns:
+
+- `filename`: Name of the data file
+- `tile`: Unique tile identifier
+- `domain`: Resolution domain (d02, d03, d04, d05, d06)
+- `year`: Data year
+- `I0, J0, I1, J1`: Grid coordinate bounds
+- `lat0, lon0, lat1, lon1`: Geographic coordinate bounds
+- `url`: Direct URL to the file in object storage
+
+This structured index allows for:
+
+- Direct URL lookup without dynamic construction
+- Support for multiple resolution domains
+- Explicit inventory of available data files
+- Easier maintenance and updates
