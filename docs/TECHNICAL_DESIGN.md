@@ -1,0 +1,1328 @@
+# Technical Design: High-Resolution Multi-Domain Index Support
+
+## Document Information
+
+- **Version:** 1.0
+- **Date:** November 13, 2025
+- **Status:** Design Phase
+- **Author:** Development Team
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Current Architecture](#current-architecture)
+3. [Proposed Architecture](#proposed-architecture)
+4. [Data Structures](#data-structures)
+5. [Component Design](#component-design)
+6. [API Specifications](#api-specifications)
+7. [Migration Strategy](#migration-strategy)
+8. [Testing Strategy](#testing-strategy)
+
+---
+
+## Overview
+
+### Problem Statement
+
+The current implementation dynamically constructs file URLs based on grid calculations (I/J coordinates) for CALPUF data and uses a single-domain index for AERMOD data. This approach:
+
+- Limits support for multiple resolution domains (d02-d06)
+- Makes it difficult to manage data availability
+- Couples file naming conventions to application logic
+- Prevents prioritization of high-resolution data
+
+### Solution
+
+Implement a unified CSV index-based approach for both CALPUF and AERMOD that:
+
+- Uses pre-built index files containing all available data files with metadata
+- Supports multiple resolution domains (d02, d03, d04, d05, d06)
+- Prioritizes high-resolution data when available
+- Decouples file structure from application logic
+- Enables easier data management and updates
+
+### Goals
+
+1. ✅ Support 5 resolution domains (d02 through d06)
+2. ✅ Automatic high-resolution prioritization
+3. ✅ Maintain backward compatibility
+4. ✅ Improve performance over dynamic calculation
+5. ✅ Simplify data management
+
+---
+
+## Current Architecture
+
+### CALPUF Flow (Dynamic Construction)
+
+```
+User Search
+    ↓
+Frontend (geomapping.js)
+    ↓
+Fetch domaininfo_bcwrf.csv (I,J,LAT,LON)
+    ↓
+Calculate bounding box → I/J ranges
+    ↓
+POST /zip-file/calculateVars
+    ↓
+Backend calculates min/max I/J
+    ↓
+Frontend loops through I/J ranges
+    ↓
+Construct filenames: x{I1}y{J1}x{I2}y{J2}.{YYYY}{MM}.10x10.m3d.7z
+    ↓
+Build URLs: https://nrs.objectstore.gov.bc.ca/kadkvt/{filename}
+    ↓
+POST /zip-file/zip with URL list
+    ↓
+Backend generates download.bat with URLs & packages support files
+```
+
+**Current Data:**
+
+- Object Store: `https://nrs.objectstore.gov.bc.ca/kadkvt/`
+- Domain File: `domaininfo_bcwrf.csv` (201,401 rows: I, J, LAT, LON)
+- File Pattern: `x{I1}y{J1}x{I2}y{J2}.{YYYY}{MM}.10x10.m3d.7z`
+
+### AERMOD Flow (Index-Based, Single Domain)
+
+```
+User Search
+    ↓
+Frontend (geomapping_aermod.js)
+    ↓
+Click/Enter coordinates
+    ↓
+POST /mapping/findClosestPoint
+    ↓
+Backend searches tile_domain_info.csv
+    ↓
+Returns tile info (with full_url)
+    ↓
+POST /zip-file/zipAermod
+    ↓
+Backend generates download.bat from full_url & packages support files
+    ↓
+Returns zip with download scripts
+```
+
+**Current Data:**
+
+- Object Store: `https://nrs.objectstore.gov.bc.ca/qfncae/wrftiles/`
+- Index File: `tile_domain_info.csv` (124,092 rows: i,j,lat,lon,tile_id,filename,full_url)
+- File Pattern: `{tile_id}.7z` (e.g., `0021.7z`)
+
+---
+
+## Proposed Architecture
+
+### Unified Multi-Domain Flow
+
+```
+User Search
+    ↓
+Frontend (geomapping.js / geomapping_aermod.js)
+    ↓
+Collect search parameters:
+  - Bounding box (lat/lon)
+  - Date range (start/end year, month, day, hour)
+  - Data type (CALPUF/AERMOD)
+    ↓
+POST /data/findTiles
+    {
+      dataType: 'CALPUF' | 'AERMOD',
+      bounds: { minLat, maxLat, minLon, maxLon },
+      dateRange: { startYear, startMonth, ..., endYear, endMonth, ... },
+      preferHighRes: true
+    }
+    ↓
+Backend: Search Index
+  1. Filter by geographic bounds (lat/lon overlap)
+  2. Filter by date range
+  3. Group by location, prioritize domains (d06→d05→d04→d03→d02)
+  4. Return optimal tile set
+    ↓
+Response: Array of TileInfo
+    [
+      {
+        filename: "...",
+        tile: "0123",
+        domain: "d03",
+        year: 2019,
+        bounds: { i0, j0, i1, j1, lat0, lon0, lat1, lon1 },
+        url: "https://..."
+      }
+    ]
+    ↓
+Frontend displays domain info (optional)
+    ↓
+POST /zip-file/zip or /zip-file/zipAermod
+    { tileInfo: [...], config: {...} }
+    ↓
+Backend: Generate Download Package
+  - Generates download.bat with curl commands from URLs
+  - Creates start.bat (orchestrator)
+  - Generates config files (m3d_bild.inp)
+  - Adds readme.txt with instructions
+  - Packages utility files (7z.exe, m3d_bild.exe)
+  - Zips everything into small package (~KB)
+    ↓
+Return zip file to user
+    ↓
+**User's Local Workflow:**
+  - Extract zip file
+  - Run start.bat
+  - start.bat executes download.bat
+  - Curl commands download actual data files (potentially GB)
+  - Files are processed locally
+```
+
+**Important:** The backend does NOT download the actual data files. It generates a download script (download.bat) containing curl commands with URLs from the index. Users download the data files locally when they run the batch file.
+
+### Download Package Contents
+
+The zip file generated by the backend is small (~KB) and contains:
+
+1. **download.bat** - Batch file with curl commands to download data files from object storage
+2. **start.bat** - Orchestrator that runs download.bat and then processes files
+3. **readme.txt** - Instructions for users
+4. **m3d_bild.inp** - Configuration file with user's search parameters
+5. **Utility executables** - 7z.exe, m3d_bild.exe for local processing
+
+**User Workflow:**
+
+1. Download small zip package from web application
+2. Extract zip file to local directory
+3. Run `start.bat`
+4. `start.bat` executes `download.bat` which downloads actual data files (potentially GB)
+5. Data files are processed locally using m3d_bild.exe
+
+### New Object Store Structure
+
+**AERMOD:**
+
+```
+https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/
+  ├── d02/
+  │   ├── {tile}/
+  │   │   └── wrfout_d02_{tile}_{year}.nc
+  ├── d03/
+  │   ├── {tile}/
+  │   │   └── wrfout_d03_{tile}_{year}.nc
+  ├── d04/
+  ├── d05/
+  └── d06/
+```
+
+**CALPUF:**
+
+```
+https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/3ddat/
+  ├── {YYYYMM}/
+  │   ├── d02/
+  │   │   └── {tile_files}.dat
+  │   ├── d03/
+  │   ├── d04/
+  │   ├── d05/
+  │   └── d06/
+```
+
+---
+
+## Data Structures
+
+### Index CSV Format
+
+Both CALPUF and AERMOD will use this standardized format:
+
+```csv
+filename,tile,domain,year,month,I0,J0,I1,J1,lat0,lon0,lat1,lon1,url
+```
+
+**Column Definitions:**
+
+- `filename`: Name of the data file
+- `tile`: Unique tile identifier (e.g., "0026", "1234")
+- `domain`: Resolution domain (d02, d03, d04, d05, d06)
+- `year`: Data year (e.g., 2019)
+- `month`: Data month (1-12, optional for AERMOD annual files)
+- `I0, J0`: Bottom-left grid indices
+- `I1, J1`: Top-right grid indices
+- `lat0, lon0`: Bottom-left geographic coordinates
+- `lat1, lon1`: Top-right geographic coordinates
+- `url`: Full URL to the file in object storage
+
+**Example AERMOD Row:**
+
+```csv
+wrfout_d02_0026_2019.nc,0026,d02,2019,,2,262,11,271,56.6176,-137.2774,56.2267,-137.7082,https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/d02/0026/wrfout_d02_0026_2019.nc
+```
+
+**Example CALPUF Row:**
+
+```csv
+x002y262x011y271.201901.10x10.m3d.7z,0026,d02,2019,1,2,262,11,271,56.6176,-137.2774,56.2267,-137.7082,https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/3ddat/201901/d02/x002y262x011y271.201901.10x10.m3d.7z
+```
+
+### TypeScript Interfaces
+
+#### Backend Types
+
+```typescript
+// backend/src/common/types.ts
+
+export interface TileIndexRow {
+  filename: string;
+  tile: string;
+  domain: Domain;
+  year: number;
+  month?: number;
+  I0: number;
+  J0: number;
+  I1: number;
+  J1: number;
+  lat0: number;
+  lon0: number;
+  lat1: number;
+  lon1: number;
+  url: string;
+}
+
+export type Domain = 'd02' | 'd03' | 'd04' | 'd05' | 'd06';
+
+export type DataType = 'CALPUF' | 'AERMOD';
+
+export interface GeographicBounds {
+  minLat: number;
+  maxLat: number;
+  minLon: number;
+  maxLon: number;
+}
+
+export interface DateRange {
+  startYear: number;
+  startMonth: number;
+  startDay?: number;
+  startHour?: number;
+  endYear: number;
+  endMonth: number;
+  endDay?: number;
+  endHour?: number;
+}
+
+export interface FindTilesRequest {
+  dataType: DataType;
+  bounds: GeographicBounds;
+  dateRange: DateRange;
+  preferHighRes?: boolean;
+}
+
+export interface TileInfo {
+  filename: string;
+  tile: string;
+  domain: Domain;
+  year: number;
+  month?: number;
+  bounds: {
+    I0: number;
+    J0: number;
+    I1: number;
+    J1: number;
+    lat0: number;
+    lon0: number;
+    lat1: number;
+    lon1: number;
+  };
+  url: string;
+}
+
+export interface FindTilesResponse {
+  tiles: TileInfo[];
+  domainUsed: Domain[];
+  totalFiles: number;
+  dateRange: DateRange;
+}
+```
+
+#### Frontend Types
+
+```typescript
+// frontend/util/types.ts
+
+export interface SearchParameters {
+  dataType: 'CALPUF' | 'AERMOD';
+  bounds: {
+    minLat: number;
+    maxLat: number;
+    minLon: number;
+    maxLon: number;
+  };
+  dateRange: {
+    startYear: number;
+    startMonth: number;
+    startDay?: number;
+    startHour?: number;
+    endYear: number;
+    endMonth: number;
+    endDay?: number;
+    endHour?: number;
+  };
+  timezone?: number;
+}
+
+export interface TileResponse {
+  tiles: Array<{
+    filename: string;
+    tile: string;
+    domain: string;
+    year: number;
+    month?: number;
+    url: string;
+  }>;
+  domainUsed: string[];
+  totalFiles: number;
+}
+```
+
+---
+
+## Component Design
+
+### 1. Backend: Index Service
+
+**File:** `backend/src/index/index.service.ts` (NEW)
+
+```typescript
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { readFileSync } from 'fs';
+import * as Papa from 'papaparse';
+import {
+  TileIndexRow,
+  FindTilesRequest,
+  FindTilesResponse,
+  Domain,
+  GeographicBounds,
+  DateRange,
+} from '../common/types';
+
+@Injectable()
+export class IndexService implements OnModuleInit {
+  private calpufIndex: TileIndexRow[] = [];
+  private aermodIndex: TileIndexRow[] = [];
+
+  // Domain priority order (highest to lowest resolution)
+  private readonly DOMAIN_PRIORITY: Domain[] = ['d06', 'd05', 'd04', 'd03', 'd02'];
+
+  onModuleInit() {
+    this.loadIndices();
+  }
+
+  /**
+   * Load CSV index files into memory on startup
+   */
+  private loadIndices(): void {
+    try {
+      // Load CALPUF index
+      const calpufCsv = readFileSync('data/indices/calpuff_files.csv', 'utf-8');
+      const calpufParsed = Papa.parse(calpufCsv, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true,
+      });
+      this.calpufIndex = calpufParsed.data as TileIndexRow[];
+      console.log(`Loaded ${this.calpufIndex.length} CALPUF index entries`);
+
+      // Load AERMOD index
+      const aermodCsv = readFileSync('data/indices/aermod_files.csv', 'utf-8');
+      const aermodParsed = Papa.parse(aermodCsv, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true,
+      });
+      this.aermodIndex = aermodParsed.data as TileIndexRow[];
+      console.log(`Loaded ${this.aermodIndex.length} AERMOD index entries`);
+    } catch (error) {
+      console.error('Error loading index files:', error);
+      throw new Error('Failed to load data indices');
+    }
+  }
+
+  /**
+   * Find tiles matching search criteria with domain prioritization
+   */
+  findTiles(request: FindTilesRequest): FindTilesResponse {
+    const index = request.dataType === 'CALPUF' ? this.calpufIndex : this.aermodIndex;
+
+    // Step 1: Filter by geographic bounds
+    let candidates = this.filterByBounds(index, request.bounds);
+
+    // Step 2: Filter by date range
+    candidates = this.filterByDateRange(candidates, request.dateRange);
+
+    // Step 3: Prioritize by domain if requested
+    const selectedTiles = request.preferHighRes !== false ? this.prioritizeByDomain(candidates) : candidates;
+
+    // Step 4: Build response
+    const domainsUsed = [...new Set(selectedTiles.map((t) => t.domain))];
+
+    return {
+      tiles: selectedTiles.map(this.toTileInfo),
+      domainUsed: domainsUsed,
+      totalFiles: selectedTiles.length,
+      dateRange: request.dateRange,
+    };
+  }
+
+  /**
+   * Filter tiles by geographic bounds (lat/lon overlap)
+   */
+  private filterByBounds(tiles: TileIndexRow[], bounds: GeographicBounds): TileIndexRow[] {
+    return tiles.filter((tile) => {
+      // Check if tile bounds overlap with search bounds
+      const latOverlap = !(tile.lat1 < bounds.minLat || tile.lat0 > bounds.maxLat);
+      const lonOverlap = !(tile.lon1 < bounds.minLon || tile.lon0 > bounds.maxLon);
+      return latOverlap && lonOverlap;
+    });
+  }
+
+  /**
+   * Filter tiles by date range
+   */
+  private filterByDateRange(tiles: TileIndexRow[], dateRange: DateRange): TileIndexRow[] {
+    return tiles.filter((tile) => {
+      // Year must be within range
+      if (tile.year < dateRange.startYear || tile.year > dateRange.endYear) {
+        return false;
+      }
+
+      // For CALPUF with monthly data
+      if (tile.month !== undefined) {
+        if (tile.year === dateRange.startYear && tile.month < dateRange.startMonth) {
+          return false;
+        }
+        if (tile.year === dateRange.endYear && tile.month > dateRange.endMonth) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  /**
+   * Prioritize tiles by domain (prefer higher resolution)
+   * For each unique location/date, keep only the highest resolution available
+   */
+  private prioritizeByDomain(tiles: TileIndexRow[]): TileIndexRow[] {
+    // Group by tile ID and year/month
+    const grouped = new Map<string, TileIndexRow[]>();
+
+    tiles.forEach((tile) => {
+      const key = `${tile.tile}_${tile.year}_${tile.month || ''}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key)!.push(tile);
+    });
+
+    // For each group, select the highest priority domain
+    const selected: TileIndexRow[] = [];
+
+    grouped.forEach((group) => {
+      // Sort by domain priority
+      const sorted = group.sort((a, b) => {
+        const aPriority = this.DOMAIN_PRIORITY.indexOf(a.domain);
+        const bPriority = this.DOMAIN_PRIORITY.indexOf(b.domain);
+        return aPriority - bPriority;
+      });
+
+      // Take the first one (highest priority)
+      selected.push(sorted[0]);
+    });
+
+    return selected;
+  }
+
+  /**
+   * Convert TileIndexRow to TileInfo response format
+   */
+  private toTileInfo(tile: TileIndexRow) {
+    return {
+      filename: tile.filename,
+      tile: tile.tile,
+      domain: tile.domain,
+      year: tile.year,
+      month: tile.month,
+      bounds: {
+        I0: tile.I0,
+        J0: tile.J0,
+        I1: tile.I1,
+        J1: tile.J1,
+        lat0: tile.lat0,
+        lon0: tile.lon0,
+        lat1: tile.lat1,
+        lon1: tile.lon1,
+      },
+      url: tile.url,
+    };
+  }
+
+  /**
+   * Get available domains for a specific area
+   */
+  getAvailableDomains(dataType: 'CALPUF' | 'AERMOD', bounds: GeographicBounds): Domain[] {
+    const index = dataType === 'CALPUF' ? this.calpufIndex : this.aermodIndex;
+    const candidates = this.filterByBounds(index, bounds);
+    const domains = [...new Set(candidates.map((t) => t.domain))];
+    return domains.sort((a, b) => this.DOMAIN_PRIORITY.indexOf(a) - this.DOMAIN_PRIORITY.indexOf(b));
+  }
+}
+```
+
+**File:** `backend/src/index/index.controller.ts` (NEW)
+
+```typescript
+import { Controller, Post, Body, Get, Query } from '@nestjs/common';
+import { IndexService } from './index.service';
+import { FindTilesRequest } from '../common/types';
+
+@Controller('index')
+export class IndexController {
+  constructor(private readonly indexService: IndexService) {}
+
+  @Post('findTiles')
+  findTiles(@Body() request: FindTilesRequest) {
+    return this.indexService.findTiles(request);
+  }
+
+  @Get('availableDomains')
+  getAvailableDomains(
+    @Query('dataType') dataType: 'CALPUF' | 'AERMOD',
+    @Query('minLat') minLat: number,
+    @Query('maxLat') maxLat: number,
+    @Query('minLon') minLon: number,
+    @Query('maxLon') maxLon: number
+  ) {
+    return this.indexService.getAvailableDomains(dataType, {
+      minLat,
+      maxLat,
+      minLon,
+      maxLon,
+    });
+  }
+}
+```
+
+---
+
+### 2. Backend: Updated Data Service
+
+**File:** `backend/src/data/data.service.ts` (MODIFIED)
+
+```typescript
+// Keep existing calculateVars for backward compatibility, but mark as deprecated
+
+/**
+ * @deprecated Use IndexService.findTiles() instead
+ * Kept for backward compatibility during migration
+ */
+async calculateVars(
+  bottomLeftYGlobal: number,
+  topRightYGlobal: number,
+  bottomLeftXGlobal: number,
+  topRightXGlobal: number
+): Promise<any> {
+  // Existing implementation...
+  // This will be removed in a future version
+}
+```
+
+---
+
+### 3. Frontend: Updated Zip File Service
+
+**File:** `frontend/src/zip-file/zip-file.service.ts` (MODIFIED)
+
+Add new method for index-based tile lookup:
+
+```typescript
+/**
+ * Find tiles using the new index-based approach
+ */
+async findTilesByIndex(searchParams: SearchParameters): Promise<TileResponse> {
+  const requestUrl = `${hostname}:${port}/index/findTiles`;
+
+  const request = {
+    dataType: searchParams.dataType,
+    bounds: searchParams.bounds,
+    dateRange: searchParams.dateRange,
+    preferHighRes: true,
+  };
+
+  const response = await lastValueFrom(
+    this.httpService
+      .post(requestUrl, request)
+      .pipe(map((response) => response.data))
+  );
+
+  return response;
+}
+
+/**
+ * Updated method for CALPUF using index
+ */
+beginZippingWithIndex(
+  searchParams: SearchParameters,
+  tileResponse: TileResponse,
+  supportFiles: string[]
+): { subFolder: string } {
+  const subFolder = uuid.v4();
+  const filePath = process.env.filePath;
+  const folder =
+    filePath.charAt(filePath.length - 1) == '/'
+      ? filePath + subFolder + '/'
+      : filePath + '/' + subFolder + '/';
+
+  // Create download.bat with curl commands from tile URLs
+  const tileUrls = tileResponse.tiles.map(t => t.url);
+  const downloadBat = this.createDownloadBatFromUrls(tileUrls);
+
+  // Generate config if needed
+  const stitchingConfig = searchParams.dataType === 'CALPUF'
+    ? this.generateCalpufConfig(searchParams, tileResponse)
+    : null;
+
+  // Zip the package (scripts, configs, utilities - NOT data files)
+  this.zipFiles(stitchingConfig, downloadBat, supportFiles, folder);
+
+  return { subFolder: subFolder };
+}
+
+/**
+ * Create download.bat file with curl commands
+ * This generates the script that users will run locally to download data files
+ */
+private createDownloadBatFromUrls(urls: string[]): string {
+  let batch = '@echo off\n';
+  batch += 'echo Downloading WRF data files...\n\n';
+
+  urls.forEach((url, index) => {
+    const filename = url.split('/').pop();
+    batch += `echo [${index + 1}/${urls.length}] Downloading ${filename}...\n`;
+    batch += `curl -O "${url}" --retry 10\n`;
+    batch += `if errorlevel 1 (\n`;
+    batch += `  echo ERROR: Failed to download ${filename}\n`;
+    batch += `  pause\n`;
+    batch += `  exit /b 1\n`;
+    batch += `)\n\n`;
+  });
+
+  batch += 'echo.\n';
+  batch += 'echo All files downloaded successfully!\n';
+  batch += 'pause\n';
+  return batch;
+}
+
+/**
+ * Generate CALPUF config based on tiles and search params
+ */
+private generateCalpufConfig(
+  searchParams: SearchParameters,
+  tileResponse: TileResponse
+): string {
+  // Calculate overall bounds from selected tiles
+  const allTiles = tileResponse.tiles;
+  const minI = Math.min(...allTiles.map(t => t.bounds.I0));
+  const maxI = Math.max(...allTiles.map(t => t.bounds.I1));
+  const minJ = Math.min(...allTiles.map(t => t.bounds.J0));
+  const maxJ = Math.max(...allTiles.map(t => t.bounds.J1));
+
+  // Use existing getConfig logic but with calculated bounds
+  // ... existing config generation code ...
+}
+```
+
+---
+
+### 4. Frontend: Updated CALPUF Mapping
+
+**File:** `frontend/public/js/gis/geomapping.js` (MAJOR MODIFICATIONS)
+
+#### Replace CSV Loading Section (lines 33-54)
+
+**OLD:**
+
+```javascript
+fetch('https://nrs.objectstore.gov.bc.ca/kadkvt/domaininfo_bcwrf.csv')
+  .then(function (response) {
+    return response.text();
+  })
+  .then(function (csv) {
+    // parse simple I,J,LAT,LON format
+    lines = csv.split('\n');
+    // ...
+  });
+```
+
+**NEW:**
+
+```javascript
+// No longer need to load domain CSV in frontend
+// Index lookup handled by backend
+console.log('Using index-based tile lookup');
+```
+
+#### Replace downloadModelData Function (lines 267-380)
+
+**OLD (Dynamic URL Construction):**
+
+```javascript
+async function downloadModelData() {
+  var urls = [];
+  var baseUrl = "https://nrs.objectstore.gov.bc.ca/kadkvt/";
+
+  // ... date calculations ...
+
+  // Call calculateVars
+  var c = await fetch(url2, {...});
+  var minI = c.minI;
+  var maxI = c.maxI;
+  // ...
+
+  // Dynamic URL construction
+  for (var i = calculateMinimumTileNumber(minI); i <= maxI; i += 10) {
+    for (var j = calculateMinimumTileNumber(minJ); j <= maxJ; j += 10) {
+      // Build filename
+      var fileName = "x" + x1 + "y" + y1 + "x" + x2 + "y" + y2 + "." + year + "" + month + ".10x10.m3d.7z";
+      urls.push(baseUrl + fileName);
+    }
+  }
+
+  // ... rest of function
+}
+```
+
+**NEW (Index-Based Lookup):**
+
+```javascript
+async function downloadModelData() {
+  view.popup.content = 'Finding available data files...';
+
+  // Prepare search parameters
+  var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
+  var startDate = $('#startDate').datetimepicker('getDate');
+  var endDate = $('#endDate').datetimepicker('getDate');
+
+  startDate.setHours(startDate.getHours() + timezoneOffset);
+  endDate.setHours(endDate.getHours() + timezoneOffset);
+
+  var searchParams = {
+    dataType: 'CALPUF',
+    bounds: {
+      minLat: bottomLeftYGlobal,
+      maxLat: topRightYGlobal,
+      minLon: bottomLeftXGlobal,
+      maxLon: topRightXGlobal,
+    },
+    dateRange: {
+      startYear: startDate.getFullYear(),
+      startMonth: startDate.getMonth() + 1,
+      startDay: startDate.getDate(),
+      startHour: startDate.getHours(),
+      endYear: endDate.getFullYear(),
+      endMonth: endDate.getMonth() + 1,
+      endDay: endDate.getDate(),
+      endHour: endDate.getHours(),
+    },
+    timezone: timezoneOffset,
+  };
+
+  // Call new index-based API
+  var tileResponse = await fetch('/zip-file/findTiles', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(searchParams),
+  })
+    .then((res) => res.json())
+    .catch(() => {
+      alert('Error finding data files');
+    });
+
+  console.log(`Found ${tileResponse.totalFiles} files across domains: ${tileResponse.domainUsed.join(', ')}`);
+
+  view.popup.content = `Preparing download (${tileResponse.totalFiles} files)... please wait`;
+
+  // Get support files URLs
+  var supportFiles = [
+    'https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/support/7z.exe',
+    'https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/support/m3d_bild.exe',
+    'https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/support/start.bat',
+    'https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/support/readme.txt',
+  ];
+
+  urlsLength = tileResponse.totalFiles + supportFiles.length;
+
+  // Start zip process with index-based tiles
+  var zipRequestUrl = '/zip-file/zipWithIndex';
+  var zipCheckUrl = '/zip-file/checkZipFile/';
+  zipFileUrl = '/zip-file/zipDownload/';
+
+  var zipData = {
+    searchParams: searchParams,
+    tileResponse: tileResponse,
+    supportFiles: supportFiles,
+  };
+
+  await fetch(zipRequestUrl, {
+    method: 'POST',
+    responseType: 'arraybuffer',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(zipData),
+  })
+    .then((res) => res.json())
+    .then((json) => {
+      zipCheckUrl = zipCheckUrl.concat(json.subFolder);
+      zipFileUrl = zipFileUrl.concat(json.subFolder);
+    });
+
+  checkZipFile(zipCheckUrl);
+}
+```
+
+---
+
+### 5. Frontend: Updated AERMOD Mapping
+
+**File:** `frontend/public/js/gis/geomapping_aermod.js` (MODERATE MODIFICATIONS)
+
+AERMOD already uses an index approach, but needs multi-domain support:
+
+```javascript
+async function downloadModelData() {
+  var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
+  var startDate = $('#startDate').datetimepicker('getDate');
+  var endDate = $('#endDate').datetimepicker('getDate');
+
+  startDate.setHours(startDate.getHours() + timezoneOffset);
+  endDate.setHours(endDate.getHours() + timezoneOffset);
+
+  var searchParams = {
+    dataType: 'AERMOD',
+    bounds: {
+      minLat: lat - 0.1, // Small buffer around point
+      maxLat: lat + 0.1,
+      minLon: lon - 0.1,
+      maxLon: lon + 0.1,
+    },
+    dateRange: {
+      startYear: startDate.getFullYear(),
+      startMonth: startDate.getMonth() + 1,
+      startDay: startDate.getDate(),
+      startHour: startDate.getHours(),
+      endYear: endDate.getFullYear(),
+      endMonth: endDate.getMonth() + 1,
+      endDay: endDate.getDate(),
+      endHour: endDate.getHours(),
+    },
+    timezone: timezoneOffset,
+  };
+
+  // Find tiles using new multi-domain index
+  var tileResponse = await fetch('/zip-file/findTiles', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(searchParams),
+  }).then((res) => res.json());
+
+  console.log(`Using domain: ${tileResponse.domainUsed[0]}`);
+
+  view.popup.content = 'Preparing download... please wait';
+
+  // Get support files
+  var supportFiles = [
+    'https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/support/start.bat',
+    'https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/support/readme.txt',
+    'https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/support/mmif.inp',
+  ];
+
+  // Rest similar to CALPUF...
+}
+```
+
+---
+
+## API Specifications
+
+### POST /index/findTiles
+
+**Request:**
+
+```json
+{
+  "dataType": "CALPUF",
+  "bounds": {
+    "minLat": 49.0,
+    "maxLat": 50.0,
+    "minLon": -123.0,
+    "maxLon": -122.0
+  },
+  "dateRange": {
+    "startYear": 2019,
+    "startMonth": 1,
+    "startDay": 1,
+    "startHour": 0,
+    "endYear": 2019,
+    "endMonth": 3,
+    "endDay": 31,
+    "endHour": 23
+  },
+  "preferHighRes": true
+}
+```
+
+**Response:**
+
+```json
+{
+  "tiles": [
+    {
+      "filename": "x192y302x201y311.201901.10x10.m3d.7z",
+      "tile": "1230",
+      "domain": "d03",
+      "year": 2019,
+      "month": 1,
+      "bounds": {
+        "I0": 192,
+        "J0": 302,
+        "I1": 201,
+        "J1": 311,
+        "lat0": 49.1,
+        "lon0": -123.0,
+        "lat1": 49.9,
+        "lon1": -122.1
+      },
+      "url": "https://nrs.objectstore.gov.bc.ca/wrfdel/calpuff/3ddat/201901/d03/x192y302x201y311.201901.10x10.m3d.7z"
+    }
+  ],
+  "domainUsed": ["d03"],
+  "totalFiles": 12,
+  "dateRange": {
+    "startYear": 2019,
+    "startMonth": 1,
+    "startDay": 1,
+    "startHour": 0,
+    "endYear": 2019,
+    "endMonth": 3,
+    "endDay": 31,
+    "endHour": 23
+  }
+}
+```
+
+### GET /index/availableDomains
+
+**Request:**
+
+```
+GET /index/availableDomains?dataType=AERMOD&minLat=49.0&maxLat=50.0&minLon=-123.0&maxLon=-122.0
+```
+
+**Response:**
+
+```json
+["d05", "d04", "d03", "d02"]
+```
+
+### POST /zip-file/zipWithIndex
+
+**Request:**
+
+```json
+{
+  "searchParams": {
+    "dataType": "CALPUF",
+    "bounds": {...},
+    "dateRange": {...},
+    "timezone": -8
+  },
+  "tileResponse": {
+    "tiles": [...],
+    "domainUsed": ["d03"],
+    "totalFiles": 12
+  },
+  "supportFiles": [
+    "https://..../7z.exe",
+    "https://..../start.bat"
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "subFolder": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+---
+
+## Migration Strategy
+
+### Phase 1: Preparation (No Code Changes)
+
+1. Generate index CSV files for all domains: done
+2. Upload to appropriate locations: done
+3. Verify file accessibility
+4. Set up test environment: done
+
+### Phase 2: Backend Implementation
+
+1. Create IndexService with CSV loading
+2. Implement findTiles logic
+3. Add domain prioritization
+4. Create new API endpoints
+5. Unit test all logic
+6. Deploy to test environment
+
+### Phase 3: Frontend Implementation - CALPUF
+
+1. Update geomapping.js
+2. Replace URL construction with API calls
+3. Update zip request format
+4. Test in dev environment
+5. Deploy to test environment
+
+### Phase 4: Frontend Implementation - AERMOD
+
+1. Update geomapping_aermod.js for multi-domain
+2. Test domain switching
+3. Deploy to test environment
+
+### Phase 5: Integration Testing
+
+1. End-to-end testing
+2. Performance testing
+3. Cross-domain boundary testing
+4. Large date range testing
+
+### Phase 6: Production Rollout
+
+1. Deploy backend changes
+2. Monitor for issues
+3. Deploy frontend changes
+4. Monitor user feedback
+5. Deprecate old calculateVars endpoint (future)
+
+---
+
+## Testing Strategy
+
+### Unit Tests
+
+**Backend (IndexService):**
+
+```typescript
+describe('IndexService', () => {
+  let service: IndexService;
+
+  beforeEach(() => {
+    service = new IndexService();
+  });
+
+  describe('filterByBounds', () => {
+    it('should return tiles within bounds', () => {
+      const bounds = {
+        minLat: 49.0,
+        maxLat: 50.0,
+        minLon: -123.0,
+        maxLon: -122.0,
+      };
+      const result = service['filterByBounds'](mockTiles, bounds);
+      expect(result).toHaveLength(5);
+    });
+
+    it('should exclude tiles outside bounds', () => {
+      const bounds = {
+        minLat: 60.0,
+        maxLat: 61.0,
+        minLon: -130.0,
+        maxLon: -129.0,
+      };
+      const result = service['filterByBounds'](mockTiles, bounds);
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('prioritizeByDomain', () => {
+    it('should prefer d06 over d02 for same location', () => {
+      const tiles = [
+        { ...mockTile, domain: 'd02', tile: '1234' },
+        { ...mockTile, domain: 'd06', tile: '1234' },
+      ];
+      const result = service['prioritizeByDomain'](tiles);
+      expect(result).toHaveLength(1);
+      expect(result[0].domain).toBe('d06');
+    });
+
+    it('should keep tiles from different locations', () => {
+      const tiles = [
+        { ...mockTile, domain: 'd02', tile: '1234' },
+        { ...mockTile, domain: 'd02', tile: '5678' },
+      ];
+      const result = service['prioritizeByDomain'](tiles);
+      expect(result).toHaveLength(2);
+    });
+  });
+});
+```
+
+### Integration Tests
+
+```typescript
+describe('Index API Integration', () => {
+  it('POST /index/findTiles should return tiles for valid request', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/index/findTiles')
+      .send({
+        dataType: 'CALPUF',
+        bounds: {
+          minLat: 49.0,
+          maxLat: 50.0,
+          minLon: -123.0,
+          maxLon: -122.0,
+        },
+        dateRange: {
+          startYear: 2019,
+          startMonth: 1,
+          endYear: 2019,
+          endMonth: 3,
+        },
+        preferHighRes: true,
+      })
+      .expect(200);
+
+    expect(response.body.tiles).toBeDefined();
+    expect(response.body.domainUsed).toContain('d03');
+  });
+});
+```
+
+### End-to-End Test Scenarios
+
+1. **Single Domain Area**
+
+   - Search area with only d02 data
+   - Verify d02 files returned
+   - Verify zip download works
+
+2. **High-Res Available**
+
+   - Search area with d05 and d02 data
+   - Verify d05 files returned
+   - Verify correct URLs
+
+3. **Cross-Domain Boundary**
+
+   - Search spanning d03 and d02 areas
+   - Verify correct mix of domains
+   - Verify all tiles downloaded
+
+4. **Large Date Range**
+
+   - Search 1+ years of data
+   - Verify performance acceptable
+   - Verify all months included
+
+5. **Edge Cases**
+   - Empty result (no data for area)
+   - Single tile result
+   - Maximum tiles result
+   - Date range spanning missing months
+
+---
+
+## Performance Considerations
+
+### Index Loading
+
+- CSV files loaded once on module initialization
+- Kept in memory for fast access
+- Consider database migration if CSV > 100MB
+
+### Search Optimization
+
+- Use Set/Map for O(1) lookups where possible
+- Limit geographic precision to avoid unnecessary filtering
+- Cache common search patterns (optional)
+
+### Bandwidth
+
+- Tile URLs returned, not file contents
+- Frontend only receives download package (~KB)
+- Backend generates download scripts (no file downloading)
+- Users download data files locally (potentially GB)
+
+### Memory
+
+- Monitor memory usage with large CSVs
+- Consider pagination for very large result sets
+- Clean up zip folders after download
+
+---
+
+## Rollback Plan
+
+If issues arise in production:
+
+1. **Immediate**: Feature flag to switch back to old calculateVars
+2. **Backend**: Keep old endpoints active during migration
+3. **Frontend**: Deploy rollback version (old geomapping.js)
+4. **Data**: Old object store URLs remain accessible
+
+---
+
+## Future Enhancements
+
+1. **Database Backend**: Move from CSV to PostgreSQL/PostGIS
+2. **Real-time Availability**: Check file existence before returning
+3. **Caching Layer**: Redis cache for common searches
+4. **Async Processing**: Queue-based zip generation for large requests
+5. **Progressive Download**: Stream zip creation to user
+6. **Domain Visualization**: Show resolution zones on map
+7. **User Preferences**: Remember domain preferences
+8. **Analytics**: Track which domains are most used
+
+---
+
+## Glossary
+
+- **Domain**: Resolution level (d02=4km, d03-d06=higher resolution)
+- **Tile**: Geographic grid cell containing data
+- **Index**: CSV file cataloging all available data files
+- **I/J Coordinates**: Grid indices in the WRF model
+- **Lat/Lon**: Geographic coordinates (latitude/longitude)
+- **CALPUF**: California Puff dispersion model data
+- **AERMOD**: AMS/EPA Regulatory Model data
+
+---
+
+## References
+
+- Original CALPUF URL structure: `https://nrs.objectstore.gov.bc.ca/kadkvt/`
+- New object store base: `https://nrs.objectstore.gov.bc.ca/wrfdel/`
+- AERMOD index example: `aermod_files.csv`
+- Domain info CSV: `domaininfo_bcwrf.csv`
+
+---
+
+**Document End**
