@@ -3,11 +3,32 @@ const fs = require('fs');
 import * as Papa from 'papaparse';
 import { ProjInfo } from '../../util/constants';
 
+interface CalpuffTileRecord {
+  filename: string;
+  year: number;
+  month: number;
+  domain: string;
+  tileId: number | null;
+  i0: number;
+  j0: number;
+  i1: number;
+  j1: number;
+  lat0: number;
+  lon0: number;
+  lat1: number;
+  lon1: number;
+  url: string;
+  area: number;
+}
+
 @Injectable()
 export class MappingService {
   private tileDomainInfo: string;
   private tileCorners: string;
   private parsedTileDomainInfo: any;
+  private calpuffFilesCsv: string;
+  private calpuffTilesByDomain: Record<string, CalpuffTileRecord[]> = {};
+  private readonly calpuffDomainPreference = ['d06', 'd05', 'd04', 'd03', 'd02'];
 
   onModuleInit() {
     try {
@@ -17,9 +38,12 @@ export class MappingService {
         header: true,
         skipEmptyLines: true,
       });
+      this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuf_files.csv', 'utf-8');
+      this.calpuffTilesByDomain = this.loadCalpuffTiles(this.calpuffFilesCsv);
       console.log('Tile domain info loaded into memory.');
+      console.log('CALPUFF tile index loaded into memory.');
     } catch (error) {
-      console.log('Error loading tile domain info into memory:');
+      console.log('Error loading tile data into memory:');
       console.log(error);
     }
   }
@@ -27,10 +51,8 @@ export class MappingService {
   async findClosestPoint(latitude: number, longitude: number): Promise<any> {
     try {
       const parentIJ = this.findParentGridCell(latitude, longitude);
-      console.log('findParentGridCell(desiredLatitude, desiredLongitude)');
-      console.log(parentIJ);
-      const rawData = this.parsedTileDomainInfo;
 
+      const rawData = this.parsedTileDomainInfo;
       const parsedData = rawData.data.map((entry) => ({
         i: parseInt(entry.i),
         j: parseInt(entry.j),
@@ -40,11 +62,26 @@ export class MappingService {
         filename: entry.filename,
         full_url: entry.full_url,
       }));
+
       const closestPoint = parsedData.find((point) => point.i === parentIJ.i_parent && point.j === parentIJ.j_parent);
       return closestPoint;
     } catch (err) {
       console.log('Error in findClosestPoint');
       console.log(err);
+    }
+  }
+
+  /**
+   * Returns the best matching CALPUFF tile (prefers higher-resolution domains) for a given lat/lon.
+   */
+  async findCalpuffTile(latitude: number, longitude: number): Promise<CalpuffTileRecord | null> {
+    try {
+      const tile = this.pickBestCalpuffTile(latitude, longitude);
+      return tile ?? null;
+    } catch (err) {
+      console.log('Error in findCalpuffTile');
+      console.log(err);
+      return null;
     }
   }
 
@@ -81,6 +118,102 @@ export class MappingService {
     });
 
     return result;
+  }
+
+  private loadCalpuffTiles(csv: string): Record<string, CalpuffTileRecord[]> {
+    const parsed = Papa.parse(csv, {
+      header: true,
+      skipEmptyLines: true,
+    });
+
+    const grouped: Record<string, CalpuffTileRecord[]> = {};
+
+    parsed.data.forEach((entry: any) => {
+      if (!entry || !entry.domain) {
+        return;
+      }
+
+      const lat0 = parseFloat(entry.lat0);
+      const lon0 = parseFloat(entry.lon0);
+      const lat1 = parseFloat(entry.lat1);
+      const lon1 = parseFloat(entry.lon1);
+
+      if ([lat0, lon0, lat1, lon1].some((v) => Number.isNaN(v))) {
+        return;
+      }
+
+      const tileId = entry.tile && entry.tile !== 'NA' ? parseInt(entry.tile, 10) : null;
+      const i0 = parseInt(entry.I0 ?? entry.i0, 10);
+      const j0 = parseInt(entry.J0 ?? entry.j0, 10);
+      const i1 = parseInt(entry.I1 ?? entry.i1, 10);
+      const j1 = parseInt(entry.J1 ?? entry.j1, 10);
+      const year = parseInt(entry.year, 10);
+      const month = parseInt(entry.month, 10);
+
+      const record: CalpuffTileRecord = {
+        filename: entry.filename,
+        year,
+        month,
+        domain: entry.domain,
+        tileId,
+        i0,
+        j0,
+        i1,
+        j1,
+        lat0,
+        lon0,
+        lat1,
+        lon1,
+        url: entry.url,
+        area: Math.abs(lat1 - lat0) * Math.abs(lon1 - lon0),
+      };
+
+      if ([record.i0, record.j0, record.i1, record.j1].some((v) => Number.isNaN(v))) {
+        return;
+      }
+
+      if (!grouped[record.domain]) {
+        grouped[record.domain] = [];
+      }
+
+      grouped[record.domain].push(record);
+    });
+
+    Object.keys(grouped).forEach((domain) => {
+      grouped[domain] = grouped[domain].sort((a, b) => {
+        if (a.tileId !== null && b.tileId === null) return -1;
+        if (a.tileId === null && b.tileId !== null) return 1;
+        if (a.area !== b.area) return a.area - b.area;
+        return (a.tileId ?? Number.MAX_SAFE_INTEGER) - (b.tileId ?? Number.MAX_SAFE_INTEGER);
+      });
+    });
+
+    return grouped;
+  }
+
+  private pickBestCalpuffTile(latitude: number, longitude: number): CalpuffTileRecord | null {
+    for (const domain of this.calpuffDomainPreference) {
+      const tiles = this.calpuffTilesByDomain[domain];
+      if (!tiles || !tiles.length) {
+        continue;
+      }
+
+      const match = tiles.find((tile) => this.isPointInTile(tile, latitude, longitude));
+      if (match) {
+        return match;
+      }
+    }
+
+    return null;
+  }
+
+  private isPointInTile(tile: CalpuffTileRecord, latitude: number, longitude: number): boolean {
+    const minLat = Math.min(tile.lat0, tile.lat1);
+    const maxLat = Math.max(tile.lat0, tile.lat1);
+    const minLon = Math.min(tile.lon0, tile.lon1);
+    const maxLon = Math.max(tile.lon0, tile.lon1);
+
+    return latitude >= minLat && latitude <= maxLat && longitude >= minLon && longitude <= maxLon;
   }
 
   /** Tile info section */

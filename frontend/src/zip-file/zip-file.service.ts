@@ -10,6 +10,23 @@ const fs = require('fs');
 let hostname: string;
 let port: number;
 
+interface CalpuffFileRecord {
+  filename: string;
+  year: number;
+  month: number;
+  domain: string;
+  tileId: string;
+  i0: number;
+  j0: number;
+  i1: number;
+  j1: number;
+  lat0: number;
+  lon0: number;
+  lat1: number;
+  lon1: number;
+  url: string;
+}
+
 @Injectable()
 export class ZipFileService {
   constructor(private httpService: HttpService) {
@@ -19,6 +36,8 @@ export class ZipFileService {
     // port = process.env.BACKEND_URL ? 3000 : 3001;
     port = 3000; // frontend = 8080, backend = 3000 for now
   }
+
+  private calpuffIndex: CalpuffFileRecord[] | null = null;
 
   async calculateVars(
     bottomLeftYGlobal: number,
@@ -40,38 +59,72 @@ export class ZipFileService {
     return data;
   }
 
-  // /**
-  //  * Downloads each file into a buffer which gets passed
-  //  * to a util function which zips them and returns them.
-  //  * Done in memory, large memory size.
-  //  *
-  //  * @param stitchingConfig
-  //  * @param urls
-  //  * @returns readstream
-  //  */
-  // async zipFiles(stitchingConfig: string, urls: string[]): Promise<any> {
-  //   let count = 0;
-  //   const files = [
-  //     { data: Buffer.from(stitchingConfig), name: "m3d_bild.inp" },
-  //   ];
+  /**
+   * End-to-end helper for the map downloads (Search 1/2/3): accept bounds/timezone/date window,
+   * compute tiles, build URLs and stitching config, then kick off zipping on the server.
+   */
+  async beginZippingFromBounds(request: {
+    bottomLeftYGlobal: number;
+    topRightYGlobal: number;
+    bottomLeftXGlobal: number;
+    topRightXGlobal: number;
+    timezoneOffsetHours: number;
+    startDateIso: string;
+    endDateIso: string;
+  }): Promise<{ subFolder: string }> {
+    const baseUrl = 'https://nrs.objectstore.gov.bc.ca/kadkvt/';
 
-  //   for (let url of urls) {
-  //     count++;
-  //     // add the zip file
-  //     const data = await lastValueFrom(
-  //       this.httpService.get(url).pipe(map((response) => response.data))
-  //     );
-  //     console.log("Downloading file from " + url);
-  //     files.push({
-  //       data: Buffer.from(data),
-  //       name: url.substring(url.lastIndexOf("/") + 1),
-  //     });
-  //     if (count == urls.length) {
-  //       console.log("Returning zip file");
-  //       return await zipFiles(files);
-  //     }
-  //   }
-  // }
+    const { bottomLeftYGlobal, topRightYGlobal, bottomLeftXGlobal, topRightXGlobal, startDateIso, endDateIso } =
+      request;
+
+    const { minI, maxI, minJ, maxJ } = await this.calculateVars(
+      bottomLeftYGlobal,
+      topRightYGlobal,
+      bottomLeftXGlobal,
+      topRightXGlobal
+    );
+
+    const startDate = new Date(startDateIso);
+    const endDate = new Date(endDateIso);
+
+    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getMonth() + 1;
+    const endYear = endDate.getFullYear();
+    const endMonth = endDate.getMonth() + 1;
+    const urls: string[] = this.lookupCalpuffUrls(
+      startYear,
+      startMonth,
+      endYear,
+      endMonth,
+      bottomLeftYGlobal,
+      topRightYGlobal,
+      bottomLeftXGlobal,
+      topRightXGlobal
+    );
+
+    const stitchingConfig = await this.getConfig(
+      baseUrl + 'm3d_bild_temp.inp',
+      startYear,
+      startMonth,
+      startDate.getDate(),
+      startDate.getHours(),
+      endYear,
+      endMonth,
+      endDate.getDate(),
+      endDate.getHours(),
+      minI,
+      maxI,
+      minJ,
+      maxJ
+    );
+
+    urls.push(baseUrl + '7z.exe');
+    urls.push(baseUrl + 'm3d_bild.exe');
+    urls.push(baseUrl + 'start.bat');
+    urls.push(baseUrl + 'readme.txt');
+
+    return this.beginZipping(stitchingConfig, urls);
+  }
 
   /**
    * Creates a uuid subfolder, tells the server to start downloading and zipping the files
@@ -340,6 +393,154 @@ export class ZipFileService {
       batchFileContent += `curl -O ${url} --retry 10\n`;
     });
     return batchFileContent;
+  }
+
+  // private calculateMinimumTileNumber(n: number): number {
+  //   if (n % 10 === 2) {
+  //     return n;
+  //   } else if (n < 12) {
+  //     n = 2;
+  //   } else if (n % 10 < 2) {
+  //     n = n - 10 - (n % 10) + 2;
+  //   } else {
+  //     n = n - (n % 10) + 2;
+  //   }
+
+  //   return n;
+  // }
+
+  private async getConfig(
+    url: string,
+    isyear: number,
+    ismonth: number,
+    isday: number,
+    ishour: number,
+    ieyear: number,
+    iemonth: number,
+    ieday: number,
+    iehour: number,
+    ni1: number,
+    ni2: number,
+    nj1: number,
+    nj2: number
+  ): Promise<string> {
+    const response = await lastValueFrom(this.httpService.get(url, { responseType: 'text' }).pipe(map((r) => r.data)));
+    let configText: string = response ?? '';
+
+    const outputFileName = ''
+      .concat(isyear.toString())
+      .concat(String(ismonth).padStart(2, '0'))
+      .concat(String(isday).padStart(2, '0'))
+      .concat(String(ishour).padStart(2, '0'))
+      .concat('_')
+      .concat(ieyear.toString())
+      .concat(String(iemonth).padStart(2, '0'))
+      .concat(String(ieday).padStart(2, '0'))
+      .concat(String(iehour).padStart(2, '0'))
+      .concat('.output.m3d');
+
+    configText = configText.replace('! OUTUSER = output.m3d !', '! OUTUSER = '.concat(outputFileName).concat(' !'));
+    configText = configText.replace('! ISYEAR = 2012 !', '! ISYEAR = '.concat(isyear.toString()).concat(' !'));
+    configText = configText.replace('! ISMONTH = 1 !', '! ISMONTH = '.concat(ismonth.toString()).concat(' !'));
+    configText = configText.replace('! ISDAY = 1 !', '! ISDAY = '.concat(isday.toString()).concat(' !'));
+    configText = configText.replace('! ISHOUR = 0 !', '! ISHOUR = '.concat(ishour.toString()).concat(' !'));
+
+    configText = configText.replace('! IEYEAR = 2012 !', '! IEYEAR = '.concat(ieyear.toString()).concat(' !'));
+    configText = configText.replace('! IEMONTH = 3 !', '! IEMONTH = '.concat(iemonth.toString()).concat(' !'));
+    configText = configText.replace('! IEDAY = 1 !', '! IEDAY = '.concat(ieday.toString()).concat(' !'));
+    configText = configText.replace('! IEHOUR = 0 !', '! IEHOUR = '.concat(iehour.toString()).concat(' !'));
+
+    configText = configText.replace('! NI1 = 2 !', '! NI1 = '.concat(ni1.toString()).concat(' !'));
+    configText = configText.replace('! NI2 = 3 !', '! NI2 = '.concat(ni2.toString()).concat(' !'));
+    configText = configText.replace('! NJ1 = 392 !', '! NJ1 = '.concat(nj1.toString()).concat(' !'));
+    configText = configText.replace('! NJ2 = 392 !', '! NJ2 = '.concat(nj2.toString()).concat(' !'));
+
+    return configText;
+  }
+
+  private ensureCalpuffIndexLoaded(): void {
+    if (this.calpuffIndex) {
+      return;
+    }
+
+    const csvPath = 'dist/public/js/gis/calpuf_files.csv';
+    const csv = fs.readFileSync(csvPath, 'utf-8');
+    const lines = csv.trim().split(/\r?\n/);
+    lines.shift(); // header
+
+    this.calpuffIndex = lines
+      .map((line: string) => line.split(','))
+      .map((cols) => {
+        return {
+          filename: cols[0],
+          year: parseInt(cols[1], 10),
+          month: parseInt(cols[2], 10),
+          domain: cols[3],
+          tileId: cols[4],
+          i0: parseInt(cols[5], 10),
+          j0: parseInt(cols[6], 10),
+          i1: parseInt(cols[7], 10),
+          j1: parseInt(cols[8], 10),
+          lat0: parseFloat(cols[9]),
+          lon0: parseFloat(cols[10]),
+          lat1: parseFloat(cols[11]),
+          lon1: parseFloat(cols[12]),
+          url: cols[13],
+        } as CalpuffFileRecord;
+      })
+      .filter((r) => ![r.year, r.month, r.lat0, r.lon0, r.lat1, r.lon1].some((v) => Number.isNaN(v)));
+  }
+
+  private lookupCalpuffUrls(
+    startYear: number,
+    startMonth: number,
+    endYear: number,
+    endMonth: number,
+    minLat: number,
+    maxLat: number,
+    minLon: number,
+    maxLon: number
+  ): string[] {
+    this.ensureCalpuffIndexLoaded();
+    if (!this.calpuffIndex) {
+      return [];
+    }
+
+    let startKey = startYear * 100 + startMonth;
+    let endKey = endYear * 100 + endMonth;
+
+    if (startKey > endKey) {
+      const tmp = startKey;
+      startKey = endKey;
+      endKey = tmp;
+    }
+
+    const urls: string[] = [];
+    const seen = new Set<string>();
+
+    for (const rec of this.calpuffIndex) {
+      const ym = rec.year * 100 + rec.month;
+      if (ym < startKey || ym > endKey) {
+        continue;
+      }
+
+      const recMinLat = Math.min(rec.lat0, rec.lat1);
+      const recMaxLat = Math.max(rec.lat0, rec.lat1);
+      const recMinLon = Math.min(rec.lon0, rec.lon1);
+      const recMaxLon = Math.max(rec.lon0, rec.lon1);
+
+      const overlapsLat = recMaxLat >= minLat && recMinLat <= maxLat;
+      const overlapsLon = recMaxLon >= minLon && recMinLon <= maxLon;
+      if (!overlapsLat || !overlapsLon) {
+        continue;
+      }
+
+      if (!seen.has(rec.url)) {
+        seen.add(rec.url);
+        urls.push(rec.url);
+      }
+    }
+    return urls;
   }
 
   createAermodDownloadBat(tileDataUrl: string): string {

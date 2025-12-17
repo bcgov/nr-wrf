@@ -1,19 +1,12 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  StreamableFile,
-} from "@nestjs/common";
-import { ZipFileService } from "./zip-file.service";
-import { TileDownloadInfo } from "../../util/types";
+import { Body, Controller, Get, Param, Post, StreamableFile } from '@nestjs/common';
+import { ZipFileService } from './zip-file.service';
+import { TileDownloadInfo } from '../../util/types';
 
-@Controller("zip-file")
+@Controller('zip-file')
 export class ZipFileController {
   constructor(private readonly zipFileService: ZipFileService) {}
 
-  @Post("calculateVars")
+  @Post('calculateVars')
   async calculateVars(
     @Body()
     dataDto: {
@@ -33,17 +26,28 @@ export class ZipFileController {
     return vars;
   }
 
-  @Post("zip")
-  async beginZipping(
-    @Body() dataDto: { stitchingConfig: string; urls: string[] }
-  ): Promise<{ subFolder: string }> {
-    return this.zipFileService.beginZipping(
-      dataDto.stitchingConfig,
-      dataDto.urls
-    );
+  @Post('zip')
+  async beginZipping(@Body() dataDto: { stitchingConfig: string; urls: string[] }): Promise<{ subFolder: string }> {
+    return this.zipFileService.beginZipping(dataDto.stitchingConfig, dataDto.urls);
   }
 
-  @Post("zipAermod")
+  @Post('zipSearch')
+  async beginZippingFromBounds(
+    @Body()
+    dataDto: {
+      bottomLeftYGlobal: number;
+      topRightYGlobal: number;
+      bottomLeftXGlobal: number;
+      topRightXGlobal: number;
+      timezoneOffsetHours: number;
+      startDateIso: string;
+      endDateIso: string;
+    }
+  ): Promise<{ subFolder: string }> {
+    return this.zipFileService.beginZippingFromBounds(dataDto);
+  }
+
+  @Post('zipAermod')
   async beginZippingAermod(
     @Body()
     dataDto: {
@@ -51,22 +55,19 @@ export class ZipFileController {
       urls: string[];
     }
   ): Promise<{ subFolder: string }> {
-    return this.zipFileService.beginZippingAermod(
-      dataDto.tileDownloadInfo,
-      dataDto.urls
-    );
+    return this.zipFileService.beginZippingAermod(dataDto.tileDownloadInfo, dataDto.urls);
   }
 
-  @Get("checkZipFile/:uuid")
-  checkZipFile(@Param("uuid") uuid: string): {
+  @Get('checkZipFile/:uuid')
+  checkZipFile(@Param('uuid') uuid: string): {
     status: string;
     num: string;
   } {
     return this.zipFileService.checkZipFile(uuid);
   }
 
-  @Get("zipDownload/:uuid")
-  async zipDownload(@Param("uuid") uuid: string): Promise<StreamableFile> {
+  @Get('zipDownload/:uuid')
+  async zipDownload(@Param('uuid') uuid: string): Promise<StreamableFile> {
     return new StreamableFile(await this.zipFileService.serveZipFile(uuid));
   }
 }
