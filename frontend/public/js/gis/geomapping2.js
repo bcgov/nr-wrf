@@ -93,6 +93,7 @@ require([
   view.ui.add(ccWidget, 'bottom-right');
 
   function initCalpuffDomainLayers() {
+    console.log('initCalpuffDomainLayers');
     Object.keys(calpuffDomainColors).forEach(function (domain) {
       if (!calpuffDomainLayers[domain]) {
         calpuffDomainLayers[domain] = new GraphicsLayer({
@@ -157,7 +158,7 @@ require([
     initCalpuffDomainLayers();
 
     try {
-      const response = await fetch('/js/gis/calpuf_files.csv');
+      const response = await fetch('/js/gis/calpuff_files.csv');
       const csvText = await response.text();
       const rows = csvText.trim().split(/\r?\n/);
 
@@ -267,6 +268,76 @@ require([
 
   initCalpuffDomainLayers();
   loadCalpuffTilePoints();
+
+  // Uncomment the line below for debugging: draws all tiles as polygons on the map
+  // drawAllTilesForDebug();
+
+  async function drawAllTilesForDebug() {
+    try {
+      const response = await fetch('/js/gis/calpuff_files.csv');
+      const csvText = await response.text();
+      const rows = csvText.trim().split(/\r?\n/);
+
+      rows.shift(); // header
+
+      const tileLayer = new GraphicsLayer({
+        id: 'debug-tiles',
+        title: 'Debug Tiles',
+      });
+      map.add(tileLayer);
+
+      rows.forEach(function (line) {
+        if (!line) return;
+
+        const cols = line.split(',');
+        if (cols[3] === 'd02') return;
+
+        const lat0 = parseFloat(cols[9]);
+        const lon0 = parseFloat(cols[10]);
+        const lat1 = parseFloat(cols[11]);
+        const lon1 = parseFloat(cols[12]);
+        const domain = cols[3];
+        const tileId = cols[4];
+
+        if ([lat0, lon0, lat1, lon1].some(isNaN)) return;
+
+        // Create polygon for the tile rectangle
+        const rings = [
+          [lon0, lat0],
+          [lon1, lat0],
+          [lon1, lat1],
+          [lon0, lat1],
+          [lon0, lat0], // close the ring
+        ];
+
+        const graphic = new Graphic({
+          geometry: {
+            type: 'polygon',
+            rings: [rings],
+          },
+          symbol: {
+            type: 'simple-fill',
+            color: calpuffDomainColors[domain] || [128, 128, 128, 0.3], // default gray if domain not in colors
+            outline: {
+              color: [0, 0, 0, 0.5],
+              width: 1,
+            },
+          },
+          attributes: {
+            domain: domain,
+            tileId: tileId,
+            filename: cols[0],
+          },
+        });
+
+        tileLayer.add(graphic);
+      });
+
+      console.log('Debug tiles drawn on map.');
+    } catch (err) {
+      console.error('Failed to draw debug tiles', err);
+    }
+  }
 
   const sketch = new Sketch({
     layer: graphicsLayer,
@@ -387,64 +458,6 @@ require([
     });
   }
 
-  // reads the config file into memory, replacing the parameters using the user selected data
-  function getConfig(url, isyear, ismonth, isday, ishour, ieyear, iemonth, ieday, iehour, ni1, ni2, nj1, nj2) {
-    // read text from URL location
-    var request = new XMLHttpRequest();
-    request.open('GET', url, false);
-    request.send(null);
-    if (request.status === 200) {
-      var configText = request.responseText;
-
-      var outputFileName = ''
-        .concat(isyear)
-        .concat(String(ismonth).padStart(2, '0'))
-        .concat(String(isday).padStart(2, '0'))
-        .concat(String(ishour).padStart(2, '0'))
-        .concat('_')
-        .concat(ieyear)
-        .concat(String(iemonth).padStart(2, '0'))
-        .concat(String(ieday).padStart(2, '0'))
-        .concat(String(iehour).padStart(2, '0'))
-        .concat('.output.m3d'); // the name that the batch file generates, based on the selected starting and ending dates.  In the fromat YYYYMMDDHH_YYYYMMDDHH.m3d.
-      configText = configText.replace('! OUTUSER = output.m3d !', '! OUTUSER = '.concat(outputFileName).concat(' !'));
-      configText = configText.replace('! ISYEAR = 2012 !', '! ISYEAR = '.concat(isyear).concat(' !'));
-      configText = configText.replace('! ISMONTH = 1 !', '! ISMONTH = '.concat(ismonth).concat(' !'));
-      configText = configText.replace('! ISDAY = 1 !', '! ISDAY = '.concat(isday).concat(' !'));
-      configText = configText.replace('! ISHOUR = 0 !', '! ISHOUR = '.concat(ishour).concat(' !'));
-
-      configText = configText.replace('! IEYEAR = 2012 !', '! IEYEAR = '.concat(ieyear).concat(' !'));
-      configText = configText.replace('! IEMONTH = 3 !', '! IEMONTH = '.concat(iemonth).concat(' !'));
-      configText = configText.replace('! IEDAY = 1 !', '! IEDAY = '.concat(ieday).concat(' !'));
-      configText = configText.replace('! IEHOUR = 0 !', '! IEHOUR = '.concat(iehour).concat(' !'));
-
-      configText = configText.replace('! NI1 = 2 !', '! NI1 = '.concat(ni1).concat(' !'));
-      configText = configText.replace('! NI2 = 3 !', '! NI2 = '.concat(ni2).concat(' !'));
-      configText = configText.replace('! NJ1 = 392 !', '! NJ1 = '.concat(nj1).concat(' !'));
-      configText = configText.replace('! NJ2 = 392 !', '! NJ2 = '.concat(nj2).concat(' !'));
-
-      return configText;
-    } else {
-      return '';
-    }
-  }
-
-  // tiles have i/j coordinates ending in 2 (since each tile is 10 square kms and the i/j values start at 2)
-  // Given a number n, this function returns the greatest number less than or equal to n that ends in 2.
-  function calculateMinimumTileNumber(n) {
-    if (n % 10 == 2) {
-      return n;
-    } else if (n < 12) {
-      n = 2;
-    } else if (n % 10 < 2) {
-      n = n - 10 - (n % 10) + 2;
-    } else {
-      n = n - (n % 10) + 2;
-    }
-
-    return n;
-  }
-
   // download the data from the objects store
   async function downloadModelData() {
     var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
@@ -456,15 +469,6 @@ require([
     startDate.setHours(startDate.getHours() + timezoneOffset);
     endDate.setHours(endDate.getHours() + timezoneOffset);
 
-    var startYear = startDate.getFullYear();
-    var startMonth = startDate.getMonth() + 1;
-    var startDay = startDate.getDate();
-    var startHour = startDate.getHours();
-
-    var endYear = endDate.getFullYear();
-    var endMonth = endDate.getMonth() + 1;
-    var endDay = endDate.getDate();
-    var endHour = endDate.getHours();
     view.popup.content = 'Preparing download... please wait';
 
     var zipRequestUrl = '/zip-file/zipSearch';

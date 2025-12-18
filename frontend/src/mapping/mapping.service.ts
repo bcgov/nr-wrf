@@ -38,7 +38,7 @@ export class MappingService {
         header: true,
         skipEmptyLines: true,
       });
-      this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuf_files.csv', 'utf-8');
+      this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
       this.calpuffTilesByDomain = this.loadCalpuffTiles(this.calpuffFilesCsv);
       console.log('Tile domain info loaded into memory.');
       console.log('CALPUFF tile index loaded into memory.');

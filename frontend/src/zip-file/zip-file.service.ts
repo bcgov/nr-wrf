@@ -99,7 +99,11 @@ export class ZipFileService {
       bottomLeftYGlobal,
       topRightYGlobal,
       bottomLeftXGlobal,
-      topRightXGlobal
+      topRightXGlobal,
+      minI,
+      maxI,
+      minJ,
+      maxJ
     );
 
     const stitchingConfig = await this.getConfig(
@@ -395,20 +399,6 @@ export class ZipFileService {
     return batchFileContent;
   }
 
-  // private calculateMinimumTileNumber(n: number): number {
-  //   if (n % 10 === 2) {
-  //     return n;
-  //   } else if (n < 12) {
-  //     n = 2;
-  //   } else if (n % 10 < 2) {
-  //     n = n - 10 - (n % 10) + 2;
-  //   } else {
-  //     n = n - (n % 10) + 2;
-  //   }
-
-  //   return n;
-  // }
-
   private async getConfig(
     url: string,
     isyear: number,
@@ -463,7 +453,7 @@ export class ZipFileService {
       return;
     }
 
-    const csvPath = 'dist/public/js/gis/calpuf_files.csv';
+    const csvPath = 'dist/public/js/gis/calpuff_files.csv';
     const csv = fs.readFileSync(csvPath, 'utf-8');
     const lines = csv.trim().split(/\r?\n/);
     lines.shift(); // header
@@ -499,7 +489,11 @@ export class ZipFileService {
     minLat: number,
     maxLat: number,
     minLon: number,
-    maxLon: number
+    maxLon: number,
+    minI?: number,
+    maxI?: number,
+    minJ?: number,
+    maxJ?: number
   ): string[] {
     this.ensureCalpuffIndexLoaded();
     if (!this.calpuffIndex) {
@@ -524,14 +518,29 @@ export class ZipFileService {
         continue;
       }
 
-      const recMinLat = Math.min(rec.lat0, rec.lat1);
-      const recMaxLat = Math.max(rec.lat0, rec.lat1);
-      const recMinLon = Math.min(rec.lon0, rec.lon1);
-      const recMaxLon = Math.max(rec.lon0, rec.lon1);
+      let overlaps = false;
+      if (
+        rec.domain === 'd02' &&
+        minI !== undefined &&
+        maxI !== undefined &&
+        minJ !== undefined &&
+        maxJ !== undefined
+      ) {
+        // For d02, use grid I/J intersection
+        overlaps = rec.i0 <= maxI && rec.i1 >= minI && rec.j0 <= maxJ && rec.j1 >= minJ;
+      } else {
+        // For other domains, use lat/lon bounding box intersection
+        const recMinLat = Math.min(rec.lat0, rec.lat1);
+        const recMaxLat = Math.max(rec.lat0, rec.lat1);
+        const recMinLon = Math.min(rec.lon0, rec.lon1);
+        const recMaxLon = Math.max(rec.lon0, rec.lon1);
 
-      const overlapsLat = recMaxLat >= minLat && recMinLat <= maxLat;
-      const overlapsLon = recMaxLon >= minLon && recMinLon <= maxLon;
-      if (!overlapsLat || !overlapsLon) {
+        const overlapsLat = recMaxLat >= minLat && recMinLat <= maxLat;
+        const overlapsLon = recMaxLon >= minLon && recMinLon <= maxLon;
+        overlaps = overlapsLat && overlapsLon;
+      }
+
+      if (!overlaps) {
         continue;
       }
 
