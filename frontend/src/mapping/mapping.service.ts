@@ -27,7 +27,7 @@ export class MappingService {
   private tileCorners: string;
   private parsedTileDomainInfo: any;
   private calpuffFilesCsv: string;
-  private calpuffTilesByDomain: Record<string, CalpuffTileRecord[]> = {};
+  // private calpuffTilesByDomain: Record<string, CalpuffTileRecord[]> = {};
   private readonly calpuffDomainPreference = ['d06', 'd05', 'd04', 'd03', 'd02'];
 
   onModuleInit() {
@@ -39,7 +39,7 @@ export class MappingService {
         skipEmptyLines: true,
       });
       this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
-      this.calpuffTilesByDomain = this.loadCalpuffTiles(this.calpuffFilesCsv);
+      // this.calpuffTilesByDomain = this.loadCalpuffTiles(this.calpuffFilesCsv);
       console.log('Tile domain info loaded into memory.');
       console.log('CALPUFF tile index loaded into memory.');
     } catch (error) {
@@ -71,19 +71,19 @@ export class MappingService {
     }
   }
 
-  /**
-   * Returns the best matching CALPUFF tile (prefers higher-resolution domains) for a given lat/lon.
-   */
-  async findCalpuffTile(latitude: number, longitude: number): Promise<CalpuffTileRecord | null> {
-    try {
-      const tile = this.pickBestCalpuffTile(latitude, longitude);
-      return tile ?? null;
-    } catch (err) {
-      console.log('Error in findCalpuffTile');
-      console.log(err);
-      return null;
-    }
-  }
+  // /**
+  //  * Returns the best matching CALPUFF tile (prefers higher-resolution domains) for a given lat/lon.
+  //  */
+  // async findCalpuffTile(latitude: number, longitude: number): Promise<CalpuffTileRecord | null> {
+  //   try {
+  //     const tile = this.pickBestCalpuffTile(latitude, longitude);
+  //     return tile ?? null;
+  //   } catch (err) {
+  //     console.log('Error in findCalpuffTile');
+  //     console.log(err);
+  //     return null;
+  //   }
+  // }
 
   /**
    * Returns the points used by the AERMOD page to draw tiles on the map
@@ -120,92 +120,92 @@ export class MappingService {
     return result;
   }
 
-  private loadCalpuffTiles(csv: string): Record<string, CalpuffTileRecord[]> {
-    const parsed = Papa.parse(csv, {
-      header: true,
-      skipEmptyLines: true,
-    });
+  // private loadCalpuffTiles(csv: string): Record<string, CalpuffTileRecord[]> {
+  //   const parsed = Papa.parse(csv, {
+  //     header: true,
+  //     skipEmptyLines: true,
+  //   });
 
-    const grouped: Record<string, CalpuffTileRecord[]> = {};
+  //   const grouped: Record<string, CalpuffTileRecord[]> = {};
 
-    parsed.data.forEach((entry: any) => {
-      if (!entry || !entry.domain) {
-        return;
-      }
+  //   parsed.data.forEach((entry: any) => {
+  //     if (!entry || !entry.domain) {
+  //       return;
+  //     }
 
-      const lat0 = parseFloat(entry.lat0);
-      const lon0 = parseFloat(entry.lon0);
-      const lat1 = parseFloat(entry.lat1);
-      const lon1 = parseFloat(entry.lon1);
+  //     const lat0 = parseFloat(entry.lat0);
+  //     const lon0 = parseFloat(entry.lon0);
+  //     const lat1 = parseFloat(entry.lat1);
+  //     const lon1 = parseFloat(entry.lon1);
 
-      if ([lat0, lon0, lat1, lon1].some((v) => Number.isNaN(v))) {
-        return;
-      }
+  //     if ([lat0, lon0, lat1, lon1].some((v) => Number.isNaN(v))) {
+  //       return;
+  //     }
 
-      const tileId = entry.tile && entry.tile !== 'NA' ? parseInt(entry.tile, 10) : null;
-      const i0 = parseInt(entry.I0 ?? entry.i0, 10);
-      const j0 = parseInt(entry.J0 ?? entry.j0, 10);
-      const i1 = parseInt(entry.I1 ?? entry.i1, 10);
-      const j1 = parseInt(entry.J1 ?? entry.j1, 10);
-      const year = parseInt(entry.year, 10);
-      const month = parseInt(entry.month, 10);
+  //     const tileId = entry.tile && entry.tile !== 'NA' ? parseInt(entry.tile, 10) : null;
+  //     const i0 = parseInt(entry.I0 ?? entry.i0, 10);
+  //     const j0 = parseInt(entry.J0 ?? entry.j0, 10);
+  //     const i1 = parseInt(entry.I1 ?? entry.i1, 10);
+  //     const j1 = parseInt(entry.J1 ?? entry.j1, 10);
+  //     const year = parseInt(entry.year, 10);
+  //     const month = parseInt(entry.month, 10);
 
-      const record: CalpuffTileRecord = {
-        filename: entry.filename,
-        year,
-        month,
-        domain: entry.domain,
-        tileId,
-        i0,
-        j0,
-        i1,
-        j1,
-        lat0,
-        lon0,
-        lat1,
-        lon1,
-        url: entry.url,
-        area: Math.abs(lat1 - lat0) * Math.abs(lon1 - lon0),
-      };
+  //     const record: CalpuffTileRecord = {
+  //       filename: entry.filename,
+  //       year,
+  //       month,
+  //       domain: entry.domain,
+  //       tileId,
+  //       i0,
+  //       j0,
+  //       i1,
+  //       j1,
+  //       lat0,
+  //       lon0,
+  //       lat1,
+  //       lon1,
+  //       url: entry.url,
+  //       area: Math.abs(lat1 - lat0) * Math.abs(lon1 - lon0),
+  //     };
 
-      if ([record.i0, record.j0, record.i1, record.j1].some((v) => Number.isNaN(v))) {
-        return;
-      }
+  //     if ([record.i0, record.j0, record.i1, record.j1].some((v) => Number.isNaN(v))) {
+  //       return;
+  //     }
 
-      if (!grouped[record.domain]) {
-        grouped[record.domain] = [];
-      }
+  //     if (!grouped[record.domain]) {
+  //       grouped[record.domain] = [];
+  //     }
 
-      grouped[record.domain].push(record);
-    });
+  //     grouped[record.domain].push(record);
+  //   });
 
-    Object.keys(grouped).forEach((domain) => {
-      grouped[domain] = grouped[domain].sort((a, b) => {
-        if (a.tileId !== null && b.tileId === null) return -1;
-        if (a.tileId === null && b.tileId !== null) return 1;
-        if (a.area !== b.area) return a.area - b.area;
-        return (a.tileId ?? Number.MAX_SAFE_INTEGER) - (b.tileId ?? Number.MAX_SAFE_INTEGER);
-      });
-    });
+  //   Object.keys(grouped).forEach((domain) => {
+  //     grouped[domain] = grouped[domain].sort((a, b) => {
+  //       if (a.tileId !== null && b.tileId === null) return -1;
+  //       if (a.tileId === null && b.tileId !== null) return 1;
+  //       if (a.area !== b.area) return a.area - b.area;
+  //       return (a.tileId ?? Number.MAX_SAFE_INTEGER) - (b.tileId ?? Number.MAX_SAFE_INTEGER);
+  //     });
+  //   });
 
-    return grouped;
-  }
+  //   return grouped;
+  // }
 
-  private pickBestCalpuffTile(latitude: number, longitude: number): CalpuffTileRecord | null {
-    for (const domain of this.calpuffDomainPreference) {
-      const tiles = this.calpuffTilesByDomain[domain];
-      if (!tiles || !tiles.length) {
-        continue;
-      }
+  // private pickBestCalpuffTile(latitude: number, longitude: number): CalpuffTileRecord | null {
+  //   for (const domain of this.calpuffDomainPreference) {
+  //     const tiles = this.calpuffTilesByDomain[domain];
+  //     if (!tiles || !tiles.length) {
+  //       continue;
+  //     }
 
-      const match = tiles.find((tile) => this.isPointInTile(tile, latitude, longitude));
-      if (match) {
-        return match;
-      }
-    }
+  //     const match = tiles.find((tile) => this.isPointInTile(tile, latitude, longitude));
+  //     if (match) {
+  //       return match;
+  //     }
+  //   }
 
-    return null;
-  }
+  //   return null;
+  // }
 
   private isPointInTile(tile: CalpuffTileRecord, latitude: number, longitude: number): boolean {
     const minLat = Math.min(tile.lat0, tile.lat1);
