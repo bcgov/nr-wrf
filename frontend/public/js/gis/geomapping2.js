@@ -40,26 +40,6 @@ require([
   const calpuffDomainLayers = {};
   var calpuffPointsLoaded = false;
 
-  fetch('https://nrs.objectstore.gov.bc.ca/kadkvt/domaininfo_bcwrf.csv')
-    .then(function (response) {
-      return response.text();
-    })
-    .then(function (csv) {
-      // each line has the format I,J,LAT,LON
-      lines = csv.split('\n');
-
-      var boundingPoints = [];
-
-      for (var n = 3; n < lines.length; n++) {
-        var currentLine = lines[n].split(',');
-
-        boundingPoints.push({
-          latitude: currentLine[2],
-          longitude: currentLine[3],
-        });
-      }
-    });
-
   const graphicsLayer = new GraphicsLayer();
   const boundaryGraphicsLayer = new GraphicsLayer();
 
