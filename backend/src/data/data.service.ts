@@ -1,216 +1,210 @@
-import { Injectable, Logger } from '@nestjs/common'
-import { Cron } from '@nestjs/schedule'
-import crossFetch from 'cross-fetch';
+import { Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 
-const MAX_J = 425;
-const MAX_I = 476;
-let lines;
-let linesNums = [];
+// Tile structure matching the new CSV format
+export interface Tile {
+  filename: string;
+  year: number;
+  month?: number; // aermod doesn't use month values
+  domain: string;
+  tile: string;
+  I0: number; // min I (west)
+  J0: number; // min J (south)
+  I1: number; // max I (east)
+  J1: number; // max J (north)
+  lat0: number; // south latitude
+  lon0: number; // west longitude
+  lat1: number; // north latitude
+  lon1: number; // east longitude
+  url: string;
+}
+
+// Result for a single domain
+export interface DomainResult {
+  minI: number;
+  maxI: number;
+  minJ: number;
+  maxJ: number;
+}
+
+// Results grouped by domain
+export interface CalculateVarsResult {
+  byDomain: { [domain: string]: DomainResult };
+}
+
+let tiles: Tile[] = [];
+let dataLoaded = false;
 
 @Injectable()
 export class DataService {
+  private readonly logger = new Logger(DataService.name);
+
   constructor() {
-    crossFetch('https://nrs.objectstore.gov.bc.ca/kadkvt/domaininfo_bcwrf.csv')
-		.then(function (response) {
-			return response.text()
-		})
-		.then(function (csv) {
-			// each line has the format I,J,LAT,LON
-			lines = csv.split("\n");
+    this.loadTileData();
+  }
 
-			for (var n = 3; n < lines.length; n++) {
-				var currentLine = lines[n].split(",");
-	
-				linesNums.push(
-					[
-                        parseInt(currentLine[0]),
-                        parseInt(currentLine[1]),
-                        parseFloat(currentLine[2]),
-                        parseFloat(currentLine[3])
-                    ]);
-	
-			}
-		});
-    }
+  private async loadTileData(): Promise<void> {
+    try {
+      // load calpuff tile data
+      const csvPath = path.join(process.cwd(), 'src', 'util', 'calpuff_files.csv');
+      const csv = fs.readFileSync(csvPath, 'utf-8');
+      const lines = csv.split('\n');
 
-    async calculateVars(bottomLeftYGlobal: number, topRightYGlobal: number, bottomLeftXGlobal: number, topRightXGlobal: number): Promise<any> {   
-        var minJ = await this.calculateMinimumJ(bottomLeftYGlobal);
-        console.log("minJ: " + minJ);
-        
-        var maxJ = await this.calculateMaximumJ(topRightYGlobal, minJ);
-        console.log("maxJ: " + maxJ)
+      // skip header row (line 0)
+      for (let n = 1; n < lines.length; n++) {
+        const line = lines[n].trim();
+        if (!line) continue;
 
-        // possible bug, the geomapping.js passes 3 vars when there are 2
-        // this means it passes minJ as maxJ  and maxJ is lost
-        var minI = await this.calculateMinimumI(bottomLeftXGlobal, minJ);
-        console.log("minI: " + minI);
-        
-        var maxI = await this.calculateMaximumI(topRightXGlobal, minJ);
-        console.log("maxI: " + maxI);
-                
-        minJ = await this.calculateMinimumJ(bottomLeftYGlobal, minJ, maxJ, minI, maxI);
-        console.log("Refined minJ: " + minJ);
-        
-        maxJ = await this.calculateMaximumJ(topRightYGlobal, minJ, maxJ, minI, maxI);
-        console.log("Refined maxJ: " + maxJ);
-    
-        return {
-          minI: minI,
-          maxI: maxI,
-          minJ: minJ,
-          maxJ: maxJ,
-        }
+        const cols = line.split(',');
+        if (cols.length < 14) continue;
+
+        tiles.push({
+          filename: cols[0],
+          year: parseInt(cols[1]),
+          month: parseInt(cols[2]),
+          domain: cols[3],
+          tile: cols[4],
+          I0: parseInt(cols[5]),
+          J0: parseInt(cols[6]),
+          I1: parseInt(cols[7]),
+          J1: parseInt(cols[8]),
+          lat0: parseFloat(cols[9]),
+          lon0: parseFloat(cols[10]),
+          lat1: parseFloat(cols[11]),
+          lon1: parseFloat(cols[12]),
+          url: cols[13],
+        });
       }
-    
-    // calculate the largest J value less than the southern boundary that the user selected
-    async calculateMinimumJ(
-        latitude: number, 
-        previousMinJ: number = 2, 
-        previousMaxJ: number = MAX_J,  
-        minI: number = 2, 
-        maxI: number = MAX_I
-        ): Promise<number> {
 
-        var minJ = 2;
+      dataLoaded = true;
+      this.logger.log(`Loaded ${tiles.length} tiles from CSV`);
+      this.getDomainRanges();
+    } catch (error) {
+      this.logger.error('Failed to load tile data', error);
+    }
+  }
 
-        for (var jScan = previousMinJ; jScan <= previousMaxJ; jScan++) {
-
-            var inDomain = true;
-
-            // see if there are any values at the current J where all js are inside the boundary
-            for (var n = 0; n < linesNums.length; n++) {
-                var currentLine = linesNums[n];
-                var currentI = currentLine[0]
-                var currentJ = currentLine[1];
-                var currentLatitude = currentLine[2];
-
-                // we're only interested in the latitudes at jScan, ignore everything until we get to jScan
-                if (currentJ < jScan) {
-                    continue;
-                }
-
-                // we're beyond jScan, stop searching
-                if (currentJ > jScan) {
-                    break;
-                }
-
-                // constrain based on min/max i values
-                if (currentI < minI || currentI > maxI || jScan < previousMinJ || jScan > previousMaxJ) {
-                    continue;
-                }
-
-                // we're only checking j values that match jScan.  More specifically, we're
-                // ensuring that for each jScan value, every corresponding j is less than the southern latitude entered by the user
-                if (jScan == currentJ && currentLatitude >= latitude) {
-                    inDomain = false;
-                    break;
-                }
-            }
-
-            if (inDomain && jScan > minJ) {
-                minJ = jScan;
-            }
-            
-        }
-        return (minJ);
+  /**
+   * Find the min/max I and J values for tiles that overlap with the selected bounding box.
+   * Results are grouped by domain since each domain has its own I/J grid system.
+   *
+   * Domain info:
+   * - d02: Low resolution domain covering the entire area
+   * - d03, d04, d05, d06: High resolution domains covering smaller specific areas
+   *
+   * @param southLat (bottomLeftYGlobal)
+   * @param northLat (topRightYGlobal)
+   * @param westLon (bottomLeftXGlobal)
+   * @param eastLon (topRightXGlobal)
+   */
+  async calculateVars(
+    southLat: number,
+    northLat: number,
+    westLon: number,
+    eastLon: number
+  ): Promise<CalculateVarsResult> {
+    if (!dataLoaded) {
+      await this.waitForData();
     }
 
-    // calculate the largest J value less than the southern boundary that the user selected
-    // Default parameters are used if we haven't yet calculated the J or I values
-    async calculateMaximumJ(
-        latitude: number,
-        previousMinJ: number = 2, 
-        previousMaxJ: number = MAX_J, 
-        minI: number = 2, 
-        maxI: number = MAX_I, 
-        ): Promise<number> {
+    // group results by domain
+    const byDomain: { [domain: string]: DomainResult } = {};
+    const seenTiles = new Set<string>(); // track unique tiles by domain+I0+J0+I1+J1
 
-        var maxJ = MAX_J;
+    for (const tile of tiles) {
+      // check if bounding box overlaps with this tile's bounding box
+      const overlapsLat = southLat < tile.lat1 && northLat > tile.lat0;
+      const overlapsLon = westLon < tile.lon1 && eastLon > tile.lon0;
 
-        for (var jScan = previousMinJ; jScan <= previousMaxJ; jScan++) {
+      if (overlapsLat && overlapsLon) {
+        // unique key for tile geometry (ignore year/month for I/J calculation)
+        const tileKey = `${tile.domain}-${tile.I0}-${tile.J0}-${tile.I1}-${tile.J1}`;
+        if (seenTiles.has(tileKey)) continue;
+        seenTiles.add(tileKey);
 
-            var inDomain = true;
-
-            // see if there are any values at the current J where all js are inside the boundary
-            for (var n = 0; n < linesNums.length; n++) {
-                var currentLine = linesNums[n];
-                var currentI = currentLine[0];
-                var currentJ = currentLine[1];
-                var currentLatitude = currentLine[2];
-
-                // we're only interested in the latitudes at jScan, ignore everything until we get to jScan
-                if (currentJ < jScan) {
-                    continue;
-                }
-
-                // we're beyond jScan, stop searching
-                if (currentJ > jScan) {
-                    break;
-                }
-
-                // constrain based on min/max i values
-                if (currentI < minI || currentI > maxI || jScan < previousMinJ || jScan > previousMaxJ) {
-                    continue;
-                }
-
-                // we're only checking j values that match jScan.  More specifically, we're
-                // ensuring that for each jScan value, every corresponding j is greater than the northernmost latitude entered by the user
-                if (jScan != currentJ) {
-                    continue;
-                }
-
-                // we're only checking j values that match jScan.  More specifically, we're
-                // ensuring that for each jScan value, every corresponding j is greater than the northernmost latitude entered by the user
-                if (jScan == currentJ && currentLatitude <= latitude) {
-                    inDomain = false;
-                    break;
-                }
-            }
-
-            if (inDomain && jScan < maxJ) {
-                maxJ = jScan;
-            }
-            
+        // create domain in byDomain if it doesn't exist yet
+        if (!byDomain[tile.domain]) {
+          byDomain[tile.domain] = {
+            minI: Infinity,
+            maxI: -Infinity,
+            minJ: Infinity,
+            maxJ: -Infinity,
+          };
         }
-        return (maxJ);
+
+        // Update domain-specific I/J ranges
+        const domainResult = byDomain[tile.domain];
+        domainResult.minI = Math.min(domainResult.minI, tile.I0);
+        domainResult.maxI = Math.max(domainResult.maxI, tile.I1);
+        domainResult.minJ = Math.min(domainResult.minJ, tile.J0);
+        domainResult.maxJ = Math.max(domainResult.maxJ, tile.J1);
+      }
     }
 
-    // calculate the largest I value less than the western boundary that the user selected, constrained by the norther/southern boundaries selected by the user
-    async calculateMinimumI(longitude: number, maxJ: number): Promise<number> {
-        var minI = 2;
-        var previousLongitude = -200;
+    // debug logging
+    // for (const [domain, result] of Object.entries(byDomain)) {
+    //   this.logger.log(
+    //     `Domain ${domain}: I range: ${result.minI}-${result.maxI}, J range: ${result.minJ}-${result.maxJ}`
+    //   );
+    // }
 
-        for (var n = 0; n < linesNums.length; n++) {
-            var currentLine = linesNums[n];
-            var currentI = currentLine[0];
-            var currentLongitude = currentLine[3];
-            var currentJ = currentLine[1];
+    return { byDomain };
+  }
 
-            if ((currentJ == maxJ) && (currentLongitude > previousLongitude) && (currentLongitude < longitude)) {
-                previousLongitude = currentLongitude;
-                minI = currentI;
-            }
-        }
-        return minI;
+  /**
+   * Scan the CSV to find the I/J ranges for each domain.
+   * This is used to set the m3d_bild I/J ranges in each domain file
+   */
+  getDomainRanges(): {
+    [domain: string]: { minI: number; maxI: number; minJ: number; maxJ: number; tileCount: number };
+  } {
+    const ranges: { [domain: string]: { minI: number; maxI: number; minJ: number; maxJ: number; tileCount: number } } =
+      {};
+    const seenTiles = new Set<string>();
+
+    for (const tile of tiles) {
+      // track unique tiles by domain + coordinates (ignore year/month)
+      const tileKey = `${tile.domain}-${tile.I0}-${tile.J0}-${tile.I1}-${tile.J1}`;
+      if (seenTiles.has(tileKey)) continue;
+      seenTiles.add(tileKey);
+
+      if (!ranges[tile.domain]) {
+        ranges[tile.domain] = {
+          minI: Infinity,
+          maxI: -Infinity,
+          minJ: Infinity,
+          maxJ: -Infinity,
+          tileCount: 0,
+        };
+      }
+
+      const r = ranges[tile.domain];
+      r.minI = Math.min(r.minI, tile.I0);
+      r.maxI = Math.max(r.maxI, tile.I1);
+      r.minJ = Math.min(r.minJ, tile.J0);
+      r.maxJ = Math.max(r.maxJ, tile.J1);
+      r.tileCount++;
     }
 
-    // calculate the smallest I value greater than the eastern boundary that the user selected, constrained by the norther/southern boundaries selected by the user
-    async calculateMaximumI(longitude: number, maxJ: number): Promise<number> {
-        var maxI = 2;
-        var previousLongitude = 200;
+    // debug logs
+    // for (const [domain, r] of Object.entries(ranges)) {
+    //   this.logger.log(
+    //     `Domain ${domain}: I range: ${r.minI}-${r.maxI}, J range: ${r.minJ}-${r.maxJ}, unique tiles: ${r.tileCount}`
+    //   );
+    // }
 
-        for (var n = 0; n < linesNums.length; n++) {
-            var currentLine = linesNums[n];
-            var currentI = currentLine[0];
-            var currentLongitude = currentLine[3]
-            var currentJ = currentLine[1];
+    return ranges;
+  }
 
-            if ((currentJ == maxJ) && (currentLongitude < previousLongitude) && (currentLongitude > longitude)) {
-                            previousLongitude = currentLongitude;
-                            maxI = currentI;
-            }
+  private waitForData(): Promise<void> {
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (dataLoaded) {
+          clearInterval(checkInterval);
+          resolve();
         }
-        
-        return maxI;
-    }
+      }, 100);
+    });
+  }
 }
