@@ -26,9 +26,9 @@ export class MappingService {
   private tileDomainInfo: string;
   private tileCorners: string;
   private parsedTileDomainInfo: any;
-  private calpuffFilesCsv: string;
+  // private calpuffFilesCsv: string;
   // private calpuffTilesByDomain: Record<string, CalpuffTileRecord[]> = {};
-  private readonly calpuffDomainPreference = ['d06', 'd05', 'd04', 'd03', 'd02'];
+  // private readonly calpuffDomainPreference = ['d06', 'd05', 'd04', 'd03', 'd02'];
 
   onModuleInit() {
     try {
@@ -38,7 +38,7 @@ export class MappingService {
         header: true,
         skipEmptyLines: true,
       });
-      this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
+      // this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
       // this.calpuffTilesByDomain = this.loadCalpuffTiles(this.calpuffFilesCsv);
       console.log('Tile domain info loaded into memory.');
       console.log('CALPUFF tile index loaded into memory.');
@@ -207,14 +207,14 @@ export class MappingService {
   //   return null;
   // }
 
-  private isPointInTile(tile: CalpuffTileRecord, latitude: number, longitude: number): boolean {
-    const minLat = Math.min(tile.lat0, tile.lat1);
-    const maxLat = Math.max(tile.lat0, tile.lat1);
-    const minLon = Math.min(tile.lon0, tile.lon1);
-    const maxLon = Math.max(tile.lon0, tile.lon1);
+  // private isPointInTile(tile: CalpuffTileRecord, latitude: number, longitude: number): boolean {
+  //   const minLat = Math.min(tile.lat0, tile.lat1);
+  //   const maxLat = Math.max(tile.lat0, tile.lat1);
+  //   const minLon = Math.min(tile.lon0, tile.lon1);
+  //   const maxLon = Math.max(tile.lon0, tile.lon1);
 
-    return latitude >= minLat && latitude <= maxLat && longitude >= minLon && longitude <= maxLon;
-  }
+  //   return latitude >= minLat && latitude <= maxLat && longitude >= minLon && longitude <= maxLon;
+  // }
 
   /** Tile info section */
   findParentGridCell(latitude: number, longitude: number): { i_parent: number; j_parent: number } {
