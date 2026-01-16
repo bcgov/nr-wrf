@@ -18,10 +18,11 @@ require([
   const graphicsLayer = new GraphicsLayer();
   const boundaryGraphicsLayer = new GraphicsLayer();
   const labelGraphicsLayer = new GraphicsLayer();
+  const debugGraphicsLayer = new GraphicsLayer();
 
   const map = new Map({
     basemap: 'arcgis-topographic',
-    layers: [graphicsLayer, boundaryGraphicsLayer, labelGraphicsLayer],
+    layers: [debugGraphicsLayer, graphicsLayer, boundaryGraphicsLayer, labelGraphicsLayer],
   });
 
   const view = new MapView({
@@ -71,6 +72,16 @@ require([
     },
   };
 
+  // debug polygon (original tiles from aermod_files.csv)
+  const debugPolygonSymbol = {
+    type: 'simple-fill',
+    color: [173, 216, 230, 0.3], // Light blue with 30% transparency
+    outline: {
+      color: [0, 0, 255, 0.5], // Blue outline
+      width: 1,
+    },
+  };
+
   let selectedPolygon = null;
   let currentlyDrawnPoint = null;
   let currentlyDrawnText = null;
@@ -109,7 +120,8 @@ require([
       })
       .finally(() => {
         const matchingPolygon = graphicsLayer.graphics.find(
-          (graphic) => graphic.attributes && graphic.attributes.tile_id === closestPoint.tile_id
+          (graphic) =>
+            graphic.attributes && graphic.attributes.tile_id === closestPoint.tile && !graphic.attributes.isDebug
         );
         if (matchingPolygon) {
           // If another polygon was previously selected, reset its color
@@ -229,6 +241,32 @@ require([
     });
 
     graphicsLayer.add(polygonGraphic);
+
+    // Add tile number label
+    const textSymbol = {
+      type: 'text',
+      color: 'black',
+      haloColor: 'white',
+      haloSize: '2px',
+      text: tile_id.toString().padStart(4, '0'),
+      xoffset: 0,
+      yoffset: 0,
+      font: {
+        size: 10,
+        family: 'sans-serif',
+      },
+    };
+
+    const textGraphic = new Graphic({
+      geometry: {
+        type: 'point',
+        x: centerPoint.x,
+        y: centerPoint.y,
+      },
+      symbol: textSymbol,
+    });
+
+    labelGraphicsLayer.add(textGraphic);
   }
 
   /** Used to find the center of a tile for displaying the tile id */
@@ -250,21 +288,146 @@ require([
   }
 
   /**
-   * Receives corner points ordered by tile from the backend and
-   * draws polygons (tiles) using those corner points.
-   *
+   * Parse the aermod_corner_points.csv and return an array of tile objects
    */
-  fetch('/mapping/getCornerPoints')
-    .then((response) => response.json())
-    .then((pointsByTile) => {
-      // Iterate over tile groups and draw polygons for each group
-      Object.values(pointsByTile).forEach((tileGroup) => {
-        const tile_id = tileGroup[0].tile_id;
-        const coordinates = orderCoordinates(tileGroup.map((point) => [point.lon, point.lat]));
-        drawPolygon(coordinates, tile_id);
+  function parseCornerPointsCsv(csvContent) {
+    const lines = csvContent.split('\n');
+    const tiles = [];
+
+    // Skip header row (line 0)
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const cols = line.split(',');
+      if (cols.length < 16) continue;
+
+      // CSV format:
+      // filename,tile,domain,year,I0,J0,I1,J1,lat_sw,lon_sw,lat_se,lon_se,lat_nw,lon_nw,lat_ne,lon_ne,url
+      const tile = {
+        tileId: parseInt(cols[1]),
+        lat_sw: parseFloat(cols[8]),
+        lon_sw: parseFloat(cols[9]),
+        lat_se: parseFloat(cols[10]),
+        lon_se: parseFloat(cols[11]),
+        lat_nw: parseFloat(cols[12]),
+        lon_nw: parseFloat(cols[13]),
+        lat_ne: parseFloat(cols[14]),
+        lon_ne: parseFloat(cols[15]),
+      };
+
+      tiles.push(tile);
+    }
+
+    return tiles;
+  }
+
+  /**
+   * Parse the aermod_files.csv and return an array of tile objects for debug
+   */
+  function parseOriginalTilesCsv(csvContent) {
+    const lines = csvContent.split('\n');
+    const tiles = [];
+    const seen = new Set();
+
+    // Skip header row (line 0)
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const cols = line.split(',');
+      if (cols.length < 12) continue;
+
+      // Only include d02 domain
+      if (cols[2] !== 'd02') continue;
+
+      // Deduplicate by tile ID
+      const tileId = parseInt(cols[1]);
+      if (seen.has(tileId)) continue;
+      seen.add(tileId);
+
+      // CSV format:
+      // filename,tile,domain,year,I0,J0,I1,J1,lat0,lon0,lat1,lon1,url
+      // lat0/lon0 = NE corner, lat1/lon1 = SW corner
+      const tile = {
+        tileId: tileId,
+        lat0: parseFloat(cols[8]), // north
+        lon0: parseFloat(cols[9]), // east
+        lat1: parseFloat(cols[10]), // south
+        lon1: parseFloat(cols[11]), // west
+      };
+
+      tiles.push(tile);
+    }
+
+    return tiles;
+  }
+
+  /**
+   * Debug function: Draws original tiles from aermod_files.csv as light blue polygons.
+   * These are non-interactable and show the original tile boundaries before averaging.
+   */
+  function drawDebugTiles() {
+    fetch('/js/gis/aermod_files.csv')
+      .then((response) => response.text())
+      .then((csvContent) => {
+        const tiles = parseOriginalTilesCsv(csvContent);
+
+        tiles.forEach((tile) => {
+          // Create rectangle from bounding box: SW -> SE -> NE -> NW
+          // lat0/lon0 = NE corner, lat1/lon1 = SW corner
+          const coordinates = [
+            [tile.lon1, tile.lat1], // SW (bottom-left)
+            [tile.lon0, tile.lat1], // SE (bottom-right)
+            [tile.lon0, tile.lat0], // NE (top-right)
+            [tile.lon1, tile.lat0], // NW (top-left)
+          ];
+
+          const polygon = {
+            type: 'polygon',
+            rings: [coordinates],
+          };
+
+          const debugGraphic = new Graphic({
+            geometry: polygon,
+            symbol: debugPolygonSymbol,
+            attributes: { isDebug: true },
+          });
+
+          debugGraphicsLayer.add(debugGraphic);
+        });
+
+        console.log(`Loaded ${tiles.length} debug tiles from aermod_files.csv`);
+      })
+      .catch((error) => console.error('Error loading debug tiles:', error));
+  }
+
+  /**
+   * Loads corner points from the CSV file and draws polygons (tiles) on the map.
+   * The CSV has all 4 corners pre-computed and aligned to remove gaps.
+   */
+  fetch('/js/gis/aermod_corner_points.csv')
+    .then((response) => response.text())
+    .then((csvContent) => {
+      const tiles = parseCornerPointsCsv(csvContent);
+
+      tiles.forEach((tile) => {
+        // Order corners counter-clockwise: SW -> SE -> NE -> NW
+        const coordinates = [
+          [tile.lon_sw, tile.lat_sw], // SW (bottom-left)
+          [tile.lon_se, tile.lat_se], // SE (bottom-right)
+          [tile.lon_ne, tile.lat_ne], // NE (top-right)
+          [tile.lon_nw, tile.lat_nw], // NW (top-left)
+        ];
+        drawPolygon(coordinates, tile.tileId);
       });
+
+      console.log(`Loaded ${tiles.length} tiles from aermod_corner_points.csv`);
     })
-    .catch((error) => console.error(error));
+    .catch((error) => console.error('Error loading tile data:', error));
+
+  // Uncomment the line below to enable debug tiles (original boundaries)
+  // drawDebugTiles();
 
   /** Search and download section */
 
@@ -382,7 +545,8 @@ require([
       })
       .finally(() => {
         const matchingPolygon = graphicsLayer.graphics.find(
-          (graphic) => graphic.attributes && graphic.attributes.tile_id === closestPoint.tile_id
+          (graphic) =>
+            graphic.attributes && graphic.attributes.tile_id === closestPoint.tile && !graphic.attributes.isDebug
         );
         if (matchingPolygon) {
           // If another polygon was previously selected, reset its color
