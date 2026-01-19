@@ -368,20 +368,16 @@ require([
    * These are non-interactable and show the original tile boundaries before averaging.
    */
   function drawDebugTiles() {
-    fetch('/js/gis/aermod_files.csv')
-      .then((response) => response.text())
-      .then((csvContent) => {
-        const tiles = parseOriginalTilesCsv(csvContent);
-
+    fetch('/mapping/getAermodTiles')
+      .then((response) => response.json())
+      .then((tiles) => {
         tiles.forEach((tile) => {
-          // Create rectangle from bounding box: SW -> SE -> NE -> NW
-          // lat0/lon0 = NE corner, lat1/lon1 = SW corner
-          const coordinates = [
-            [tile.lon1, tile.lat1], // SW (bottom-left)
-            [tile.lon0, tile.lat1], // SE (bottom-right)
-            [tile.lon0, tile.lat0], // NE (top-right)
-            [tile.lon1, tile.lat0], // NW (top-left)
-          ];
+          if (tile.tileId === 1500) {
+            console.log('debug (new)');
+            console.log(tile);
+          }
+          // Create polygon from four corners: NE -> NW -> SW -> SE
+          const coordinates = tile.corners.map((corner) => [corner.lon, corner.lat]);
 
           const polygon = {
             type: 'polygon',
@@ -395,9 +391,36 @@ require([
           });
 
           debugGraphicsLayer.add(debugGraphic);
+
+          // Add tile number label
+          const centerPoint = calculateCenter(coordinates);
+          const textSymbol = {
+            type: 'text',
+            color: 'blue',
+            haloColor: 'white',
+            haloSize: '2px',
+            text: tile.tileId.toString().padStart(4, '0'),
+            xoffset: 0,
+            yoffset: 0,
+            font: {
+              size: 10,
+              family: 'sans-serif',
+            },
+          };
+
+          const textGraphic = new Graphic({
+            geometry: {
+              type: 'point',
+              x: centerPoint.x,
+              y: centerPoint.y,
+            },
+            symbol: textSymbol,
+          });
+
+          debugGraphicsLayer.add(textGraphic);
         });
 
-        console.log(`Loaded ${tiles.length} debug tiles from aermod_files.csv`);
+        console.log(`Loaded ${tiles.length} debug tiles from AERMOD service`);
       })
       .catch((error) => console.error('Error loading debug tiles:', error));
   }
@@ -406,28 +429,32 @@ require([
    * Loads corner points from the CSV file and draws polygons (tiles) on the map.
    * The CSV has all 4 corners pre-computed and aligned to remove gaps.
    */
-  fetch('/js/gis/aermod_corner_points.csv')
-    .then((response) => response.text())
-    .then((csvContent) => {
-      const tiles = parseCornerPointsCsv(csvContent);
+  // fetch('/js/gis/aermod_corner_points.csv')
+  //   .then((response) => response.text())
+  //   .then((csvContent) => {
+  //     const tiles = parseCornerPointsCsv(csvContent);
 
-      tiles.forEach((tile) => {
-        // Order corners counter-clockwise: SW -> SE -> NE -> NW
-        const coordinates = [
-          [tile.lon_sw, tile.lat_sw], // SW (bottom-left)
-          [tile.lon_se, tile.lat_se], // SE (bottom-right)
-          [tile.lon_ne, tile.lat_ne], // NE (top-right)
-          [tile.lon_nw, tile.lat_nw], // NW (top-left)
-        ];
-        drawPolygon(coordinates, tile.tileId);
-      });
+  //     tiles.forEach((tile) => {
+  //       if (tile.tileId === 1500) {
+  //         console.log('old');
+  //         console.log(tile);
+  //       }
+  //       // Order corners counter-clockwise: SW -> SE -> NE -> NW
+  //       const coordinates = [
+  //         [tile.lon_sw, tile.lat_sw], // SW (bottom-left)
+  //         [tile.lon_se, tile.lat_se], // SE (bottom-right)
+  //         [tile.lon_ne, tile.lat_ne], // NE (top-right)
+  //         [tile.lon_nw, tile.lat_nw], // NW (top-left)
+  //       ];
+  //       drawPolygon(coordinates, tile.tileId);
+  //     });
 
-      console.log(`Loaded ${tiles.length} tiles from aermod_corner_points.csv`);
-    })
-    .catch((error) => console.error('Error loading tile data:', error));
+  //     console.log(`Loaded ${tiles.length} tiles from aermod_corner_points.csv`);
+  //   })
+  //   .catch((error) => console.error('Error loading tile data:', error));
 
   // Uncomment the line below to enable debug tiles (original boundaries)
-  // drawDebugTiles();
+  drawDebugTiles();
 
   /** Search and download section */
 

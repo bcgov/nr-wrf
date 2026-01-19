@@ -25,6 +25,7 @@ interface CalpuffTileRecord {
 export class MappingService {
   private tileDomainInfo: string;
   private tileCorners: string;
+  private aermodFilesCsv: string;
   private parsedTileDomainInfo: any;
   // private calpuffFilesCsv: string;
   // private calpuffTilesByDomain: Record<string, CalpuffTileRecord[]> = {};
@@ -34,6 +35,7 @@ export class MappingService {
     try {
       this.tileDomainInfo = fs.readFileSync('dist/public/js/gis/tile_domain_info.csv', 'utf-8');
       this.tileCorners = fs.readFileSync('dist/public/js/gis/tile_corners.csv', 'utf-8');
+      this.aermodFilesCsv = fs.readFileSync('dist/public/js/gis/aermod_files.csv', 'utf-8');
       this.parsedTileDomainInfo = Papa.parse(this.tileDomainInfo, {
         header: true,
         skipEmptyLines: true,
@@ -41,6 +43,7 @@ export class MappingService {
       // this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
       // this.calpuffTilesByDomain = this.loadCalpuffTiles(this.calpuffFilesCsv);
       console.log('Tile domain info loaded into memory.');
+      console.log('AERMOD files loaded into memory.');
       console.log('CALPUFF tile index loaded into memory.');
     } catch (error) {
       console.log('Error loading tile data into memory:');
@@ -86,12 +89,116 @@ export class MappingService {
   // }
 
   /**
-   * Returns the points used by the AERMOD page to draw tiles on the map
-   *
-   * @returns pointsByTile
+   * Returns the AERMOD tiles with all four corners calculated
    */
-  getCornerPoints() {
-    return this.csvToJson(this.tileCorners);
+  getAermodTiles() {
+    const parsed = Papa.parse(this.aermodFilesCsv, {
+      header: true,
+      skipEmptyLines: true,
+    });
+
+    const proj = this.getProjInfo();
+
+    const tiles = [];
+    parsed.data.forEach((entry: any) => {
+      if (!entry || entry.domain !== 'd02') return;
+
+      const I0 = parseInt(entry.I0, 10);
+      const J0 = parseInt(entry.J0, 10);
+      const I1 = parseInt(entry.I1, 10);
+      const J1 = parseInt(entry.J1, 10);
+
+      if (isNaN(I0) || isNaN(J0) || isNaN(I1) || isNaN(J1)) return;
+
+      // Given points
+      const ne = this.ijToLatLon(I0, J0, proj); // lat0, lon0
+      const sw = this.ijToLatLon(I1, J1, proj); // lat1, lon1
+
+      // Calculate other corners
+      const nw = this.ijToLatLon(I0, J1, proj); // northwest
+      const se = this.ijToLatLon(I1, J0, proj); // southeast
+
+      tiles.push({
+        tileId: parseInt(entry.tile, 10),
+        filename: entry.filename,
+        year: parseInt(entry.year, 10),
+        domain: entry.domain,
+        I0,
+        J0,
+        I1,
+        J1,
+        // Four corners: NE, NW, SW, SE
+        corners: [
+          { lat: ne.lat, lon: ne.lon }, // NE
+          { lat: nw.lat, lon: nw.lon }, // NW
+          { lat: sw.lat, lon: sw.lon }, // SW
+          { lat: se.lat, lon: se.lon }, // SE
+        ],
+        url: entry.url,
+      });
+    });
+
+    return tiles;
+  }
+
+  private getProjInfo(): ProjInfo {
+    enum WrfProjectionType {
+      LambertConformal = 1,
+      PolarSterographic = 2,
+      Mercator = 3,
+    }
+
+    const RAD_PER_DEG = Math.PI / 180.0;
+
+    let proj = new ProjInfo();
+
+    proj.code = WrfProjectionType.LambertConformal;
+
+    // DX in meters from (full domain)
+    const DX: number = 4000.0;
+    // DY in meters from (full domain)
+    const DY: number = 4000.0;
+    // DX and DY in meters
+    proj.dx = DX;
+    proj.dy = DY;
+
+    // STAND_LON, TRUELAT1, TRUELAT2
+    proj.stdlon = -125.0;
+    proj.truelat1 = 46.5;
+    proj.truelat2 = 63.5;
+
+    // Coordinate of Lower Left Grid Cell (1,1)
+    proj.lat1 = 46.3873596;
+    proj.lon1 = -137.7155914;
+
+    if (proj.code === WrfProjectionType.LambertConformal) {
+      if (Math.abs(proj.truelat1 - proj.truelat2) > 0.1) {
+        proj.cone =
+          (Math.log(Math.cos(proj.truelat1 * RAD_PER_DEG)) - Math.log(Math.cos(proj.truelat2 * RAD_PER_DEG))) /
+          (Math.log(Math.tan((90.0 - Math.abs(proj.truelat1)) * RAD_PER_DEG * 0.5)) -
+            Math.log(Math.tan((90.0 - Math.abs(proj.truelat2)) * RAD_PER_DEG * 0.5)));
+      } else {
+        proj.cone = Math.sign(Math.abs(proj.truelat1) * RAD_PER_DEG);
+      }
+    } else {
+      throw new Error('Unsupported projection.');
+    }
+
+    if (proj.truelat1 < 0.0) {
+      proj.hemi = -1.0;
+    }
+
+    proj.rebydx = proj.re_m / proj.dx;
+
+    if (proj.stdlon < -180.0) {
+      proj.stdlon += 360.0;
+    }
+
+    if (proj.stdlon > 180.0) {
+      proj.stdlon -= 360.0;
+    }
+
+    return proj;
   }
 
   csvToJson(csvStr) {
@@ -309,6 +416,61 @@ export class MappingService {
     let j = Math.round(proj.hemi * dj - 0.1);
 
     return { i, j };
+  }
+
+  ijToLatLon(i: number, j: number, proj: ProjInfo): { lat: number; lon: number } {
+    const RAD_PER_DEG = Math.PI / 180.0;
+    const DEG_PER_RAD = 180.0 / Math.PI;
+
+    // Ensure proj is initialized as in latlonToIj
+    if (proj.polei === -999.9) {
+      // Need to compute polei, polej, etc. by calling llijLc with known point
+      this.llijLc(proj.lat1, proj.lon1, proj);
+    }
+
+    // Reverse the i,j to di,dj (inverse of: i = round(hemi * di - 0.1))
+    let di = (i + 0.1) / proj.hemi;
+    let dj = (j + 0.1) / proj.hemi;
+
+    // From forward transform:
+    // di = polei + hemi * rm * sin(arg)
+    // dj = polej - rm * cos(arg)
+    // So:
+    // x = di - polei = hemi * rm * sin(arg)
+    // y = polej - dj = rm * cos(arg)
+    let x = di - proj.polei;
+    let y = proj.polej - dj;
+
+    // Calculate rm and arg
+    let rm = Math.sqrt(Math.pow(x / proj.hemi, 2) + Math.pow(y, 2));
+    let arg = Math.atan2(x / proj.hemi, y);
+
+    // Calculate longitude
+    // From forward: arg = cone * deltalon * RAD_PER_DEG
+    // So: deltalon = arg / cone / RAD_PER_DEG
+    let deltalon = (arg / proj.cone) * DEG_PER_RAD;
+    let lon = proj.stdlon + deltalon;
+
+    // Calculate latitude
+    // From forward: rm = (rebydx * ctl1r / cone) * (tan((90*hemi - lat)*RAD/2) / tan((90*hemi - truelat1)*RAD/2))^cone
+    // Let T1 = tan((90*hemi - truelat1)*RAD/2)
+    // rm = (rebydx * ctl1r / cone) * (tan_half / T1)^cone
+    // tan_half^cone = rm * cone / (rebydx * ctl1r) * T1^cone
+    // tan_half = (rm * cone / (rebydx * ctl1r))^(1/cone) * T1
+    let ctl1r = Math.cos(proj.truelat1 * RAD_PER_DEG);
+    let T1 = Math.tan(((90.0 * proj.hemi - proj.truelat1) * RAD_PER_DEG) / 2.0);
+
+    let tan_half = T1 * Math.pow((rm * proj.cone) / (proj.rebydx * ctl1r), 1.0 / proj.cone);
+    let half_angle = Math.atan(tan_half);
+    // (90*hemi - lat) * RAD / 2 = half_angle
+    // lat = 90*hemi - 2 * half_angle / RAD
+    let lat = 90.0 * proj.hemi - 2.0 * half_angle * DEG_PER_RAD;
+
+    // Normalize longitude
+    if (lon > 180.0) lon -= 360.0;
+    if (lon < -180.0) lon += 360.0;
+
+    return { lat, lon };
   }
 
   latlonToIj(inputLat: number, inputLon: number): { i_parent: number; j_parent: number } {
