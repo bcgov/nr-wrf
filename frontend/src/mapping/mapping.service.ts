@@ -89,7 +89,12 @@ export class MappingService {
   // }
 
   /**
-   * Returns the AERMOD tiles with all four corners calculated
+   * Returns the AERMOD tiles with all four corners calculated.
+   * Uses the CSV lat/lon values as control points and derives missing corners
+   * using the Lambert Conformal Conic projection.
+   *
+   * CSV format: I0,J0 corresponds to NE corner (lat0,lon0)
+   *             I1,J1 corresponds to SW corner (lat1,lon1)
    */
   getAermodTiles() {
     const parsed = Papa.parse(this.aermodFilesCsv, {
@@ -108,15 +113,24 @@ export class MappingService {
       const I1 = parseInt(entry.I1, 10);
       const J1 = parseInt(entry.J1, 10);
 
+      // Use the lat/lon values directly from the CSV as control points
+      const lat0 = parseFloat(entry.lat0); // NE corner latitude
+      const lon0 = parseFloat(entry.lon0); // NE corner longitude
+      const lat1 = parseFloat(entry.lat1); // SW corner latitude
+      const lon1 = parseFloat(entry.lon1); // SW corner longitude
+
       if (isNaN(I0) || isNaN(J0) || isNaN(I1) || isNaN(J1)) return;
+      if (isNaN(lat0) || isNaN(lon0) || isNaN(lat1) || isNaN(lon1)) return;
 
-      // Given points
-      const ne = this.ijToLatLon(I0, J0, proj); // lat0, lon0
-      const sw = this.ijToLatLon(I1, J1, proj); // lat1, lon1
+      // Given control points from CSV (using actual lat/lon values)
+      const ne = { lat: lat0, lon: lon0 }; // (I0, J0) - NE corner
+      const sw = { lat: lat1, lon: lon1 }; // (I1, J1) - SW corner
 
-      // Calculate other corners
-      const nw = this.ijToLatLon(I0, J1, proj); // northwest
-      const se = this.ijToLatLon(I1, J0, proj); // southeast
+      // Calculate missing corners using the projection
+      // NW corner: same J as SW (J1), same I as NE (I0)
+      // SE corner: same J as NE (J0), same I as SW (I1)
+      const nw = this.calculateMissingCorner(ne, sw, I0, J1, I0, J0, I1, J1, proj);
+      const se = this.calculateMissingCorner(ne, sw, I1, J0, I0, J0, I1, J1, proj);
 
       tiles.push({
         tileId: parseInt(entry.tile, 10),
@@ -139,6 +153,171 @@ export class MappingService {
     });
 
     return tiles;
+  }
+
+  /**
+   * Calculate a missing corner using the known anchor points from the CSV.
+   * Instead of using the global projection reference, we use the known CSV
+   * lat/lon values as local anchors and compute offsets based on grid spacing.
+   *
+   * @param ne - Known NE corner {lat, lon} from CSV
+   * @param sw - Known SW corner {lat, lon} from CSV
+   * @param targetI - I index of the corner to calculate
+   * @param targetJ - J index of the corner to calculate
+   * @param neI - I index of NE corner (I0)
+   * @param neJ - J index of NE corner (J0)
+   * @param swI - I index of SW corner (I1)
+   * @param swJ - J index of SW corner (J1)
+   * @param proj - Projection info
+   */
+  private calculateMissingCorner(
+    ne: { lat: number; lon: number },
+    sw: { lat: number; lon: number },
+    targetI: number,
+    targetJ: number,
+    neI: number,
+    neJ: number,
+    swI: number,
+    swJ: number,
+    proj: ProjInfo
+  ): { lat: number; lon: number } {
+    // Convert known corners to projected coordinates
+    const neProj = this.latLonToProjected(ne.lat, ne.lon, proj);
+    const swProj = this.latLonToProjected(sw.lat, sw.lon, proj);
+
+    // Grid steps from NE to SW
+    const dI = swI - neI;
+    const dJ = swJ - neJ;
+
+    // Avoid edge cases
+    if (dI === 0 && dJ === 0) {
+      return ne;
+    }
+
+    // Projected displacement from NE to SW
+    const dxTotal = swProj.x - neProj.x;
+    const dyTotal = swProj.y - neProj.y;
+
+    // Use the projection's theoretical grid spacing to estimate the I and J
+    // direction vectors. In a Lambert Conformal Conic projection with uniform
+    // 4km grid spacing, moving 1 cell in I direction gives approximately
+    // dx = 4000m (proj.dx) and moving 1 cell in J gives dy = 4000m (proj.dy).
+    // However, we need to account for grid rotation.
+    //
+    // We can estimate the unit vectors by solving:
+    //   dI * uI_x + dJ * uJ_x = dxTotal
+    //   dI * uI_y + dJ * uJ_y = dyTotal
+    //
+    // With constraints that |uI| ≈ |uJ| ≈ grid spacing and uI ⊥ uJ
+    //
+    // A simpler approach: assume the grid locally is a parallelogram and
+    // decompose based on the ratio of dI to dJ.
+
+    // For this tile, calculate per-cell displacement estimates
+    // by using the known diagonal and the grid step counts.
+    const gridSpacing = proj.dx; // 4000 meters
+
+    // The diagonal distance in projected space
+    const diagonalDist = Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal);
+
+    // Expected diagonal based on grid spacing (Pythagorean)
+    const expectedDiagonal = gridSpacing * Math.sqrt(dI * dI + dJ * dJ);
+
+    // Scale factor (should be close to 1 if the projection is consistent)
+    const scale = expectedDiagonal > 0 ? diagonalDist / expectedDiagonal : 1;
+
+    // For a Lambert Conformal grid, I increases roughly eastward (positive x)
+    // and J increases roughly northward (positive y).
+    // However, there's some rotation. We estimate the rotation from the diagonal.
+
+    // Angle of the diagonal in projected space
+    const diagAngle = Math.atan2(dyTotal, dxTotal);
+
+    // Angle the diagonal should make if the grid were axis-aligned
+    // tan(theta) = dJ / dI
+    const gridAngle = Math.atan2(dJ, dI);
+
+    // Rotation between grid space and projected space
+    const rotation = diagAngle - gridAngle;
+
+    // Unit vectors for I and J directions in projected space
+    const uIx = gridSpacing * scale * Math.cos(rotation);
+    const uIy = gridSpacing * scale * Math.sin(rotation);
+    const uJx = gridSpacing * scale * Math.cos(rotation + Math.PI / 2);
+    const uJy = gridSpacing * scale * Math.sin(rotation + Math.PI / 2);
+
+    // Target corner offset from NE in grid space
+    const deltaI = targetI - neI;
+    const deltaJ = targetJ - neJ;
+
+    // Target position in projected space
+    const targetX = neProj.x + deltaI * uIx + deltaJ * uJx;
+    const targetY = neProj.y + deltaI * uIy + deltaJ * uJy;
+
+    // Convert back to lat/lon
+    return this.projectedToLatLon(targetX, targetY, proj);
+  }
+
+  /**
+   * Convert lat/lon to projected (x, y) coordinates using Lambert Conformal Conic.
+   */
+  private latLonToProjected(lat: number, lon: number, proj: ProjInfo): { x: number; y: number } {
+    const RAD_PER_DEG = Math.PI / 180.0;
+
+    // Ensure projection is initialized
+    if (proj.polei === -999.9) {
+      this.llijLc(proj.lat1, proj.lon1, proj);
+    }
+
+    const tl1r = proj.truelat1 * RAD_PER_DEG;
+    const ctl1r = Math.cos(tl1r);
+
+    let deltalon = lon - proj.stdlon;
+    if (deltalon > 180.0) deltalon -= 360.0;
+    if (deltalon < -180.0) deltalon += 360.0;
+
+    const rm =
+      ((proj.rebydx * ctl1r) / proj.cone) *
+      Math.pow(
+        Math.tan(((90.0 * proj.hemi - lat) * RAD_PER_DEG) / 2.0) /
+          Math.tan(((90.0 * proj.hemi - proj.truelat1) * RAD_PER_DEG) / 2.0),
+        proj.cone
+      );
+
+    const arg = proj.cone * (deltalon * RAD_PER_DEG);
+    const x = proj.polei + proj.hemi * rm * Math.sin(arg);
+    const y = proj.polej - rm * Math.cos(arg);
+
+    return { x, y };
+  }
+
+  /**
+   * Convert projected (x, y) coordinates back to lat/lon.
+   */
+  private projectedToLatLon(x: number, y: number, proj: ProjInfo): { lat: number; lon: number } {
+    const RAD_PER_DEG = Math.PI / 180.0;
+    const DEG_PER_RAD = 180.0 / Math.PI;
+
+    const dx = x - proj.polei;
+    const dy = proj.polej - y;
+
+    const rm = Math.sqrt(Math.pow(dx / proj.hemi, 2) + Math.pow(dy, 2));
+    const arg = Math.atan2(dx / proj.hemi, dy);
+
+    const deltalon = (arg / proj.cone) * DEG_PER_RAD;
+    let lon = proj.stdlon + deltalon;
+
+    const ctl1r = Math.cos(proj.truelat1 * RAD_PER_DEG);
+    const T1 = Math.tan(((90.0 * proj.hemi - proj.truelat1) * RAD_PER_DEG) / 2.0);
+
+    const tan_half = T1 * Math.pow((rm * proj.cone) / (proj.rebydx * ctl1r), 1.0 / proj.cone);
+    const half_angle = Math.atan(tan_half);
+    const lat = 90.0 * proj.hemi - 2.0 * half_angle * DEG_PER_RAD;
+
+    if (lon > 180.0) lon -= 360.0;
+    if (lon < -180.0) lon += 360.0;
+
+    return { lat, lon };
   }
 
   private getProjInfo(): ProjInfo {

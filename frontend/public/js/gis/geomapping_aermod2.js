@@ -372,7 +372,7 @@ require([
       .then((response) => response.json())
       .then((tiles) => {
         tiles.forEach((tile) => {
-          if (tile.tileId === 1500) {
+          if (tile.tileId === 1500 || tile.tileId === 3511) {
             console.log('debug (new)');
             console.log(tile);
           }
