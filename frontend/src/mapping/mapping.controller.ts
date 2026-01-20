@@ -18,4 +18,9 @@ export class MappingController {
   getAermodTiles(): any {
     return this.zipFileService.getAermodTiles();
   }
+
+  @Get('getAermodTilesSimplified')
+  getAermodTilesSimplified(): any {
+    return this.zipFileService.getAermodTilesSimplified();
+  }
 }

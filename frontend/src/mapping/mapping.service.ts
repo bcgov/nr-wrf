@@ -88,6 +88,16 @@ export class MappingService {
   //   }
   // }
 
+  getAermodTilesSimplified() {
+    try {
+      const data = fs.readFileSync('dist/public/js/gis/aermod_tiles_extended.json', 'utf-8');
+      return JSON.parse(data);
+    } catch (err) {
+      console.error('Failed to read aermod_tiles_extended.json:', err);
+      return [];
+    }
+  }
+
   /**
    * Returns the AERMOD tiles with all four corners calculated.
    * Uses the CSV lat/lon values as control points and derives missing corners
