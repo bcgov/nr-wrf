@@ -152,7 +152,44 @@ export class MappingService {
       });
     });
 
-    return tiles;
+    return this.extendTiles(tiles);
+  }
+
+  private extendTiles(tiles: any) {
+    // For each tile, extend I0/I1 and J0/J1 by 0.5 and recalculate corners
+    const proj = this.getProjInfo();
+    return tiles.map((tile: any) => {
+      // Extended indices
+      const I0_ext = tile.I0 - 0.5;
+      const I1_ext = tile.I1 + 0.5;
+      const J0_ext = tile.J0 - 0.5;
+      const J1_ext = tile.J1 + 0.5;
+
+      // Known NE and SW corners from original tile
+      const ne = tile.corners[0]; // NE (I0, J0)
+      const sw = tile.corners[2]; // SW (I1, J1)
+
+      // Calculate new corners for the extended tile
+      // Extended corners: NE, NW, SW, SE
+      const ext_ne = this.calculateMissingCorner(ne, sw, I0_ext, J0_ext, tile.I0, tile.J0, tile.I1, tile.J1, proj);
+      const ext_nw = this.calculateMissingCorner(ne, sw, I0_ext, J1_ext, tile.I0, tile.J0, tile.I1, tile.J1, proj);
+      const ext_sw = this.calculateMissingCorner(ne, sw, I1_ext, J1_ext, tile.I0, tile.J0, tile.I1, tile.J1, proj);
+      const ext_se = this.calculateMissingCorner(ne, sw, I1_ext, J0_ext, tile.I0, tile.J0, tile.I1, tile.J1, proj);
+
+      return {
+        ...tile,
+        I0_ext,
+        I1_ext,
+        J0_ext,
+        J1_ext,
+        extended_corners: [
+          { lat: ext_ne.lat, lon: ext_ne.lon }, // NE
+          { lat: ext_nw.lat, lon: ext_nw.lon }, // NW
+          { lat: ext_sw.lat, lon: ext_sw.lon }, // SW
+          { lat: ext_se.lat, lon: ext_se.lon }, // SE
+        ],
+      };
+    });
   }
 
   /**
