@@ -650,8 +650,8 @@ require([
   //   .catch((error) => console.error('Error loading tile data:', error));
 
   // Uncomment the line below to enable debug tiles (original boundaries)
-  // drawDebugTiles();
-  drawDebugTiles3();
+  drawDebugTiles2();
+  // drawDebugTiles3();
 
   /** Search and download section */
 
