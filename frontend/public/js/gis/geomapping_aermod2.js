@@ -3,11 +3,22 @@ require([
   'esri/Map',
   'esri/views/MapView',
   'esri/layers/GraphicsLayer',
+  'esri/layers/FeatureLayer',
   'esri/Graphic',
   'esri/geometry/Point',
   'esri/geometry/support/webMercatorUtils',
   'esri/widgets/CoordinateConversion',
-], function (esriConfig, Map, MapView, GraphicsLayer, Graphic, Point, webMercatorUtils, CoordinateConversion) {
+], function (
+  esriConfig,
+  Map,
+  MapView,
+  GraphicsLayer,
+  FeatureLayer,
+  Graphic,
+  Point,
+  webMercatorUtils,
+  CoordinateConversion
+) {
   const request = new XMLHttpRequest();
   request.open('GET', '/esriConfig', false);
   request.send(null);
@@ -85,6 +96,9 @@ require([
   let selectedPolygon = null;
   let currentlyDrawnPoint = null;
   let currentlyDrawnText = null;
+  let featureLayer = null;
+  let layerViewRef = null;
+  let selectedHighlight = null;
 
   /**
    * Handles clicks to highlight and unhighlight polygons.
@@ -119,52 +133,55 @@ require([
         console.error('findClosestPoint Error:', error);
       })
       .finally(() => {
-        const matchingPolygon = graphicsLayer.graphics.find(
-          (graphic) =>
-            graphic.attributes && graphic.attributes.tile_id === closestPoint.tile && !graphic.attributes.isDebug
-        );
-        if (matchingPolygon) {
-          // If another polygon was previously selected, reset its color
-          if (selectedPolygon && selectedPolygon !== matchingPolygon) {
-            selectedPolygon.symbol = polygonSymbol;
-          }
+        if (!featureLayer || !layerViewRef) return;
+        featureLayer
+          .queryFeatures({ where: `tile_id = ${closestPoint.tile}`, outFields: ['tile_id', 'center_x', 'center_y'] })
+          .then((result) => {
+            if (result.features && result.features.length > 0) {
+              // remove previous highlight
+              if (selectedHighlight) {
+                try {
+                  selectedHighlight.remove();
+                } catch (e) {}
+                selectedHighlight = null;
+              }
 
-          // Make the newly selected polygon green
-          matchingPolygon.symbol = greenPolygonSymbol;
-          selectedPolygon = matchingPolygon;
+              // highlight the feature(s)
+              selectedHighlight = layerViewRef.highlight(result.features);
 
-          /** Start code for debugging text */
-          const centerPoint = selectedPolygon.attributes.center_point;
-          const tileId = selectedPolygon.attributes.tile_id;
-          const pointI = closestPoint.i;
-          const pointJ = closestPoint.j;
-          const tileInfoText = `Tile ${tileId.toString().padStart(4, '0')}, (I, J pair ${pointI}, ${pointJ})`;
-          const textSymbol = {
-            type: 'text',
-            color: 'black',
-            haloColor: 'white',
-            haloSize: '2px',
-            text: tileInfoText,
-            xoffset: 3,
-            yoffset: 3,
-            font: {
-              size: 14,
-              family: 'sans-serif',
-            },
-          };
-          graphicsLayer.remove(currentlyDrawnText);
-          currentlyDrawnText = new Graphic({
-            geometry: {
-              type: 'point',
-              x: centerPoint.x,
-              y: centerPoint.y,
-            },
-            symbol: textSymbol,
-          });
+              const feat = result.features[0];
+              const centerPoint = { x: feat.attributes.center_x, y: feat.attributes.center_y };
+              const tileId = feat.attributes.tile_id;
+              const pointI = closestPoint.i;
+              const pointJ = closestPoint.j;
+              const tileInfoText = `Tile ${tileId.toString().padStart(4, '0')}, (I, J pair ${pointI}, ${pointJ})`;
+              const textSymbol = {
+                type: 'text',
+                color: 'black',
+                haloColor: 'white',
+                haloSize: '2px',
+                text: tileInfoText,
+                xoffset: 3,
+                yoffset: 3,
+                font: {
+                  size: 14,
+                  family: 'sans-serif',
+                },
+              };
+              graphicsLayer.remove(currentlyDrawnText);
+              currentlyDrawnText = new Graphic({
+                geometry: {
+                  type: 'point',
+                  x: centerPoint.x,
+                  y: centerPoint.y,
+                },
+                symbol: textSymbol,
+              });
 
-          graphicsLayer.add(currentlyDrawnText);
-          /** End */
-        }
+              graphicsLayer.add(currentlyDrawnText);
+            }
+          })
+          .catch((err) => console.error('queryFeatures error:', err));
         // draw a red dot on the map
         if (currentlyDrawnPoint != null) {
           view.graphics.remove(currentlyDrawnPoint);
@@ -274,16 +291,29 @@ require([
     let sumX = 0;
     let sumY = 0;
 
-    coordinates.forEach((coord) => {
-      let x = parseFloat(coord[0]);
-      let y = parseFloat(coord[1]);
+    // If the ring is closed (first point repeated at end), ignore the last point
+    let count = coordinates.length;
+    if (count > 1) {
+      const firstX = parseFloat(coordinates[0][0]);
+      const firstY = parseFloat(coordinates[0][1]);
+      const lastX = parseFloat(coordinates[count - 1][0]);
+      const lastY = parseFloat(coordinates[count - 1][1]);
+      if (firstX === lastX && firstY === lastY) {
+        count = count - 1;
+      }
+    }
+
+    for (let i = 0; i < count; i++) {
+      const coord = coordinates[i];
+      const x = parseFloat(coord[0]);
+      const y = parseFloat(coord[1]);
       sumX += x;
       sumY += y;
-    });
+    }
 
     return {
-      x: sumX / 4,
-      y: sumY / 4,
+      x: sumX / count,
+      y: sumY / count,
     };
   }
 
@@ -372,7 +402,7 @@ require([
       .then((response) => response.json())
       .then((tiles) => {
         tiles.forEach((tile) => {
-          if (tile.tileId === 1500 || tile.tileId === 3511) {
+          if (tile.tileId === 1500) {
             console.log('debug (new)');
             console.log(tile);
           }
@@ -425,6 +455,172 @@ require([
       .catch((error) => console.error('Error loading debug tiles:', error));
   }
 
+  function drawDebugTiles2() {
+    fetch('/mapping/getAermodTiles')
+      .then((response) => response.json())
+      .then((tiles) => {
+        tiles.forEach((tile) => {
+          if (tile.tileId === 1500 || tile.tileId === 2427 || tile.tileId === 3500) {
+            console.log('debug (new)');
+            console.log(tile);
+          }
+          // Create polygon from four corners: NE -> NW -> SW -> SE
+          const coordinates = tile.extended_corners.map((corner) => [corner.lon, corner.lat]);
+
+          const polygon = {
+            type: 'polygon',
+            rings: [coordinates],
+          };
+
+          const g = new Graphic({
+            geometry: polygon,
+            symbol: polygonSymbol,
+          });
+
+          graphicsLayer.add(g);
+
+          // Add tile number label
+          const centerPoint = calculateCenter(coordinates);
+          const textSymbol = {
+            type: 'text',
+            color: 'black',
+            haloColor: 'white',
+            haloSize: '2px',
+            text: tile.tileId.toString().padStart(4, '0'),
+            xoffset: 0,
+            yoffset: 0,
+            font: {
+              size: 10,
+              family: 'sans-serif',
+            },
+          };
+
+          const textGraphic = new Graphic({
+            geometry: {
+              type: 'point',
+              x: centerPoint.x,
+              y: centerPoint.y,
+            },
+            symbol: textSymbol,
+          });
+
+          graphicsLayer.add(textGraphic);
+        });
+
+        console.log(`Loaded ${tiles.length} debug tiles from AERMOD service`);
+      })
+      .catch((error) => console.error('Error loading debug tiles:', error));
+  }
+
+  function drawDebugTiles3() {
+    fetch('/mapping/getAermodTilesSimplified')
+      .then((response) => response.json())
+      .then((tiles) => {
+        const features = [];
+        tiles.forEach((tile) => {
+          if (tile.tileId === 1500 || tile.tileId === 2427 || tile.tileId === 3500) {
+            console.log('debug (new)');
+            console.log(tile);
+          }
+          // Create polygon from four corners: NE -> NW -> SW -> SE
+          const coordinates = tile.extended_corners.map((corner) => [corner.lon, corner.lat]);
+
+          // Ensure coordinates are ordered counter-clockwise and the ring is closed
+          const ordered = orderCoordinates(coordinates);
+          if (ordered.length > 0) {
+            const first = ordered[0];
+            const last = ordered[ordered.length - 1];
+            if (first[0] !== last[0] || first[1] !== last[1]) {
+              ordered.push([first[0], first[1]]);
+            }
+          }
+
+          const polygon = {
+            type: 'polygon',
+            rings: [ordered],
+          };
+
+          const centerPoint = calculateCenter(ordered);
+
+          // Build a lightweight feature object (avoid creating Graphic instances for memory savings)
+          const feat = {
+            geometry: {
+              type: 'polygon',
+              rings: [ordered],
+              spatialReference: { wkid: 4326 },
+            },
+            attributes: {
+              tile_id: tile.tileId,
+              center_x: centerPoint.x,
+              center_y: centerPoint.y,
+            },
+          };
+
+          features.push(feat);
+        });
+
+        // Create a client-side FeatureLayer from the features array. This is much faster
+        // for rendering large numbers of features compared to adding many Graphics to a GraphicsLayer.
+        featureLayer = new FeatureLayer({
+          source: features,
+          objectIdField: 'tile_id',
+          fields: [
+            { name: 'tile_id', alias: 'Tile ID', type: 'integer' },
+            { name: 'center_x', alias: 'Center X', type: 'double' },
+            { name: 'center_y', alias: 'Center Y', type: 'double' },
+          ],
+          geometryType: 'polygon',
+          renderer: {
+            type: 'simple',
+            symbol: polygonSymbol,
+          },
+          // No labelingInfo: we'll add explicit label Graphics at averaged centers
+          outFields: ['tile_id', 'center_x', 'center_y'],
+        });
+
+        map.add(featureLayer);
+
+        // Add labels as separate point Graphics at the averaged centers (convert to WebMercator)
+        try {
+          features.forEach((f) => {
+            const cx = f.attributes.center_x;
+            const cy = f.attributes.center_y;
+            const ptGeo = {
+              type: 'point',
+              x: cx,
+              y: cy,
+              spatialReference: { wkid: 4326 },
+            };
+            const ptWeb = webMercatorUtils.geographicToWebMercator(ptGeo);
+            const textSymbol = {
+              type: 'text',
+              color: 'black',
+              haloColor: 'white',
+              haloSize: '2px',
+              text: f.attributes.tile_id.toString().padStart(4, '0'),
+              xoffset: 0,
+              yoffset: 0,
+              font: { size: 10, family: 'sans-serif' },
+            };
+            const textGraphic = new Graphic({
+              geometry: ptWeb,
+              symbol: textSymbol,
+            });
+            labelGraphicsLayer.add(textGraphic);
+          });
+        } catch (e) {
+          console.error('adding label graphics error', e);
+        }
+
+        view.whenLayerView(featureLayer).then((lv) => {
+          layerViewRef = lv;
+        });
+
+        console.log(`Loaded ${tiles.length} debug tiles from AERMOD service`);
+      })
+      .catch((error) => console.error('Error loading debug tiles:', error));
+  }
+
   /**
    * Loads corner points from the CSV file and draws polygons (tiles) on the map.
    * The CSV has all 4 corners pre-computed and aligned to remove gaps.
@@ -454,7 +650,8 @@ require([
   //   .catch((error) => console.error('Error loading tile data:', error));
 
   // Uncomment the line below to enable debug tiles (original boundaries)
-  drawDebugTiles();
+  // drawDebugTiles();
+  drawDebugTiles3();
 
   /** Search and download section */
 
@@ -571,21 +768,25 @@ require([
         console.error('findClosestPoint Error:', error);
       })
       .finally(() => {
-        const matchingPolygon = graphicsLayer.graphics.find(
-          (graphic) =>
-            graphic.attributes && graphic.attributes.tile_id === closestPoint.tile && !graphic.attributes.isDebug
-        );
-        if (matchingPolygon) {
-          // If another polygon was previously selected, reset its color
-          if (selectedPolygon && selectedPolygon !== matchingPolygon) {
-            selectedPolygon.symbol = polygonSymbol;
-          }
-
-          // Make the newly selected polygon green
-          matchingPolygon.symbol = greenPolygonSymbol;
-          selectedPolygon = matchingPolygon;
+        if (!featureLayer || !layerViewRef) {
+          downloadDialog(lat, lon);
+          return;
         }
-        downloadDialog(lat, lon);
+        featureLayer
+          .queryFeatures({ where: `tile_id = ${closestPoint.tile}`, outFields: ['tile_id', 'center_x', 'center_y'] })
+          .then((result) => {
+            if (result.features && result.features.length > 0) {
+              if (selectedHighlight) {
+                try {
+                  selectedHighlight.remove();
+                } catch (e) {}
+                selectedHighlight = null;
+              }
+              selectedHighlight = layerViewRef.highlight(result.features);
+            }
+          })
+          .catch((err) => console.error('queryFeatures error:', err))
+          .finally(() => downloadDialog(lat, lon));
       });
   }
 
