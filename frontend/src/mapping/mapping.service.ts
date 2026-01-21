@@ -32,6 +32,7 @@ export class MappingService {
       let j = null;
       let tile = null;
       let minDistance = Infinity;
+      const proj = this.getProjInfo();
 
       parsed.data.forEach((entry: any) => {
         if (!entry || entry.domain !== 'd02') return;
@@ -74,14 +75,20 @@ export class MappingService {
           j = Math.round(j_interp);
           tile = parseInt(entry.tile, 10);
         } else {
-          // If not inside, calculate distance to center
-          const centerLat = (lat0 + lat1) / 2;
-          const centerLon = (lon0 + lon1) / 2;
-          const dist = Math.sqrt((latitude - centerLat) ** 2 + (longitude - centerLon) ** 2);
-          if (dist < minDistance) {
-            minDistance = dist;
-            tile = parseInt(entry.tile, 10);
-          }
+          // If not inside, calculate distance to each corner
+          const ne = { lat: lat0, lon: lon0 };
+          const sw = { lat: lat1, lon: lon1 };
+          const nw = this.calculateMissingCorner(ne, sw, I0, J1, I0, J0, I1, J1, proj);
+          const se = this.calculateMissingCorner(ne, sw, I1, J0, I0, J0, I1, J1, proj);
+
+          const corners = [ne, nw, sw, se];
+          corners.forEach((corner) => {
+            const dist = Math.sqrt((latitude - corner.lat) ** 2 + (longitude - corner.lon) ** 2);
+            if (dist < minDistance) {
+              minDistance = dist;
+              tile = parseInt(entry.tile, 10);
+            }
+          });
         }
       });
 
