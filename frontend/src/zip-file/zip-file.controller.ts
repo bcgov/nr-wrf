@@ -58,6 +58,20 @@ export class ZipFileController {
     return this.zipFileService.beginZippingAermod(dataDto.tileDownloadInfo, dataDto.urls);
   }
 
+  @Post('zipAermodFromCoords')
+  async beginZippingAermodFromCoords(
+    @Body()
+    dataDto: {
+      latitude: number;
+      longitude: number;
+      startDateIso: string;
+      endDateIso: string;
+      timezoneOffsetHours: number;
+    }
+  ): Promise<{ subFolder: string }> {
+    return this.zipFileService.beginZippingAermodFromCoords(dataDto);
+  }
+
   @Get('checkZipFile/:uuid')
   checkZipFile(@Param('uuid') uuid: string): {
     status: string;

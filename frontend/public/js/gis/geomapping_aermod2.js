@@ -824,58 +824,22 @@ require([
   // download the data from the objects store
   // TODO move this to backend
   async function downloadModelData() {
-    var urls = [];
-
-    var baseUrl = 'https://nrs.objectstore.gov.bc.ca/qfncae/support_files/';
-
     var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
 
     var startDate = $('#startDate').datetimepicker('getDate');
     var endDate = $('#endDate').datetimepicker('getDate');
 
-    // factor in the timezone
-    startDate.setHours(startDate.getHours() + timezoneOffset);
-    endDate.setHours(endDate.getHours() + timezoneOffset);
-
-    var startYear = startDate.getFullYear();
-    var startMonth = startDate.getMonth() + 1;
-    var startDay = startDate.getDate();
-    var startHour = startDate.getHours();
-
-    var endYear = endDate.getFullYear();
-    var endMonth = endDate.getMonth() + 1;
-    var endDay = endDate.getDate();
-    var endHour = endDate.getHours();
-
-    var tileDownloadInfo = {
-      startYear,
-      startMonth,
-      startDay,
-      startHour,
-      endYear,
-      endMonth,
-      endDay,
-      endHour,
-      timeZone: timezoneOffset,
-      latitude: lat,
-      longitude: lon,
-      closestPoint: closestPoint,
-    };
-
     view.popup.content = 'Preparing download... please wait';
 
-    // add the files required to unzip all the files, and process them
-    urls.push(baseUrl + 'start.bat');
-    urls.push(baseUrl + 'readme.txt');
-    urls.push(baseUrl + 'mmif.inp');
-    urlsLength = urls.length;
-
-    var zipRequestUrl = '/zip-file/zipAermod';
+    var zipRequestUrl = '/zip-file/zipAermodFromCoords';
     var zipCheckUrl = '/zip-file/checkZipFile/';
     zipFileUrl = '/zip-file/zipDownload/';
     var zipData = {
-      tileDownloadInfo: tileDownloadInfo,
-      urls: urls,
+      latitude: lat,
+      longitude: lon,
+      startDateIso: startDate.toISOString(),
+      endDateIso: endDate.toISOString(),
+      timezoneOffsetHours: timezoneOffset,
     };
     await fetch(zipRequestUrl, {
       method: 'POST',
