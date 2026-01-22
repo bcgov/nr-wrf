@@ -78,7 +78,7 @@ export class ZipFileService {
     const { bottomLeftYGlobal, topRightYGlobal, bottomLeftXGlobal, topRightXGlobal, startDateIso, endDateIso } =
       request;
 
-    const { minI, maxI, minJ, maxJ } = await this.calculateVars(
+    const { domain, minI, maxI, minJ, maxJ } = await this.calculateVars(
       bottomLeftYGlobal,
       topRightYGlobal,
       bottomLeftXGlobal,
@@ -93,6 +93,7 @@ export class ZipFileService {
     const endYear = endDate.getFullYear();
     const endMonth = endDate.getMonth() + 1;
     const urls: string[] = this.lookupCalpuffUrls(
+      domain,
       startYear,
       startMonth,
       endYear,
@@ -440,6 +441,10 @@ export class ZipFileService {
     nj1: number,
     nj2: number
   ): Promise<string> {
+    console.log(`ni1: ${ni1}`);
+    console.log(`ni2: ${ni2}`);
+    console.log(`nj1: ${nj1}`);
+    console.log(`nj2: ${nj2}`);
     const response = await lastValueFrom(this.httpService.get(url, { responseType: 'text' }).pipe(map((r) => r.data)));
     let configText: string = response ?? '';
 
@@ -508,6 +513,7 @@ export class ZipFileService {
   }
 
   private lookupCalpuffUrls(
+    domain: string,
     startYear: number,
     startMonth: number,
     endYear: number,
@@ -544,18 +550,16 @@ export class ZipFileService {
         continue;
       }
 
+      if (rec.domain !== domain) {
+        continue;
+      }
+
       let overlaps = false;
-      if (
-        rec.domain === 'd02' &&
-        minI !== undefined &&
-        maxI !== undefined &&
-        minJ !== undefined &&
-        maxJ !== undefined
-      ) {
-        // For d02, use grid I/J intersection
+      if (minI !== undefined && maxI !== undefined && minJ !== undefined && maxJ !== undefined) {
+        // Use grid I/J intersection
         overlaps = rec.i0 <= maxI && rec.i1 >= minI && rec.j0 <= maxJ && rec.j1 >= minJ;
       } else {
-        // For other domains, use lat/lon bounding box intersection
+        // Fallback to lat/lon bounding box intersection
         const recMinLat = Math.min(rec.lat0, rec.lat1);
         const recMaxLat = Math.max(rec.lat0, rec.lat1);
         const recMinLon = Math.min(rec.lon0, rec.lon1);

@@ -28,9 +28,13 @@ export interface DomainResult {
   maxJ: number;
 }
 
-// Results grouped by domain
+// Results for calculateVars
 export interface CalculateVarsResult {
-  byDomain: { [domain: string]: DomainResult };
+  domain: string;
+  minI: number;
+  maxI: number;
+  minJ: number;
+  maxJ: number;
 }
 
 let tiles: Tile[] = [];
@@ -39,6 +43,7 @@ let dataLoaded = false;
 @Injectable()
 export class DataService {
   private readonly logger = new Logger(DataService.name);
+  private domainExtents: { [domain: string]: { minLat: number; maxLat: number; minLon: number; maxLon: number } } = {};
 
   constructor() {
     this.loadTileData();
@@ -77,6 +82,23 @@ export class DataService {
         });
       }
 
+      // Compute domain extents
+      for (const tile of tiles) {
+        if (!this.domainExtents[tile.domain]) {
+          this.domainExtents[tile.domain] = {
+            minLat: Infinity,
+            maxLat: -Infinity,
+            minLon: Infinity,
+            maxLon: -Infinity,
+          };
+        }
+        const ext = this.domainExtents[tile.domain];
+        ext.minLat = Math.min(ext.minLat, tile.lat0);
+        ext.maxLat = Math.max(ext.maxLat, tile.lat1);
+        ext.minLon = Math.min(ext.minLon, tile.lon0);
+        ext.maxLon = Math.max(ext.maxLon, tile.lon1);
+      }
+
       dataLoaded = true;
       this.logger.log(`Loaded ${tiles.length} tiles from CSV`);
       this.getDomainRanges();
@@ -107,6 +129,10 @@ export class DataService {
     if (!dataLoaded) {
       await this.waitForData();
     }
+    console.log(`southLat: ${southLat}`);
+    console.log(`southLat: ${northLat}`);
+    console.log(`westLon: ${westLon}`);
+    console.log(`eastLon: ${eastLon}`);
 
     // group results by domain
     const byDomain: { [domain: string]: DomainResult } = {};
@@ -139,17 +165,32 @@ export class DataService {
         domainResult.maxI = Math.max(domainResult.maxI, tile.I1);
         domainResult.minJ = Math.min(domainResult.minJ, tile.J0);
         domainResult.maxJ = Math.max(domainResult.maxJ, tile.J1);
+        console.log(domainResult);
       }
     }
 
-    // debug logging
-    // for (const [domain, result] of Object.entries(byDomain)) {
-    //   this.logger.log(
-    //     `Domain ${domain}: I range: ${result.minI}-${result.maxI}, J range: ${result.minJ}-${result.maxJ}`
-    //   );
-    // }
+    // Check if the area is entirely within one of the high-res domains (d03-d06)
+    const highResDomains = ['d03', 'd04', 'd05', 'd06'];
+    for (const domain of highResDomains) {
+      const ext = this.domainExtents[domain];
+      if (ext && southLat >= ext.minLat && northLat <= ext.maxLat && westLon >= ext.minLon && eastLon <= ext.maxLon) {
+        // Entirely inside this domain
+        const res = byDomain[domain];
+        if (res) {
+          return { domain, minI: res.minI, maxI: res.maxI, minJ: res.minJ, maxJ: res.maxJ };
+        }
+      }
+    }
 
-    return { byDomain };
+    // Otherwise, return d02 data
+    const res = byDomain['d02'];
+    if (res) {
+      console.log({ domain: 'd02', minI: res.minI, maxI: res.maxI, minJ: res.minJ, maxJ: res.maxJ });
+      return { domain: 'd02', minI: res.minI, maxI: res.maxI, minJ: res.minJ, maxJ: res.maxJ };
+    }
+
+    // If no d02, this shouldn't happen, but return empty or throw
+    throw new Error('No d02 domain data found');
   }
 
   /**
