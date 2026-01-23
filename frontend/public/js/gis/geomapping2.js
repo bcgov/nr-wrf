@@ -9,6 +9,7 @@ require([
   'esri/geometry/support/geodesicUtils',
   'esri/widgets/CoordinateConversion',
   'esri/geometry/support/webMercatorUtils',
+  'esri/symbols/TextSymbol',
   'esri/layers/GraphicsLayer',
   'dojo/domReady!',
 ], function (
@@ -22,23 +23,20 @@ require([
   geodesicUtils,
   CoordinateConversion,
   webMercatorUtils,
+  TextSymbol,
   GraphicsLayer
 ) {
-  var lines;
-
-  const MAX_J = 425;
-  const MAX_I = 476;
   var zipFileUrl;
   var urlsLength = 6;
 
   const calpuffDomainColors = {
+    d02: [144, 238, 144, 0.32], // light green
     d03: [82, 153, 255, 0.32],
     d04: [82, 153, 255, 0.32],
     d05: [82, 153, 255, 0.32],
     d06: [82, 153, 255, 0.32],
   };
   const calpuffDomainLayers = {};
-  var calpuffPointsLoaded = false;
 
   const graphicsLayer = new GraphicsLayer();
   const boundaryGraphicsLayer = new GraphicsLayer();
@@ -85,239 +83,234 @@ require([
     });
   }
 
-  function getCalpuffKey(domain, tileId, lat0, lon0, lat1, lon1) {
-    if (tileId && tileId !== 'NA') {
-      return domain + '|' + tileId;
-    }
-
-    return domain + '|' + lat0 + '|' + lon0 + '|' + lat1 + '|' + lon1;
-  }
-
-  function cross(o, a, b) {
-    return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-  }
-
-  function buildConvexHull(points) {
-    if (!points || points.length < 3) {
-      return [];
-    }
-
-    var sorted = points.slice().sort(function (a, b) {
-      return a.x === b.x ? a.y - b.y : a.x - b.x;
-    });
-
-    var lower = [];
-    sorted.forEach(function (p) {
-      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
-        lower.pop();
+  /** Debug Code that draws all high res domain tiles */
+  async function loadHRDomainTiles() {
+    try {
+      const response = await fetch('/js/gis/calpuff_hr_domain_tiles.json');
+      if (!response.ok) {
+        console.error('Failed to fetch calpuff_domain_corners.json');
+        return;
       }
-      lower.push(p);
-    });
+      const data = await response.json();
 
-    var upper = [];
-    sorted
-      .slice()
-      .reverse()
-      .forEach(function (p) {
-        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
-          upper.pop();
-        }
-        upper.push(p);
-      });
-
-    upper.pop();
-    lower.pop();
-    return lower.concat(upper);
-  }
-
-  async function loadCalpuffTilePoints() {
-    if (calpuffPointsLoaded) {
-      return;
-    }
-
-    initCalpuffDomainLayers();
-
-    try {
-      const response = await fetch('/js/gis/calpuff_files.csv');
-      const csvText = await response.text();
-      const rows = csvText.trim().split(/\r?\n/);
-
-      rows.shift();
-
-      var domainCornerPoints = {};
-      var seenPoint = {};
-
-      rows.forEach(function (line) {
-        if (!line) {
-          return;
-        }
-
-        var cols = line.split(',');
-
-        var domain = cols[3];
-        var tileId = cols[4];
-
-        if (!calpuffDomainColors[domain]) {
-          return;
-        }
-
-        var lat0 = parseFloat(cols[9]);
-        var lon0 = parseFloat(cols[10]);
-        var lat1 = parseFloat(cols[11]);
-        var lon1 = parseFloat(cols[12]);
-
-        if (
-          [lat0, lon0, lat1, lon1].some(function (v) {
-            return isNaN(v);
-          })
-        ) {
-          return;
-        }
-
-        var key = getCalpuffKey(domain, tileId, lat0, lon0, lat1, lon1);
-        if (!domainCornerPoints[domain]) {
-          domainCornerPoints[domain] = [];
-        }
-
-        if (seenPoint[key]) {
-          return;
-        }
-        seenPoint[key] = true;
-
-        var midLat = (lat0 + lat1) / 2;
-        var midLon = (lon0 + lon1) / 2;
-
-        var edgePoints = [
-          { x: lon0, y: lat0 },
-          { x: lon0, y: lat1 },
-          { x: lon1, y: lat0 },
-          { x: lon1, y: lat1 },
-          { x: lon0, y: midLat },
-          { x: lon1, y: midLat },
-          { x: midLon, y: lat0 },
-          { x: midLon, y: lat1 },
-        ];
-
-        edgePoints.forEach(function (pt) {
-          domainCornerPoints[domain].push(pt);
-        });
-      });
-
-      Object.keys(domainCornerPoints).forEach(function (domainKey) {
-        var layer = calpuffDomainLayers[domainKey];
+      data.forEach(function (domainData) {
+        const domain = domainData.domain;
+        const layer = calpuffDomainLayers[domain];
         if (!layer) {
+          console.warn('Layer not found for domain:', domain);
           return;
         }
 
-        var hull = buildConvexHull(domainCornerPoints[domainKey]);
-        if (!hull.length) {
-          return;
-        }
+        domainData.tiles.forEach(function (tile) {
+          const corners = tile.corners;
+          if (corners.length !== 4) {
+            console.warn('Invalid corners for tile:', tile.tileId);
+            return;
+          }
 
-        var rings = hull.map(function (p) {
-          return [p.x, p.y];
-        });
-        rings.push([hull[0].x, hull[0].y]);
+          const rings = [
+            [corners[0].lon, corners[0].lat], // NE
+            [corners[1].lon, corners[1].lat], // NW
+            [corners[2].lon, corners[2].lat], // SW
+            [corners[3].lon, corners[3].lat], // SE
+            [corners[0].lon, corners[0].lat], // close
+          ];
 
-        var graphic = new Graphic({
-          geometry: {
-            type: 'polygon',
-            rings: rings,
-          },
-          symbol: {
-            type: 'simple-fill',
-            color: calpuffDomainColors[domainKey],
-            outline: {
-              color: [255, 255, 255, 0.9],
-              width: 1,
+          const graphic = new Graphic({
+            geometry: {
+              type: 'polygon',
+              rings: [rings],
             },
-          },
-          attributes: {
-            domain: domainKey,
-          },
-        });
+            symbol: {
+              type: 'simple-fill',
+              color: calpuffDomainColors[domain],
+              outline: {
+                color: [255, 255, 255, 0.9],
+                width: 1,
+              },
+            },
+            attributes: {
+              domain: domain,
+              tileId: tile.tileId,
+            },
+          });
 
-        layer.add(graphic);
+          layer.add(graphic);
+
+          // Add text label for tileId
+          const centroid = graphic.geometry.centroid;
+          const textSymbol = new TextSymbol({
+            color: [0, 0, 0, 1], // black
+            haloColor: [255, 255, 255, 1], // white halo
+            haloSize: 1,
+            text: tile.tileId,
+            font: {
+              size: 10,
+              family: 'Arial',
+              weight: 'bold',
+            },
+          });
+
+          const textGraphic = new Graphic({
+            geometry: centroid,
+            symbol: textSymbol,
+          });
+
+          layer.add(textGraphic);
+        });
       });
 
-      calpuffPointsLoaded = true;
+      console.log('HR domain overlays loaded.');
     } catch (err) {
-      console.error('Failed to load CALPUFF points', err);
+      console.error('Failed to load HR domain overlays', err);
     }
   }
 
-  initCalpuffDomainLayers();
-  loadCalpuffTilePoints();
-
-  // Uncomment the line below for debugging: draws all tiles as polygons on the map
-  // drawAllTilesForDebug();
-
-  async function drawAllTilesForDebug() {
+  async function loadHRDomainOverlays() {
     try {
-      const response = await fetch('/js/gis/calpuff_files.csv');
-      const csvText = await response.text();
-      const rows = csvText.trim().split(/\r?\n/);
+      const boundsResponse = await fetch('/js/gis/calpuff_hr_domain_bounds.json');
+      if (!boundsResponse.ok) {
+        console.error('Failed to fetch calpuff_hr_domain_bounds.json');
+        return;
+      }
+      const boundsData = await boundsResponse.json();
 
-      rows.shift(); // header
+      boundsData.forEach(function (domainBounds) {
+        const domain = domainBounds.domain;
+        const layer = calpuffDomainLayers[domain];
+        if (!layer) {
+          console.warn('Layer not found for domain:', domain);
+          return;
+        }
 
-      const tileLayer = new GraphicsLayer({
-        id: 'debug-tiles',
-        title: 'Debug Tiles',
-      });
-      map.add(tileLayer);
+        const corners = domainBounds.corners;
+        if (corners.length !== 4) {
+          console.warn('Invalid corners for domain bounds:', domain);
+          return;
+        }
 
-      rows.forEach(function (line) {
-        if (!line) return;
-
-        const cols = line.split(',');
-        if (cols[3] === 'd02') return;
-
-        const lat0 = parseFloat(cols[9]);
-        const lon0 = parseFloat(cols[10]);
-        const lat1 = parseFloat(cols[11]);
-        const lon1 = parseFloat(cols[12]);
-        const domain = cols[3];
-        const tileId = cols[4];
-
-        if ([lat0, lon0, lat1, lon1].some(isNaN)) return;
-
-        // Create polygon for the tile rectangle
         const rings = [
-          [lon0, lat0],
-          [lon1, lat0],
-          [lon1, lat1],
-          [lon0, lat1],
-          [lon0, lat0], // close the ring
+          [corners[0].lon, corners[0].lat], // NE
+          [corners[1].lon, corners[1].lat], // NW
+          [corners[2].lon, corners[2].lat], // SW
+          [corners[3].lon, corners[3].lat], // SE
+          [corners[0].lon, corners[0].lat], // close
         ];
 
-        const graphic = new Graphic({
+        const boundsGraphic = new Graphic({
           geometry: {
             type: 'polygon',
             rings: [rings],
           },
           symbol: {
             type: 'simple-fill',
-            color: calpuffDomainColors[domain] || [128, 128, 128, 0.3], // default gray if domain not in colors
+            color: [82, 153, 255, 0.32],
             outline: {
-              color: [0, 0, 0, 0.5],
+              color: [255, 255, 255, 0.9],
               width: 1,
             },
           },
           attributes: {
             domain: domain,
-            tileId: tileId,
-            filename: cols[0],
+            type: 'bounds',
           },
         });
 
-        tileLayer.add(graphic);
+        layer.add(boundsGraphic);
       });
 
-      console.log('Debug tiles drawn on map.');
+      console.log('Domain bounds loaded.');
     } catch (err) {
-      console.error('Failed to draw debug tiles', err);
+      console.error('Failed to load domain bounds', err);
     }
   }
+
+  async function loadSRDomainTiles() {
+    try {
+      const response = await fetch('/js/gis/calpuff_sr_domain_corners.json');
+      if (!response.ok) {
+        console.error('Failed to fetch calpuff_sr_domain_corners.json');
+        return;
+      }
+      const data = await response.json();
+
+      data.forEach(function (domainData) {
+        const domain = domainData.domain;
+        const layer = calpuffDomainLayers[domain];
+        if (!layer) {
+          console.warn('Layer not found for domain:', domain);
+          return;
+        }
+
+        domainData.tiles.forEach(function (tile) {
+          const corners = tile.corners;
+          if (corners.length !== 4) {
+            console.warn('Invalid corners for tile:', tile.tileId);
+            return;
+          }
+
+          const rings = [
+            [corners[0].lon, corners[0].lat], // NE
+            [corners[1].lon, corners[1].lat], // NW
+            [corners[2].lon, corners[2].lat], // SW
+            [corners[3].lon, corners[3].lat], // SE
+            [corners[0].lon, corners[0].lat], // close
+          ];
+
+          const graphic = new Graphic({
+            geometry: {
+              type: 'polygon',
+              rings: [rings],
+            },
+            symbol: {
+              type: 'simple-fill',
+              color: calpuffDomainColors[domain],
+              outline: {
+                color: [255, 255, 255, 0.9],
+                width: 1,
+              },
+            },
+            attributes: {
+              domain: domain,
+              tileId: tile.tileId,
+            },
+          });
+
+          layer.add(graphic);
+
+          // Add text label for tileId
+          const centroid = graphic.geometry.centroid;
+          const textSymbol = new TextSymbol({
+            color: [0, 0, 0, 1], // black
+            haloColor: [255, 255, 255, 1], // white halo
+            haloSize: 1,
+            text: tile.tileId,
+            font: {
+              size: 10,
+              family: 'Arial',
+              weight: 'bold',
+            },
+          });
+
+          const textGraphic = new Graphic({
+            geometry: centroid,
+            symbol: textSymbol,
+          });
+
+          layer.add(textGraphic);
+        });
+      });
+
+      console.log('SR domain tiles loaded.');
+    } catch (err) {
+      console.error('Failed to load SR domain tiles', err);
+    }
+  }
+
+  initCalpuffDomainLayers();
+  loadHRDomainOverlays();
+  // loadHRDomainTiles();
+  // loadSRDomainTiles();
 
   const sketch = new Sketch({
     layer: graphicsLayer,
