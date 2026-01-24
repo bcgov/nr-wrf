@@ -6,14 +6,14 @@ import { ProjInfo } from '../../util/constants';
 @Injectable()
 export class MappingService {
   private aermodFilesCsv: string;
+  // private calpuffFilesCsv: string;
 
   onModuleInit() {
     try {
       this.aermodFilesCsv = fs.readFileSync('dist/public/js/gis/aermod_files.csv', 'utf-8');
       // this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
-      // this.calpuffTilesByDomain = this.loadCalpuffTiles(this.calpuffFilesCsv);
       console.log('AERMOD files loaded into memory.');
-      // console.log('CALPUFF tile index loaded into memory.');
+      // console.log('CALPUFF files loaded into memory.');
     } catch (error) {
       console.log('Error loading tile data into memory:');
       console.log(error);
@@ -115,20 +115,6 @@ export class MappingService {
       return null;
     }
   }
-
-  // /**
-  //  * Returns the best matching CALPUFF tile (prefers higher-resolution domains) for a given lat/lon.
-  //  */
-  // async findCalpuffTile(latitude: number, longitude: number): Promise<CalpuffTileRecord | null> {
-  //   try {
-  //     const tile = this.pickBestCalpuffTile(latitude, longitude);
-  //     return tile ?? null;
-  //   } catch (err) {
-  //     console.log('Error in findCalpuffTile');
-  //     console.log(err);
-  //     return null;
-  //   }
-  // }
 
   getAermodTilesSimplified() {
     try {
@@ -354,11 +340,6 @@ export class MappingService {
    */
   private latLonToProjected(lat: number, lon: number, proj: ProjInfo): { x: number; y: number } {
     const RAD_PER_DEG = Math.PI / 180.0;
-
-    // Ensure projection is initialized
-    // if (proj.polei === -999.9) {
-    //   this.llijLc(proj.lat1, proj.lon1, proj);
-    // }
 
     const tl1r = proj.truelat1 * RAD_PER_DEG;
     const ctl1r = Math.cos(tl1r);

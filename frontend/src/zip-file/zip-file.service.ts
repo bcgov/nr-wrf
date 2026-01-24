@@ -73,6 +73,7 @@ export class ZipFileService {
     startDateIso: string;
     endDateIso: string;
   }): Promise<{ subFolder: string }> {
+    // still used for some support files
     const baseUrl = 'https://nrs.objectstore.gov.bc.ca/kadkvt/';
 
     const { bottomLeftYGlobal, topRightYGlobal, bottomLeftXGlobal, topRightXGlobal, startDateIso, endDateIso } =
@@ -108,8 +109,7 @@ export class ZipFileService {
       maxJ
     );
 
-    const stitchingConfig = await this.getConfig(
-      baseUrl + 'm3d_bild_temp.inp',
+    const stitchingConfig = this.getConfig(
       startYear,
       startMonth,
       startDate.getDate(),
@@ -121,10 +121,11 @@ export class ZipFileService {
       minI,
       maxI,
       minJ,
-      maxJ
+      maxJ,
+      domain
     );
 
-    urls.push(baseUrl + '7z.exe');
+    // urls.push(baseUrl + '7z.exe');
     urls.push(baseUrl + 'm3d_bild.exe');
     urls.push(baseUrl + 'start.bat');
     urls.push(baseUrl + 'readme.txt');
@@ -149,11 +150,11 @@ export class ZipFileService {
     // split urls array, urls contains the search data urls which are added to a .bat file
     // urls2 contains the static files
     let urls2 = [];
-    for (let i = urls.length - 4; i < urls.length; i++) {
+    for (let i = urls.length - 3; i < urls.length; i++) {
       urls2.push(urls[i]);
     }
-    urls.splice(urls.length - 4, 4);
-    const downloadBat = this.createDownloadBat(urls);
+    urls.splice(urls.length - 3, 3);
+    const downloadBat = this.createCalpuffDownloadBat(urls);
     this.zipFiles(stitchingConfig, downloadBat, urls2, folder);
     return { subFolder: subFolder };
   }
@@ -260,8 +261,8 @@ export class ZipFileService {
     });
 
     for (let url of urls) {
-      console.log('Downloading file from ' + url);
       fileName = url.split('/').pop();
+      console.log('Downloading file from ' + url);
       files.push(folder + fileName);
       if (fileName == 'start.bat') {
         const data = await lastValueFrom(this.httpService.get(url).pipe(map((response) => response.data)));
@@ -274,7 +275,11 @@ export class ZipFileService {
           'rem Batch file extract zip files, runs Fortran code',
           'rem Batch file extract zip files, runs Fortran code\n\ncall download.bat'
         );
-        startBatContent = startBatContent.replace('7z x *.m3d.7z', '7z x *.m3d.7z -aoa');
+        startBatContent = startBatContent.replace(
+          'curl -O https://nrs.objectstore.gov.bc.ca/kadkvt/7z.dll --retry 10',
+          ''
+        );
+        startBatContent = startBatContent.replace('7z x *.m3d.7z', '');
         fs.writeFile(folder + fileName, startBatContent, function (err) {
           if (err) throw err;
         });
@@ -417,6 +422,21 @@ export class ZipFileService {
       console.log(err);
     }
   }
+  createCalpuffDownloadBat(downloadUrls: string[]): string {
+    let batchFileContent = '';
+    downloadUrls.forEach((url) => {
+      const fileName = url.split('/').pop();
+      batchFileContent += `curl -O ${url} --retry 10\n`;
+      // Rename .m3d files to remove domain suffix (e.g., .d03.m3d -> .m3d) for M3D_BILD compatibility
+      if (fileName && fileName.endsWith('.m3d')) {
+        const newFileName = fileName.replace(/\.d\d+\.m3d$/, '.m3d');
+        if (newFileName !== fileName) {
+          batchFileContent += `ren "${fileName}" "${newFileName}"\n`;
+        }
+      }
+    });
+    return batchFileContent;
+  }
 
   createDownloadBat(downloadUrls: string[]): string {
     let batchFileContent = '';
@@ -426,8 +446,7 @@ export class ZipFileService {
     return batchFileContent;
   }
 
-  private async getConfig(
-    url: string,
+  private getConfig(
     isyear: number,
     ismonth: number,
     isday: number,
@@ -439,44 +458,30 @@ export class ZipFileService {
     ni1: number,
     ni2: number,
     nj1: number,
-    nj2: number
-  ): Promise<string> {
+    nj2: number,
+    domain: string
+  ): string {
     console.log(`ni1: ${ni1}`);
     console.log(`ni2: ${ni2}`);
     console.log(`nj1: ${nj1}`);
     console.log(`nj2: ${nj2}`);
-    const response = await lastValueFrom(this.httpService.get(url, { responseType: 'text' }).pipe(map((r) => r.data)));
-    let configText: string = response ?? '';
+    console.log(`domain: ${domain}`);
 
-    const outputFileName = ''
-      .concat(isyear.toString())
-      .concat(String(ismonth).padStart(2, '0'))
-      .concat(String(isday).padStart(2, '0'))
-      .concat(String(ishour).padStart(2, '0'))
-      .concat('_')
-      .concat(ieyear.toString())
-      .concat(String(iemonth).padStart(2, '0'))
-      .concat(String(ieday).padStart(2, '0'))
-      .concat(String(iehour).padStart(2, '0'))
-      .concat('.output.m3d');
-
-    configText = configText.replace('! OUTUSER = output.m3d !', '! OUTUSER = '.concat(outputFileName).concat(' !'));
-    configText = configText.replace('! ISYEAR = 2012 !', '! ISYEAR = '.concat(isyear.toString()).concat(' !'));
-    configText = configText.replace('! ISMONTH = 1 !', '! ISMONTH = '.concat(ismonth.toString()).concat(' !'));
-    configText = configText.replace('! ISDAY = 1 !', '! ISDAY = '.concat(isday.toString()).concat(' !'));
-    configText = configText.replace('! ISHOUR = 0 !', '! ISHOUR = '.concat(ishour.toString()).concat(' !'));
-
-    configText = configText.replace('! IEYEAR = 2012 !', '! IEYEAR = '.concat(ieyear.toString()).concat(' !'));
-    configText = configText.replace('! IEMONTH = 3 !', '! IEMONTH = '.concat(iemonth.toString()).concat(' !'));
-    configText = configText.replace('! IEDAY = 1 !', '! IEDAY = '.concat(ieday.toString()).concat(' !'));
-    configText = configText.replace('! IEHOUR = 0 !', '! IEHOUR = '.concat(iehour.toString()).concat(' !'));
-
-    configText = configText.replace('! NI1 = 2 !', '! NI1 = '.concat(ni1.toString()).concat(' !'));
-    configText = configText.replace('! NI2 = 3 !', '! NI2 = '.concat(ni2.toString()).concat(' !'));
-    configText = configText.replace('! NJ1 = 392 !', '! NJ1 = '.concat(nj1.toString()).concat(' !'));
-    configText = configText.replace('! NJ2 = 392 !', '! NJ2 = '.concat(nj2.toString()).concat(' !'));
-
-    return configText;
+    return this.getCalpuffM3dBild(
+      isyear,
+      ismonth,
+      isday,
+      ishour,
+      ieyear,
+      iemonth,
+      ieday,
+      iehour,
+      ni1,
+      ni2,
+      nj1,
+      nj2,
+      domain
+    );
   }
 
   private ensureCalpuffIndexLoaded(): void {
@@ -713,6 +718,127 @@ Instructions:
 Contact Information:
 If you have any questions, please email bcdispersion.model@gov.bc.ca.
 Github link https://github.com/bcgov/nr-wrf
+`;
+  }
+
+  getCalpuffM3dBild(
+    isyear: number,
+    ismonth: number,
+    isday: number,
+    ishour: number,
+    ieyear: number,
+    iemonth: number,
+    ieday: number,
+    iehour: number,
+    ni1: number,
+    ni2: number,
+    nj1: number,
+    nj2: number,
+    domain: string
+  ): string {
+    // Domain-specific grid bounds from tile data
+    const domainConfigs = {
+      d02: { NBI: 2, NEI: 391, NBJ: 2, NEJ: 373, JSPLIT: 186 },
+      d03: { NBI: 6, NEI: 95, NBJ: 6, NEJ: 95, JSPLIT: 47 },
+      d04: { NBI: 6, NEI: 95, NBJ: 6, NEJ: 95, JSPLIT: 47 },
+      d05: { NBI: 6, NEI: 95, NBJ: 6, NEJ: 95, JSPLIT: 47 },
+      d06: { NBI: 1, NEI: 108, NBJ: 1, NEJ: 102, JSPLIT: 51 },
+    };
+
+    const config = domainConfigs[domain] || domainConfigs['d02'];
+
+    const outputFileName = `${isyear}${String(ismonth).padStart(2, '0')}${String(isday).padStart(2, '0')}${String(
+      ishour
+    ).padStart(2, '0')}_${ieyear}${String(iemonth).padStart(2, '0')}${String(ieday).padStart(2, '0')}${String(
+      iehour
+    ).padStart(2, '0')}.output.m3d`;
+
+    return `M3D_BILD.INP    1.0             Initial Configuration
+--------------------------------------------------------------------------------
+
+                    M3D_BILD Processor CONTROL FILE
+                    -------------------------------
+PURPOSE
+-------
+
+This utility reads a set of tiled M3D (3D.DAT) files and creates a single M3D
+file for a specified i,j range and time range.  Inputs allow the full pathname
+to be constructed for all of the tiles that are needed, and the name of the
+output M3D file.
+
+--------------------------------------------------------------------------------
+
+INPUT GROUP 1: Processing Control
+---------------------------------
+
+     Range of times to include in OUTPUT M3D file:
+     ---------------------------------------------
+
+     Starting date and time (UTC)    ! ISYEAR = ${isyear} !
+                                     ! ISMONTH = ${ismonth} !
+                                     ! ISDAY = ${isday} !
+                                     ! ISHOUR = ${ishour} !
+
+     Ending date and time (UTC)      ! IEYEAR = ${ieyear} !
+                                     ! IEMONTH = ${iemonth} !
+                                     ! IEDAY = ${ieday} !
+                                     ! IEHOUR = ${iehour} !
+
+
+     Range of M3D cells to include in OUTPUT M3D file:
+     -------------------------------------------------
+
+     Starting cell in x-direction (NI1)     No Default    ! NI1 = ${ni1} !
+     Ending   cell in x-direction (NI2)     No Default    ! NI2 = ${ni2} !
+
+     Starting cell in y-direction (NJ1)     No Default    ! NJ1 = ${nj1} !
+     Ending   cell in y-direction (NJ2)     No Default    ! NJ2 = ${nj2} !
+
+
+
+     Output Files:
+     -------------
+     List-file        Default: M3D_BILD.LST    ! LSTFILE = m3d_bild_temp.lst !
+
+     M3D-file-root    No Default               ! OUTUSER = ${outputFileName} !
+        User-supplied portion of the name of the OUTPUT M3D file is appended to cell-range:
+        Output file name is 'Xni1Ynj1Xni2Ynj2.OUTUSER'
+
+     Convert all file names to lower case?
+         T = lower case       (LCFILES)     Default: F    ! LCFILES = T !
+         F = UPPER CASE
+
+
+!END!
+
+
+--------------------------------------------------------------------------------
+
+INPUT GROUP 2: Tile Configuration
+---------------------------------
+
+
+     Number of M3D cells/TILE:
+     Number in X-direction (NCI)            No Default    ! NCI = 10 !
+     Number in Y-direction (NCJ)            No Default    ! NCJ = 10 !
+
+     Starting cell in x-direction (NBI)     No Default    ! NBI = ${config.NBI} !
+     Ending   cell in x-direction (NEI)     No Default    ! NEI = ${config.NEI} !
+     Starting cell in y-direction (NBJ)     No Default    ! NBJ = ${config.NBJ} !
+     Ending   cell in y-direction (NEJ)     No Default    ! NEJ = ${config.NEJ} !
+
+
+     Tiles are stored in two locations, split by cell index J
+                             (JSPLIT)       No Default    ! JSPLIT = ${config.JSPLIT} !
+
+     Tiles with cells whose J-index is GREATER than NJSPLIT are stored in
+     the NORTH location, on a drive whose path is PATH_N.
+                             (PATH_N)       No Default    ! PATH_N =  !
+
+     Tiles with cells whose J-index is LESS than or EQUAL to NJSPLIT are
+     stored in the SOUTH location, on a drive whose path is PATH_S.
+                             (PATH_S)       No Default    ! PATH_S =  !
+
 `;
   }
 
