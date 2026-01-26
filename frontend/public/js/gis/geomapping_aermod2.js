@@ -76,9 +76,9 @@ require([
   // default polygon
   const polygonSymbol = {
     type: 'simple-fill',
-    color: [169, 169, 169, 0.1], // Light gray with 10% transparency
+    color: [169, 169, 169, 0.05], // Light gray with 10% transparency
     outline: {
-      color: [69, 69, 69, 1], // Dark gray outline
+      color: [69, 69, 69, 0.2], // Dark gray outline
       width: 1,
     },
   };
@@ -312,80 +312,58 @@ require([
     };
   }
 
-  /**
-   * Parse the aermod_corner_points.csv and return an array of tile objects
-   */
-  function parseCornerPointsCsv(csvContent) {
-    const lines = csvContent.split('\n');
-    const tiles = [];
+  function drawHRTiles() {
+    fetch('/js/gis/aermod_tiles_hr.json')
+      .then((response) => response.json())
+      .then((tiles) => {
+        tiles.forEach((tile) => {
+          // Create polygon from four corners: NE -> NW -> SW -> SE
+          const coordinates = tile.extended_corners.map((corner) => [corner.lon, corner.lat]);
 
-    // Skip header row (line 0)
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
+          const polygon = {
+            type: 'polygon',
+            rings: [coordinates],
+          };
 
-      const cols = line.split(',');
-      if (cols.length < 16) continue;
+          const g = new Graphic({
+            geometry: polygon,
+            symbol: debugPolygonSymbol,
+            attributes: { tile_id: tile.tileId },
+          });
 
-      // CSV format:
-      // filename,tile,domain,year,I0,J0,I1,J1,lat_sw,lon_sw,lat_se,lon_se,lat_nw,lon_nw,lat_ne,lon_ne,url
-      const tile = {
-        tileId: parseInt(cols[1]),
-        lat_sw: parseFloat(cols[8]),
-        lon_sw: parseFloat(cols[9]),
-        lat_se: parseFloat(cols[10]),
-        lon_se: parseFloat(cols[11]),
-        lat_nw: parseFloat(cols[12]),
-        lon_nw: parseFloat(cols[13]),
-        lat_ne: parseFloat(cols[14]),
-        lon_ne: parseFloat(cols[15]),
-      };
+          debugGraphicsLayer.add(g);
 
-      tiles.push(tile);
-    }
+          // Add tile number label
+          const centerPoint = calculateCenter(coordinates);
+          const textSymbol = {
+            type: 'text',
+            color: 'blue',
+            haloColor: 'white',
+            haloSize: '2px',
+            text: tile.tileId.toString().padStart(4, '0'),
+            xoffset: 0,
+            yoffset: 0,
+            font: {
+              size: 10,
+              family: 'sans-serif',
+            },
+          };
 
-    return tiles;
-  }
+          const textGraphic = new Graphic({
+            geometry: {
+              type: 'point',
+              x: centerPoint.x,
+              y: centerPoint.y,
+            },
+            symbol: textSymbol,
+          });
 
-  /**
-   * Parse the aermod_files.csv and return an array of tile objects for debug
-   */
-  function parseOriginalTilesCsv(csvContent) {
-    const lines = csvContent.split('\n');
-    const tiles = [];
-    const seen = new Set();
+          labelGraphicsLayer.add(textGraphic);
+        });
 
-    // Skip header row (line 0)
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-
-      const cols = line.split(',');
-      if (cols.length < 12) continue;
-
-      // Only include d02 domain
-      if (cols[2] !== 'd02') continue;
-
-      // Deduplicate by tile ID
-      const tileId = parseInt(cols[1]);
-      if (seen.has(tileId)) continue;
-      seen.add(tileId);
-
-      // CSV format:
-      // filename,tile,domain,year,I0,J0,I1,J1,lat0,lon0,lat1,lon1,url
-      // lat0/lon0 = NE corner, lat1/lon1 = SW corner
-      const tile = {
-        tileId: tileId,
-        lat0: parseFloat(cols[8]), // north
-        lon0: parseFloat(cols[9]), // east
-        lat1: parseFloat(cols[10]), // south
-        lon1: parseFloat(cols[11]), // west
-      };
-
-      tiles.push(tile);
-    }
-
-    return tiles;
+        console.log(`Loaded ${tiles.length} HR tiles from aermod_tiles_hr.json`);
+      })
+      .catch((error) => console.error('Error loading HR tiles:', error));
   }
 
   /**
@@ -510,120 +488,121 @@ require([
   }
 
   // feature layer tiles
-  function drawDebugTiles() {
-    fetch('/mapping/getAermodTilesSimplified')
-      .then((response) => response.json())
-      .then((tiles) => {
-        const features = [];
-        tiles.forEach((tile) => {
-          if (tile.tileId === 1500 || tile.tileId === 2427 || tile.tileId === 3500) {
-            console.log('debug (new)');
-            console.log(tile);
-          }
-          // Create polygon from four corners: NE -> NW -> SW -> SE
-          const coordinates = tile.extended_corners.map((corner) => [corner.lon, corner.lat]);
+  // function drawDebugTiles() {
+  //   fetch('/mapping/getAermodTilesSimplified')
+  //     .then((response) => response.json())
+  //     .then((tiles) => {
+  //       const features = [];
+  //       tiles.forEach((tile) => {
+  //         if (tile.tileId === 1500 || tile.tileId === 2427 || tile.tileId === 3500) {
+  //           console.log('debug (new)');
+  //           console.log(tile);
+  //         }
+  //         // Create polygon from four corners: NE -> NW -> SW -> SE
+  //         const coordinates = tile.extended_corners.map((corner) => [corner.lon, corner.lat]);
 
-          // Ensure coordinates are ordered counter-clockwise and the ring is closed
-          const ordered = orderCoordinates(coordinates);
-          if (ordered.length > 0) {
-            const first = ordered[0];
-            const last = ordered[ordered.length - 1];
-            if (first[0] !== last[0] || first[1] !== last[1]) {
-              ordered.push([first[0], first[1]]);
-            }
-          }
+  //         // Ensure coordinates are ordered counter-clockwise and the ring is closed
+  //         const ordered = orderCoordinates(coordinates);
+  //         if (ordered.length > 0) {
+  //           const first = ordered[0];
+  //           const last = ordered[ordered.length - 1];
+  //           if (first[0] !== last[0] || first[1] !== last[1]) {
+  //             ordered.push([first[0], first[1]]);
+  //           }
+  //         }
 
-          const polygon = {
-            type: 'polygon',
-            rings: [ordered],
-          };
+  //         const polygon = {
+  //           type: 'polygon',
+  //           rings: [ordered],
+  //         };
 
-          const centerPoint = calculateCenter(ordered);
+  //         const centerPoint = calculateCenter(ordered);
 
-          // Build a lightweight feature object (avoid creating Graphic instances for memory savings)
-          const feat = {
-            geometry: {
-              type: 'polygon',
-              rings: [ordered],
-              spatialReference: { wkid: 4326 },
-            },
-            attributes: {
-              tile_id: tile.tileId,
-              center_x: centerPoint.x,
-              center_y: centerPoint.y,
-            },
-          };
+  //         // Build a lightweight feature object (avoid creating Graphic instances for memory savings)
+  //         const feat = {
+  //           geometry: {
+  //             type: 'polygon',
+  //             rings: [ordered],
+  //             spatialReference: { wkid: 4326 },
+  //           },
+  //           attributes: {
+  //             tile_id: tile.tileId,
+  //             center_x: centerPoint.x,
+  //             center_y: centerPoint.y,
+  //           },
+  //         };
 
-          features.push(feat);
-        });
+  //         features.push(feat);
+  //       });
 
-        // Create a client-side FeatureLayer from the features array. This is much faster
-        // for rendering large numbers of features compared to adding many Graphics to a GraphicsLayer.
-        featureLayer = new FeatureLayer({
-          source: features,
-          objectIdField: 'tile_id',
-          fields: [
-            { name: 'tile_id', alias: 'Tile ID', type: 'integer' },
-            { name: 'center_x', alias: 'Center X', type: 'double' },
-            { name: 'center_y', alias: 'Center Y', type: 'double' },
-          ],
-          geometryType: 'polygon',
-          renderer: {
-            type: 'simple',
-            symbol: polygonSymbol,
-          },
-          // No labelingInfo: we'll add explicit label Graphics at averaged centers
-          outFields: ['tile_id', 'center_x', 'center_y'],
-        });
+  //       // Create a client-side FeatureLayer from the features array. This is much faster
+  //       // for rendering large numbers of features compared to adding many Graphics to a GraphicsLayer.
+  //       featureLayer = new FeatureLayer({
+  //         source: features,
+  //         objectIdField: 'tile_id',
+  //         fields: [
+  //           { name: 'tile_id', alias: 'Tile ID', type: 'integer' },
+  //           { name: 'center_x', alias: 'Center X', type: 'double' },
+  //           { name: 'center_y', alias: 'Center Y', type: 'double' },
+  //         ],
+  //         geometryType: 'polygon',
+  //         renderer: {
+  //           type: 'simple',
+  //           symbol: polygonSymbol,
+  //         },
+  //         // No labelingInfo: we'll add explicit label Graphics at averaged centers
+  //         outFields: ['tile_id', 'center_x', 'center_y'],
+  //       });
 
-        map.add(featureLayer);
+  //       map.add(featureLayer);
 
-        // Add labels as separate point Graphics at the averaged centers (convert to WebMercator)
-        try {
-          features.forEach((f) => {
-            const cx = f.attributes.center_x;
-            const cy = f.attributes.center_y;
-            const ptGeo = {
-              type: 'point',
-              x: cx,
-              y: cy,
-              spatialReference: { wkid: 4326 },
-            };
-            const ptWeb = webMercatorUtils.geographicToWebMercator(ptGeo);
-            const textSymbol = {
-              type: 'text',
-              color: 'black',
-              haloColor: 'white',
-              haloSize: '2px',
-              text: f.attributes.tile_id.toString().padStart(4, '0'),
-              xoffset: 0,
-              yoffset: 0,
-              font: { size: 10, family: 'sans-serif' },
-            };
-            const textGraphic = new Graphic({
-              geometry: ptWeb,
-              symbol: textSymbol,
-            });
-            labelGraphicsLayer.add(textGraphic);
-          });
-        } catch (e) {
-          console.error('adding label graphics error', e);
-        }
+  //       // Add labels as separate point Graphics at the averaged centers (convert to WebMercator)
+  //       try {
+  //         features.forEach((f) => {
+  //           const cx = f.attributes.center_x;
+  //           const cy = f.attributes.center_y;
+  //           const ptGeo = {
+  //             type: 'point',
+  //             x: cx,
+  //             y: cy,
+  //             spatialReference: { wkid: 4326 },
+  //           };
+  //           const ptWeb = webMercatorUtils.geographicToWebMercator(ptGeo);
+  //           const textSymbol = {
+  //             type: 'text',
+  //             color: 'black',
+  //             haloColor: 'white',
+  //             haloSize: '2px',
+  //             text: f.attributes.tile_id.toString().padStart(4, '0'),
+  //             xoffset: 0,
+  //             yoffset: 0,
+  //             font: { size: 10, family: 'sans-serif' },
+  //           };
+  //           const textGraphic = new Graphic({
+  //             geometry: ptWeb,
+  //             symbol: textSymbol,
+  //           });
+  //           labelGraphicsLayer.add(textGraphic);
+  //         });
+  //       } catch (e) {
+  //         console.error('adding label graphics error', e);
+  //       }
 
-        view.whenLayerView(featureLayer).then((lv) => {
-          layerViewRef = lv;
-        });
+  //       view.whenLayerView(featureLayer).then((lv) => {
+  //         layerViewRef = lv;
+  //       });
 
-        console.log(`Loaded ${tiles.length} debug tiles from AERMOD service`);
-      })
-      .catch((error) => console.error('Error loading debug tiles:', error));
-  }
+  //       console.log(`Loaded ${tiles.length} debug tiles from AERMOD service`);
+  //     })
+  //     .catch((error) => console.error('Error loading debug tiles:', error));
+  // }
 
   /**
    * Loads corner points from the CSV file and draws polygons (tiles) on the map.
    * The CSV has all 4 corners pre-computed and aligned to remove gaps.
    */
   drawTiles();
+  drawHRTiles();
   // drawDebugTiles();
 
   /** Search and download section */
