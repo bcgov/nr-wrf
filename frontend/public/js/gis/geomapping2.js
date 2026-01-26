@@ -84,87 +84,87 @@ require([
   }
 
   /** Debug Code that draws all high res domain tiles */
-  async function loadHRDomainTiles() {
-    try {
-      const response = await fetch('/js/gis/calpuff_hr_domain_tiles.json');
-      if (!response.ok) {
-        console.error('Failed to fetch calpuff_domain_corners.json');
-        return;
-      }
-      const data = await response.json();
+  // async function loadHRDomainTiles() {
+  //   try {
+  //     const response = await fetch('/js/gis/calpuff_hr_domain_tiles.json');
+  //     if (!response.ok) {
+  //       console.error('Failed to fetch calpuff_domain_corners.json');
+  //       return;
+  //     }
+  //     const data = await response.json();
 
-      data.forEach(function (domainData) {
-        const domain = domainData.domain;
-        const layer = calpuffDomainLayers[domain];
-        if (!layer) {
-          console.warn('Layer not found for domain:', domain);
-          return;
-        }
+  //     data.forEach(function (domainData) {
+  //       const domain = domainData.domain;
+  //       const layer = calpuffDomainLayers[domain];
+  //       if (!layer) {
+  //         console.warn('Layer not found for domain:', domain);
+  //         return;
+  //       }
 
-        domainData.tiles.forEach(function (tile) {
-          const corners = tile.corners;
-          if (corners.length !== 4) {
-            console.warn('Invalid corners for tile:', tile.tileId);
-            return;
-          }
+  //       domainData.tiles.forEach(function (tile) {
+  //         const corners = tile.corners;
+  //         if (corners.length !== 4) {
+  //           console.warn('Invalid corners for tile:', tile.tileId);
+  //           return;
+  //         }
 
-          const rings = [
-            [corners[0].lon, corners[0].lat], // NE
-            [corners[1].lon, corners[1].lat], // NW
-            [corners[2].lon, corners[2].lat], // SW
-            [corners[3].lon, corners[3].lat], // SE
-            [corners[0].lon, corners[0].lat], // close
-          ];
+  //         const rings = [
+  //           [corners[0].lon, corners[0].lat], // NE
+  //           [corners[1].lon, corners[1].lat], // NW
+  //           [corners[2].lon, corners[2].lat], // SW
+  //           [corners[3].lon, corners[3].lat], // SE
+  //           [corners[0].lon, corners[0].lat], // close
+  //         ];
 
-          const graphic = new Graphic({
-            geometry: {
-              type: 'polygon',
-              rings: [rings],
-            },
-            symbol: {
-              type: 'simple-fill',
-              color: calpuffDomainColors[domain],
-              outline: {
-                color: [255, 255, 255, 0.9],
-                width: 1,
-              },
-            },
-            attributes: {
-              domain: domain,
-              tileId: tile.tileId,
-            },
-          });
+  //         const graphic = new Graphic({
+  //           geometry: {
+  //             type: 'polygon',
+  //             rings: [rings],
+  //           },
+  //           symbol: {
+  //             type: 'simple-fill',
+  //             color: calpuffDomainColors[domain],
+  //             outline: {
+  //               color: [255, 255, 255, 0.9],
+  //               width: 1,
+  //             },
+  //           },
+  //           attributes: {
+  //             domain: domain,
+  //             tileId: tile.tileId,
+  //           },
+  //         });
 
-          layer.add(graphic);
+  //         layer.add(graphic);
 
-          // Add text label for tileId
-          const centroid = graphic.geometry.centroid;
-          const textSymbol = new TextSymbol({
-            color: [0, 0, 0, 1], // black
-            haloColor: [255, 255, 255, 1], // white halo
-            haloSize: 1,
-            text: tile.tileId,
-            font: {
-              size: 10,
-              family: 'Arial',
-              weight: 'bold',
-            },
-          });
+  //         // Add text label for tileId
+  //         const centroid = graphic.geometry.centroid;
+  //         const textSymbol = new TextSymbol({
+  //           color: [0, 0, 0, 1], // black
+  //           haloColor: [255, 255, 255, 1], // white halo
+  //           haloSize: 1,
+  //           text: tile.tileId,
+  //           font: {
+  //             size: 10,
+  //             family: 'Arial',
+  //             weight: 'bold',
+  //           },
+  //         });
 
-          const textGraphic = new Graphic({
-            geometry: centroid,
-            symbol: textSymbol,
-          });
+  //         const textGraphic = new Graphic({
+  //           geometry: centroid,
+  //           symbol: textSymbol,
+  //         });
 
-          layer.add(textGraphic);
-        });
-      });
+  //         layer.add(textGraphic);
+  //       });
+  //     });
 
-      console.log('HR domain overlays loaded.');
-    } catch (err) {
-      console.error('Failed to load HR domain overlays', err);
-    }
-  }
+  //     console.log('HR domain overlays loaded.');
+  //   } catch (err) {
+  //     console.error('Failed to load HR domain overlays', err);
+  //   }
+  // }
 
   async function loadHRDomainOverlays() {
     try {
@@ -225,87 +225,87 @@ require([
     }
   }
 
-  async function loadSRDomainTiles() {
-    try {
-      const response = await fetch('/js/gis/calpuff_sr_domain_corners.json');
-      if (!response.ok) {
-        console.error('Failed to fetch calpuff_sr_domain_corners.json');
-        return;
-      }
-      const data = await response.json();
+  // async function loadSRDomainTiles() {
+  //   try {
+  //     const response = await fetch('/js/gis/calpuff_sr_domain_corners.json');
+  //     if (!response.ok) {
+  //       console.error('Failed to fetch calpuff_sr_domain_corners.json');
+  //       return;
+  //     }
+  //     const data = await response.json();
 
-      data.forEach(function (domainData) {
-        const domain = domainData.domain;
-        const layer = calpuffDomainLayers[domain];
-        if (!layer) {
-          console.warn('Layer not found for domain:', domain);
-          return;
-        }
+  //     data.forEach(function (domainData) {
+  //       const domain = domainData.domain;
+  //       const layer = calpuffDomainLayers[domain];
+  //       if (!layer) {
+  //         console.warn('Layer not found for domain:', domain);
+  //         return;
+  //       }
 
-        domainData.tiles.forEach(function (tile) {
-          const corners = tile.corners;
-          if (corners.length !== 4) {
-            console.warn('Invalid corners for tile:', tile.tileId);
-            return;
-          }
+  //       domainData.tiles.forEach(function (tile) {
+  //         const corners = tile.corners;
+  //         if (corners.length !== 4) {
+  //           console.warn('Invalid corners for tile:', tile.tileId);
+  //           return;
+  //         }
 
-          const rings = [
-            [corners[0].lon, corners[0].lat], // NE
-            [corners[1].lon, corners[1].lat], // NW
-            [corners[2].lon, corners[2].lat], // SW
-            [corners[3].lon, corners[3].lat], // SE
-            [corners[0].lon, corners[0].lat], // close
-          ];
+  //         const rings = [
+  //           [corners[0].lon, corners[0].lat], // NE
+  //           [corners[1].lon, corners[1].lat], // NW
+  //           [corners[2].lon, corners[2].lat], // SW
+  //           [corners[3].lon, corners[3].lat], // SE
+  //           [corners[0].lon, corners[0].lat], // close
+  //         ];
 
-          const graphic = new Graphic({
-            geometry: {
-              type: 'polygon',
-              rings: [rings],
-            },
-            symbol: {
-              type: 'simple-fill',
-              color: calpuffDomainColors[domain],
-              outline: {
-                color: [255, 255, 255, 0.9],
-                width: 1,
-              },
-            },
-            attributes: {
-              domain: domain,
-              tileId: tile.tileId,
-            },
-          });
+  //         const graphic = new Graphic({
+  //           geometry: {
+  //             type: 'polygon',
+  //             rings: [rings],
+  //           },
+  //           symbol: {
+  //             type: 'simple-fill',
+  //             color: calpuffDomainColors[domain],
+  //             outline: {
+  //               color: [255, 255, 255, 0.9],
+  //               width: 1,
+  //             },
+  //           },
+  //           attributes: {
+  //             domain: domain,
+  //             tileId: tile.tileId,
+  //           },
+  //         });
 
-          layer.add(graphic);
+  //         layer.add(graphic);
 
-          // Add text label for tileId
-          const centroid = graphic.geometry.centroid;
-          const textSymbol = new TextSymbol({
-            color: [0, 0, 0, 1], // black
-            haloColor: [255, 255, 255, 1], // white halo
-            haloSize: 1,
-            text: tile.tileId,
-            font: {
-              size: 10,
-              family: 'Arial',
-              weight: 'bold',
-            },
-          });
+  //         // Add text label for tileId
+  //         const centroid = graphic.geometry.centroid;
+  //         const textSymbol = new TextSymbol({
+  //           color: [0, 0, 0, 1], // black
+  //           haloColor: [255, 255, 255, 1], // white halo
+  //           haloSize: 1,
+  //           text: tile.tileId,
+  //           font: {
+  //             size: 10,
+  //             family: 'Arial',
+  //             weight: 'bold',
+  //           },
+  //         });
 
-          const textGraphic = new Graphic({
-            geometry: centroid,
-            symbol: textSymbol,
-          });
+  //         const textGraphic = new Graphic({
+  //           geometry: centroid,
+  //           symbol: textSymbol,
+  //         });
 
-          layer.add(textGraphic);
-        });
-      });
+  //         layer.add(textGraphic);
+  //       });
+  //     });
 
-      console.log('SR domain tiles loaded.');
-    } catch (err) {
-      console.error('Failed to load SR domain tiles', err);
-    }
-  }
+  //     console.log('SR domain tiles loaded.');
+  //   } catch (err) {
+  //     console.error('Failed to load SR domain tiles', err);
+  //   }
+  // }
 
   initCalpuffDomainLayers();
   loadHRDomainOverlays();
