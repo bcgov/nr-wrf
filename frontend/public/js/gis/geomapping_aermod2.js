@@ -764,7 +764,7 @@ require([
     view.popup.clear();
 
     view.popup.open({
-      title: `Model Data For Area \n(I, J pair ${closestPoint.i}, ${closestPoint.j})`,
+      title: `Model Data For Tile ${closestPoint.tile}`,
       actions: [downloadAction],
       content: 'Click the download icon to download your data',
       location: {
@@ -861,10 +861,10 @@ require([
             });
           } else {
             if (resJson.num <= 3 && (resJson.num >= prevNum || !zipping)) {
-              view.popup.content = `Downloading ${resJson.num}/3... please wait`;
+              view.popup.content = `Downloading ${resJson?.num || '3'}/3... please wait`;
             } else if (!zipping) {
               zipping = true;
-              view.popup.content = `Downloading ${urlsLength}/3... please wait`;
+              view.popup.content = `Downloading 3/3... please wait`;
             } else {
               view.popup.content = `Zipping files... please wait`;
             }

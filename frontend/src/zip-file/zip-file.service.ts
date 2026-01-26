@@ -175,7 +175,7 @@ export class ZipFileService {
     endDateIso: string;
     timezoneOffsetHours: number;
   }): Promise<{ subFolder: string }> {
-    const baseUrl = 'https://nrs.objectstore.gov.bc.ca/kadkvt/';
+    const baseUrl = 'https://nrs.objectstore.gov.bc.ca/wrfdel/aermod';
 
     const { latitude, longitude, startDateIso, endDateIso, timezoneOffsetHours } = request;
 
@@ -221,7 +221,7 @@ export class ZipFileService {
     const domain = 'd02';
     const tileId = closestPoint.tile.toString().padStart(4, '0');
     for (let year = startYear; year <= endYear; year++) {
-      dataUrls.push(`${baseUrl}${domain}/${tileId}/wrfout_${domain}_${year}.nc`);
+      dataUrls.push(`${baseUrl}/${domain}/${tileId}/wrfout_${domain}_${tileId}_${year}.nc`);
     }
 
     // const urls: string[] = [baseUrl + 'start.bat', baseUrl + 'readme.txt', baseUrl + 'mmif.inp'];
@@ -585,17 +585,6 @@ export class ZipFileService {
       }
     }
     return urls;
-  }
-
-  createAermodDownloadBat(tileDataUrls: string | string[]): string {
-    if (typeof tileDataUrls === 'string') {
-      tileDataUrls = [tileDataUrls];
-    }
-    let batchFileContent = '';
-    tileDataUrls.forEach((url) => {
-      batchFileContent += `curl -O ${url} --retry 10\n`;
-    });
-    return batchFileContent;
   }
 
   createAermodStartBat(): string {
