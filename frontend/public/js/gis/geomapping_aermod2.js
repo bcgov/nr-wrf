@@ -27,13 +27,10 @@ require([
   }
 
   const graphicsLayer = new GraphicsLayer();
-  const boundaryGraphicsLayer = new GraphicsLayer();
-  const labelGraphicsLayer = new GraphicsLayer();
-  const highResGraphicsLayer = new GraphicsLayer();
 
   const map = new Map({
     basemap: 'arcgis-topographic',
-    layers: [highResGraphicsLayer, graphicsLayer, boundaryGraphicsLayer, labelGraphicsLayer],
+    layers: [graphicsLayer],
   });
 
   const view = new MapView({
@@ -93,24 +90,6 @@ require([
     },
   };
 
-  // // debug polygon (original tiles from aermod_files.csv)
-  // const debugPolygonSymbol = {
-  //   type: 'simple-fill',
-  //   color: [255, 36, 36, 0.3], // red with 30% transparency
-  //   outline: {
-  //     color: [0, 0, 0, 0.5], // black outline
-  //     width: 1,
-  //   },
-  // };
-  // const debugPolygonSymbol2 = {
-  //   type: 'simple-fill',
-  //   color: [36, 255, 36, 0.3], // green with 30% transparency
-  //   outline: {
-  //     color: [0, 0, 0, 0.5], // black outline
-  //     width: 1,
-  //   },
-  // };
-
   let selectedPolygon = null;
   let currentlyDrawnPoint = null;
   let currentlyDrawnText = null;
@@ -153,11 +132,22 @@ require([
       .finally(() => {
         // reset previous selected polygon
         if (selectedPolygon) {
-          selectedPolygon.symbol = polygonSymbol;
+          if (
+            selectedPolygon.attributes &&
+            selectedPolygon.attributes.domain &&
+            selectedPolygon.attributes.domain !== 'd02'
+          ) {
+            selectedPolygon.symbol = highResPolygonSymbol;
+          } else {
+            selectedPolygon.symbol = polygonSymbol;
+          }
           selectedPolygon = null;
         }
         if (currentlyDrawnPoint != null) {
           view.graphics.remove(currentlyDrawnPoint);
+        }
+        if (currentlyDrawnText) {
+          graphicsLayer.remove(currentlyDrawnText);
         }
 
         if (closestPoint.domain === 'd02') {
@@ -186,9 +176,6 @@ require([
                 family: 'sans-serif',
               },
             };
-            if (currentlyDrawnText) {
-              graphicsLayer.remove(currentlyDrawnText);
-            }
             currentlyDrawnText = new Graphic({
               geometry: {
                 type: 'point',
@@ -221,20 +208,11 @@ require([
         } else {
           console.log('in else, trying to draw hr tile highlight');
           // find and highlight the new polygon
-          const found = highResGraphicsLayer.graphics.items.find(
+          const found = graphicsLayer.graphics.items.find(
             (gr) =>
               gr.attributes &&
               gr.attributes.tile_id === closestPoint.tile &&
               gr.attributes.domain === closestPoint.domain
-          );
-          console.log('found');
-          console.log(found);
-          console.log('closestPoint');
-          console.log(closestPoint);
-          console.log(
-            highResGraphicsLayer.graphics.items.map((item) => {
-              return { tile_id: item.attributes.tile_id, domain: item.attributes.domain };
-            })
           );
           if (found) {
             selectedPolygon = found;
@@ -257,9 +235,6 @@ require([
                 family: 'sans-serif',
               },
             };
-            if (currentlyDrawnText) {
-              highResGraphicsLayer.remove(currentlyDrawnText);
-            }
             currentlyDrawnText = new Graphic({
               geometry: {
                 type: 'point',
@@ -268,7 +243,7 @@ require([
               },
               symbol: textSymbol,
             });
-            highResGraphicsLayer.add(currentlyDrawnText);
+            graphicsLayer.add(currentlyDrawnText);
           }
 
           // draw a red dot on the map
@@ -291,114 +266,6 @@ require([
         }
       });
   });
-
-  // // draws polygons for the high resolution domains defined in calpuff_hr_domain_bounds.json
-  // function debugDomainBounds() {
-  //   fetch('/js/gis/calpuff_hr_domain_bounds.json')
-  //     .then((response) => response.json())
-  //     .then((domains) => {
-  //       domains.forEach((domain) => {
-  //         // Create polygon from four corners
-  //         const coordinates = domain.corners.map((corner) => [corner.lon, corner.lat]);
-
-  //         const polygon = {
-  //           type: 'polygon',
-  //           rings: [coordinates],
-  //         };
-
-  //         const g = new Graphic({
-  //           geometry: polygon,
-  //           symbol: debugPolygonSymbol2,
-  //           attributes: { domain: domain.domain },
-  //         });
-
-  //         debugGraphicsLayer.add(g);
-
-  //         // Add domain label
-  //         const centerPoint = calculateCenter(coordinates);
-  //         const textSymbol = {
-  //           type: 'text',
-  //           color: 'green',
-  //           haloColor: 'white',
-  //           haloSize: '2px',
-  //           text: domain.domain,
-  //           xoffset: 0,
-  //           yoffset: 0,
-  //           font: {
-  //             size: 12,
-  //             family: 'sans-serif',
-  //           },
-  //         };
-
-  //         const textGraphic = new Graphic({
-  //           geometry: {
-  //             type: 'point',
-  //             x: centerPoint.x,
-  //             y: centerPoint.y,
-  //           },
-  //           symbol: textSymbol,
-  //         });
-
-  //         labelGraphicsLayer.add(textGraphic);
-  //       });
-
-  //       console.log(`Loaded ${domains.length} HR domains from calpuff_hr_domain_bounds.json`);
-  //     })
-  //     .catch((error) => console.error('Error loading HR domains:', error));
-  // }
-  // function debugDomainBounds2() {
-  //   fetch('/js/gis/domain_bounds2.json')
-  //     .then((response) => response.json())
-  //     .then((domains) => {
-  //       domains.forEach((domain) => {
-  //         // Create polygon from four corners
-  //         const coordinates = domain.corners.map((corner) => [corner.lon, corner.lat]);
-
-  //         const polygon = {
-  //           type: 'polygon',
-  //           rings: [coordinates],
-  //         };
-
-  //         const g = new Graphic({
-  //           geometry: polygon,
-  //           symbol: debugPolygonSymbol,
-  //           attributes: { domain: domain.domain },
-  //         });
-
-  //         debugGraphicsLayer.add(g);
-
-  //         // Add domain label
-  //         const centerPoint = calculateCenter(coordinates);
-  //         const textSymbol = {
-  //           type: 'text',
-  //           color: 'yellow',
-  //           haloColor: 'white',
-  //           haloSize: '2px',
-  //           text: domain.domain,
-  //           xoffset: 0,
-  //           yoffset: 0,
-  //           font: {
-  //             size: 12,
-  //             family: 'sans-serif',
-  //           },
-  //         };
-
-  //         const textGraphic = new Graphic({
-  //           geometry: {
-  //             type: 'point',
-  //             x: centerPoint.x,
-  //             y: centerPoint.y,
-  //           },
-  //           symbol: textSymbol,
-  //         });
-
-  //         labelGraphicsLayer.add(textGraphic);
-  //       });
-
-  //       console.log(`Loaded ${domains.length} HR domains from calpuff_hr_domain_bounds.json`);
-  //     })
-  //     .catch((error) => console.error('Error loading HR domains:', error));
-  // }
 
   /** Used to find the center of a tile for displaying the tile id */
   function calculateCenter(coordinates) {
@@ -450,7 +317,7 @@ require([
             attributes: { tile_id: tile.tileId.toString(), domain: tile.domain },
           });
 
-          highResGraphicsLayer.add(g);
+          graphicsLayer.add(g);
 
           // Add tile number label
           const centerPoint = calculateCenter(coordinates);
@@ -477,7 +344,7 @@ require([
             symbol: textSymbol,
           });
 
-          labelGraphicsLayer.add(textGraphic);
+          graphicsLayer.add(textGraphic);
         });
 
         console.log(`Loaded ${tiles.length} HR tiles from aermod_tiles_hr.json`);
