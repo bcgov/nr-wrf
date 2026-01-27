@@ -8,7 +8,17 @@ require([
   'esri/geometry/Point',
   'esri/geometry/support/webMercatorUtils',
   'esri/widgets/CoordinateConversion',
-], function (esriConfig, Map, MapView, GraphicsLayer, Graphic, webMercatorUtils, CoordinateConversion) {
+], function (
+  esriConfig,
+  Map,
+  MapView,
+  GraphicsLayer,
+  FeatureLayer,
+  Graphic,
+  Point,
+  webMercatorUtils,
+  CoordinateConversion
+) {
   const request = new XMLHttpRequest();
   request.open('GET', '/esriConfig', false);
   request.send(null);
@@ -19,11 +29,11 @@ require([
   const graphicsLayer = new GraphicsLayer();
   const boundaryGraphicsLayer = new GraphicsLayer();
   const labelGraphicsLayer = new GraphicsLayer();
-  const debugGraphicsLayer = new GraphicsLayer();
+  const highResGraphicsLayer = new GraphicsLayer();
 
   const map = new Map({
     basemap: 'arcgis-topographic',
-    layers: [debugGraphicsLayer, graphicsLayer, boundaryGraphicsLayer, labelGraphicsLayer],
+    layers: [highResGraphicsLayer, graphicsLayer, boundaryGraphicsLayer, labelGraphicsLayer],
   });
 
   const view = new MapView({
@@ -73,8 +83,8 @@ require([
     },
   };
 
-  // debug polygon (original tiles from aermod_files.csv)
-  const debugPolygonSymbol = {
+  // high resolution polygon
+  const highResPolygonSymbol = {
     type: 'simple-fill',
     color: [173, 216, 230, 0.3], // Light blue with 30% transparency
     outline: {
@@ -82,6 +92,24 @@ require([
       width: 1,
     },
   };
+
+  // // debug polygon (original tiles from aermod_files.csv)
+  // const debugPolygonSymbol = {
+  //   type: 'simple-fill',
+  //   color: [255, 36, 36, 0.3], // red with 30% transparency
+  //   outline: {
+  //     color: [0, 0, 0, 0.5], // black outline
+  //     width: 1,
+  //   },
+  // };
+  // const debugPolygonSymbol2 = {
+  //   type: 'simple-fill',
+  //   color: [36, 255, 36, 0.3], // green with 30% transparency
+  //   outline: {
+  //     color: [0, 0, 0, 0.5], // black outline
+  //     width: 1,
+  //   },
+  // };
 
   let selectedPolygon = null;
   let currentlyDrawnPoint = null;
@@ -128,66 +156,249 @@ require([
           selectedPolygon.symbol = polygonSymbol;
           selectedPolygon = null;
         }
-
-        // find and highlight the new polygon
-        const found = graphicsLayer.graphics.items.find(
-          (gr) => gr.attributes && gr.attributes.tile_id === closestPoint.tile
-        );
-        if (found) {
-          selectedPolygon = found;
-          found.symbol = greenPolygonSymbol;
-
-          // add tile info text
-          const centerPoint = calculateCenter(found.geometry.rings[0]);
-
-          // const tileInfoText = `Tile ${tileId.toString().padStart(4, '0')}, (I, J pair ${pointI}, ${pointJ})`;
-          const textSymbol = {
-            type: 'text',
-            color: 'black',
-            haloColor: 'white',
-            haloSize: '2px',
-            xoffset: 3,
-            yoffset: 3,
-            font: {
-              size: 14,
-              family: 'sans-serif',
-            },
-          };
-          graphicsLayer.remove(currentlyDrawnText);
-          currentlyDrawnText = new Graphic({
-            geometry: {
-              type: 'point',
-              x: centerPoint.x,
-              y: centerPoint.y,
-            },
-            symbol: textSymbol,
-          });
-          graphicsLayer.add(currentlyDrawnText);
-        }
-
-        // draw a red dot on the map
         if (currentlyDrawnPoint != null) {
           view.graphics.remove(currentlyDrawnPoint);
         }
 
-        let point = {
-          type: 'point',
-          x: lon,
-          y: lat,
-        };
+        if (closestPoint.domain === 'd02') {
+          // find and highlight the new polygon
+          const found = graphicsLayer.graphics.items.find(
+            (gr) => gr.attributes && gr.attributes.tile_id === closestPoint.tile
+          );
+          if (found) {
+            selectedPolygon = found;
+            found.symbol = greenPolygonSymbol;
 
-        currentlyDrawnPoint = new Graphic({
-          geometry: point,
-          symbol: {
-            type: 'simple-marker',
-            size: 7,
-            color: [255, 0, 0],
-            outline: null,
-          },
-        });
-        view.graphics.add(currentlyDrawnPoint);
+            // add tile info text
+            const centerPoint = calculateCenter(found.geometry.rings[0]);
+
+            // const tileInfoText = `Tile ${tileId.toString().padStart(4, '0')}, (I, J pair ${pointI}, ${pointJ})`;
+            const textSymbol = {
+              type: 'text',
+              color: 'black',
+              haloColor: 'white',
+              haloSize: '2px',
+              text: closestPoint.tile.toString().padStart(4, '0'),
+              xoffset: 3,
+              yoffset: 3,
+              font: {
+                size: 14,
+                family: 'sans-serif',
+              },
+            };
+            if (currentlyDrawnText) {
+              graphicsLayer.remove(currentlyDrawnText);
+            }
+            currentlyDrawnText = new Graphic({
+              geometry: {
+                type: 'point',
+                x: centerPoint.x,
+                y: centerPoint.y,
+              },
+              symbol: textSymbol,
+            });
+            graphicsLayer.add(currentlyDrawnText);
+          }
+
+          // draw a red dot on the map
+
+          let point = {
+            type: 'point',
+            x: lon,
+            y: lat,
+          };
+
+          currentlyDrawnPoint = new Graphic({
+            geometry: point,
+            symbol: {
+              type: 'simple-marker',
+              size: 7,
+              color: [255, 0, 0],
+              outline: null,
+            },
+          });
+          view.graphics.add(currentlyDrawnPoint);
+        } else {
+          console.log('in else, trying to draw hr tile highlight');
+          // find and highlight the new polygon
+          const found = highResGraphicsLayer.graphics.items.find(
+            (gr) =>
+              gr.attributes &&
+              gr.attributes.tile_id === closestPoint.tile &&
+              gr.attributes.domain === closestPoint.domain
+          );
+          console.log('found');
+          console.log(found);
+          console.log('closestPoint');
+          console.log(closestPoint);
+          console.log(
+            highResGraphicsLayer.graphics.items.map((item) => {
+              return { tile_id: item.attributes.tile_id, domain: item.attributes.domain };
+            })
+          );
+          if (found) {
+            selectedPolygon = found;
+            found.symbol = greenPolygonSymbol;
+
+            // add tile info text
+            const centerPoint = calculateCenter(found.geometry.rings[0]);
+
+            // const tileInfoText = `Tile ${tileId.toString().padStart(4, '0')}, (I, J pair ${pointI}, ${pointJ})`;
+            const textSymbol = {
+              type: 'text',
+              color: 'black',
+              haloColor: 'white',
+              haloSize: '2px',
+              text: closestPoint.tile.toString().padStart(4, '0'),
+              xoffset: 3,
+              yoffset: 3,
+              font: {
+                size: 14,
+                family: 'sans-serif',
+              },
+            };
+            if (currentlyDrawnText) {
+              highResGraphicsLayer.remove(currentlyDrawnText);
+            }
+            currentlyDrawnText = new Graphic({
+              geometry: {
+                type: 'point',
+                x: centerPoint.x,
+                y: centerPoint.y,
+              },
+              symbol: textSymbol,
+            });
+            highResGraphicsLayer.add(currentlyDrawnText);
+          }
+
+          // draw a red dot on the map
+          let point = {
+            type: 'point',
+            x: lon,
+            y: lat,
+          };
+
+          currentlyDrawnPoint = new Graphic({
+            geometry: point,
+            symbol: {
+              type: 'simple-marker',
+              size: 7,
+              color: [255, 0, 0],
+              outline: null,
+            },
+          });
+          view.graphics.add(currentlyDrawnPoint);
+        }
       });
   });
+
+  // // draws polygons for the high resolution domains defined in calpuff_hr_domain_bounds.json
+  // function debugDomainBounds() {
+  //   fetch('/js/gis/calpuff_hr_domain_bounds.json')
+  //     .then((response) => response.json())
+  //     .then((domains) => {
+  //       domains.forEach((domain) => {
+  //         // Create polygon from four corners
+  //         const coordinates = domain.corners.map((corner) => [corner.lon, corner.lat]);
+
+  //         const polygon = {
+  //           type: 'polygon',
+  //           rings: [coordinates],
+  //         };
+
+  //         const g = new Graphic({
+  //           geometry: polygon,
+  //           symbol: debugPolygonSymbol2,
+  //           attributes: { domain: domain.domain },
+  //         });
+
+  //         debugGraphicsLayer.add(g);
+
+  //         // Add domain label
+  //         const centerPoint = calculateCenter(coordinates);
+  //         const textSymbol = {
+  //           type: 'text',
+  //           color: 'green',
+  //           haloColor: 'white',
+  //           haloSize: '2px',
+  //           text: domain.domain,
+  //           xoffset: 0,
+  //           yoffset: 0,
+  //           font: {
+  //             size: 12,
+  //             family: 'sans-serif',
+  //           },
+  //         };
+
+  //         const textGraphic = new Graphic({
+  //           geometry: {
+  //             type: 'point',
+  //             x: centerPoint.x,
+  //             y: centerPoint.y,
+  //           },
+  //           symbol: textSymbol,
+  //         });
+
+  //         labelGraphicsLayer.add(textGraphic);
+  //       });
+
+  //       console.log(`Loaded ${domains.length} HR domains from calpuff_hr_domain_bounds.json`);
+  //     })
+  //     .catch((error) => console.error('Error loading HR domains:', error));
+  // }
+  // function debugDomainBounds2() {
+  //   fetch('/js/gis/domain_bounds2.json')
+  //     .then((response) => response.json())
+  //     .then((domains) => {
+  //       domains.forEach((domain) => {
+  //         // Create polygon from four corners
+  //         const coordinates = domain.corners.map((corner) => [corner.lon, corner.lat]);
+
+  //         const polygon = {
+  //           type: 'polygon',
+  //           rings: [coordinates],
+  //         };
+
+  //         const g = new Graphic({
+  //           geometry: polygon,
+  //           symbol: debugPolygonSymbol,
+  //           attributes: { domain: domain.domain },
+  //         });
+
+  //         debugGraphicsLayer.add(g);
+
+  //         // Add domain label
+  //         const centerPoint = calculateCenter(coordinates);
+  //         const textSymbol = {
+  //           type: 'text',
+  //           color: 'yellow',
+  //           haloColor: 'white',
+  //           haloSize: '2px',
+  //           text: domain.domain,
+  //           xoffset: 0,
+  //           yoffset: 0,
+  //           font: {
+  //             size: 12,
+  //             family: 'sans-serif',
+  //           },
+  //         };
+
+  //         const textGraphic = new Graphic({
+  //           geometry: {
+  //             type: 'point',
+  //             x: centerPoint.x,
+  //             y: centerPoint.y,
+  //           },
+  //           symbol: textSymbol,
+  //         });
+
+  //         labelGraphicsLayer.add(textGraphic);
+  //       });
+
+  //       console.log(`Loaded ${domains.length} HR domains from calpuff_hr_domain_bounds.json`);
+  //     })
+  //     .catch((error) => console.error('Error loading HR domains:', error));
+  // }
 
   /** Used to find the center of a tile for displaying the tile id */
   function calculateCenter(coordinates) {
@@ -235,11 +446,11 @@ require([
 
           const g = new Graphic({
             geometry: polygon,
-            symbol: debugPolygonSymbol,
-            attributes: { tile_id: tile.tileId },
+            symbol: highResPolygonSymbol,
+            attributes: { tile_id: tile.tileId.toString(), domain: tile.domain },
           });
 
-          debugGraphicsLayer.add(g);
+          highResGraphicsLayer.add(g);
 
           // Add tile number label
           const centerPoint = calculateCenter(coordinates);
@@ -248,7 +459,7 @@ require([
             color: 'blue',
             haloColor: 'white',
             haloSize: '2px',
-            // text: tile.tileId.toString().padStart(4, '0'),
+            text: tile.tileId.toString().padStart(4, '0'),
             xoffset: 0,
             yoffset: 0,
             font: {
@@ -339,7 +550,8 @@ require([
    */
   drawTiles();
   drawHRTiles();
-  // drawDebugTiles();
+  // debugDomainBounds();
+  // debugDomainBounds2();
 
   /** Search and download section */
 
@@ -619,7 +831,6 @@ require([
     var zipFilename = 'nr-wrf_aermod.zip';
     await fetch(zipFileUrl, {
       method: 'GET',
-      responseType: 'arraybuffer',
       headers: {
         'Content-Type': 'application/json',
       },
