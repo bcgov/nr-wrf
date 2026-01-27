@@ -6,13 +6,19 @@ import { ProjInfo } from '../../util/constants';
 @Injectable()
 export class MappingService {
   private aermodFilesCsv: string;
+  private calpuffDomains: any[];
+  private calpuffTiles: any[];
   // private calpuffFilesCsv: string;
 
   onModuleInit() {
     try {
       this.aermodFilesCsv = fs.readFileSync('dist/public/js/gis/aermod_files.csv', 'utf-8');
+      this.calpuffDomains = JSON.parse(fs.readFileSync('dist/public/js/gis/calpuff_hr_domain_bounds.json', 'utf-8'));
+      this.calpuffTiles = JSON.parse(fs.readFileSync('dist/public/js/gis/calpuff_hr_domain_tiles.json', 'utf-8'));
       // this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
       console.log('AERMOD files loaded into memory.');
+      console.log('CALPUFF HR domains loaded into memory.');
+      console.log('CALPUFF HR tiles loaded into memory.');
       // console.log('CALPUFF files loaded into memory.');
     } catch (error) {
       console.log('Error loading tile data into memory:');
@@ -22,6 +28,40 @@ export class MappingService {
 
   async findClosestPoint(latitude: number, longitude: number): Promise<any> {
     try {
+      const hrTile = this.isInsideHRDomain(latitude, longitude);
+      if (hrTile) {
+        // For HR domains, use projected calculation
+        const proj = this.getProjInfo();
+        const { x, y } = this.latLonToProjected(latitude, longitude, proj);
+
+        const i = Math.round(1 + x / proj.dx);
+        const j = Math.round(1 + y / proj.dy);
+        const domain = hrTile.domain;
+        // second step: find closest tile in HR domain
+        let closestTile = null;
+        let minDist = Infinity;
+        for (const d of this.calpuffTiles) {
+          if (d.domain === domain) {
+            for (const tile of d.tiles) {
+              const lats = tile.corners.map((c) => c.lat);
+              const lons = tile.corners.map((c) => c.lon);
+              const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+              const centerLon = (Math.min(...lons) + Math.max(...lons)) / 2;
+              const dist = Math.sqrt((latitude - centerLat) ** 2 + (longitude - centerLon) ** 2);
+              if (dist < minDist) {
+                minDist = dist;
+                closestTile = tile.tileId;
+              }
+            }
+          }
+        }
+        const tile = closestTile;
+        console.log(
+          `findClosestPoint: lat=${latitude}, lon=${longitude} -> i=${i}, j=${j}, domain=${domain}, tile=${tile}`
+        );
+        return { i, j, tile, domain };
+      }
+
       // Sanity check: find the tile and calculate i,j based on lat/lon from CSV
       const parsed = Papa.parse(this.aermodFilesCsv, {
         header: true,
@@ -108,12 +148,35 @@ export class MappingService {
       }
 
       console.log(`findClosestPoint: lat=${latitude}, lon=${longitude} -> i=${i}, j=${j}, tile=${tile}`);
-      return { i, j, tile };
+      return { i, j, tile, domain: 'd02' };
     } catch (err) {
       console.log('Error in findClosestPoint');
       console.log(err);
       return null;
     }
+  }
+
+  isInsideHRDomain(latitude: number, longitude: number): any {
+    for (const domain of this.calpuffDomains) {
+      if (this.isPointInPolygon({ lat: latitude, lon: longitude }, domain.corners)) {
+        return domain;
+      }
+    }
+    return null;
+  }
+
+  private isPointInPolygon(point: { lat: number; lon: number }, polygon: { lat: number; lon: number }[]): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].lon,
+        yi = polygon[i].lat;
+      const xj = polygon[j].lon,
+        yj = polygon[j].lat;
+      if (yi > point.lat !== yj > point.lat && point.lon < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+    }
+    return inside;
   }
 
   getAermodTilesSimplified() {
