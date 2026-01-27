@@ -326,7 +326,7 @@ require([
             color: 'blue',
             haloColor: 'white',
             haloSize: '2px',
-            text: tile.tileId.toString().padStart(4, '0'),
+            // text: tile.tileId.toString().padStart(4, '0'),
             xoffset: 0,
             yoffset: 0,
             font: {
