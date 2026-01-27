@@ -174,6 +174,7 @@ export class ZipFileService {
     startDateIso: string;
     endDateIso: string;
     timezoneOffsetHours: number;
+    domain: string;
   }): Promise<{ subFolder: string }> {
     const baseUrl = 'https://nrs.objectstore.gov.bc.ca/wrfdel/aermod';
 
@@ -212,13 +213,14 @@ export class ZipFileService {
         lat: latitude,
         lon: longitude,
         tile_id: closestPoint.tile,
+        domain: closestPoint.domain,
         filename: closestPoint.tile.toString().padStart(4, '0'),
         full_url: '', // not used now
       },
     };
 
     const dataUrls: string[] = [];
-    const domain = 'd02';
+    const domain = closestPoint.domain;
     const tileId = closestPoint.tile.toString().padStart(4, '0');
     for (let year = startYear; year <= endYear; year++) {
       dataUrls.push(`${baseUrl}/${domain}/${tileId}/wrfout_${domain}_${tileId}_${year}.nc`);

@@ -373,7 +373,7 @@ require([
           const g = new Graphic({
             geometry: polygon,
             symbol: polygonSymbol,
-            attributes: { tile_id: tile.tileId },
+            attributes: { tile_id: tile.tileId, domain: 'd02' },
           });
 
           graphicsLayer.add(g);
@@ -543,7 +543,8 @@ require([
 
         // find and highlight the new polygon
         const found = graphicsLayer.graphics.items.find(
-          (gr) => gr.attributes && gr.attributes.tile_id === closestPoint.tile
+          (gr) =>
+            gr.attributes && gr.attributes.tile_id === closestPoint.tile && gr.attributes.domain === closestPoint.domain
         );
         if (found) {
           selectedPolygon = found;
@@ -634,6 +635,7 @@ require([
       startDateIso: startDate.toISOString(),
       endDateIso: endDate.toISOString(),
       timezoneOffsetHours: timezoneOffset,
+      domain: closestPoint.domain,
     };
     await fetch(zipRequestUrl, {
       method: 'POST',

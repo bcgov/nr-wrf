@@ -67,6 +67,7 @@ export class ZipFileController {
       startDateIso: string;
       endDateIso: string;
       timezoneOffsetHours: number;
+      domain: string;
     }
   ): Promise<{ subFolder: string }> {
     return this.zipFileService.beginZippingAermodFromCoords(dataDto);
