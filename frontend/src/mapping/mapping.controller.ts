@@ -9,18 +9,8 @@ export class MappingController {
     return this.zipFileService.findClosestPoint(data.latitude, data.longitude);
   }
 
-  // @Get('getCornerPoints')
-  // getCornerPoints(): any {
-  //   return this.zipFileService.getCornerPoints();
-  // }
-
   @Get('getAermodTiles')
   getAermodTiles(): any {
     return this.zipFileService.getAermodTiles();
-  }
-
-  @Get('getAermodTilesSimplified')
-  getAermodTilesSimplified(): any {
-    return this.zipFileService.getAermodTilesSimplified();
   }
 }

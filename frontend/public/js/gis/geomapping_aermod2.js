@@ -358,10 +358,6 @@ require([
       .then((response) => response.json())
       .then((tiles) => {
         tiles.forEach((tile) => {
-          if (tile.tileId === 1500 || tile.tileId === 2427 || tile.tileId === 3500) {
-            console.log('debug (new)');
-            console.log(tile);
-          }
           // Create polygon from four corners: NE -> NW -> SW -> SE
           const coordinates = tile.extended_corners.map((corner) => [corner.lon, corner.lat]);
 
@@ -417,8 +413,6 @@ require([
    */
   drawTiles();
   drawHRTiles();
-  // debugDomainBounds();
-  // debugDomainBounds2();
 
   /** Search and download section */
 

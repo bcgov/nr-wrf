@@ -61,8 +61,7 @@ export class ZipFileService {
   }
 
   /**
-   * CALPUFF End-to-end helper for the map downloads (Search 1/2/3): accept bounds/timezone/date window,
-   * compute tiles, build URLs and stitching config, then kick off zipping on the server.
+   * CALPUFF function that starts download/zipping files
    */
   async beginZippingFromBounds(request: {
     bottomLeftYGlobal: number;
@@ -130,7 +129,7 @@ export class ZipFileService {
     urls.push(baseUrl + 'start.bat');
     urls.push(baseUrl + 'readme.txt');
 
-    return this.beginZipping(stitchingConfig, urls);
+    return this.beginZippingCalpuff(stitchingConfig, urls);
   }
 
   /**
@@ -142,7 +141,7 @@ export class ZipFileService {
    * @param urls
    * @returns
    */
-  beginZipping(stitchingConfig: string, urls: string[]): { subFolder: string } {
+  beginZippingCalpuff(stitchingConfig: string, urls: string[]): { subFolder: string } {
     const subFolder = uuid.v4();
     const filePath = process.env.filePath;
     const folder =
@@ -332,7 +331,7 @@ export class ZipFileService {
       });
       console.log('Saved ' + 'start.bat');
       // download.bat
-      const downloadBatContent = this.createDownloadBat(downloadUrls);
+      const downloadBatContent = this.createAermodDownloadBat(downloadUrls);
       fs.writeFile(folder + 'download.bat', downloadBatContent, function (err) {
         if (err) throw err;
       });
@@ -440,7 +439,7 @@ export class ZipFileService {
     return batchFileContent;
   }
 
-  createDownloadBat(downloadUrls: string[]): string {
+  createAermodDownloadBat(downloadUrls: string[]): string {
     let batchFileContent = '';
     downloadUrls.forEach((url) => {
       batchFileContent += `curl -O ${url} --retry 10\n`;

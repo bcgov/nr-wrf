@@ -26,6 +26,16 @@ export class MappingService {
     }
   }
 
+  getAermodTiles() {
+    try {
+      const data = fs.readFileSync('dist/public/js/gis/aermod_tiles_extended.json', 'utf-8');
+      return JSON.parse(data);
+    } catch (err) {
+      console.error('Failed to read aermod_tiles_extended.json:', err);
+      return [];
+    }
+  }
+
   async findClosestPoint(latitude: number, longitude: number): Promise<any> {
     try {
       const hrTile = this.isInsideHRDomain(latitude, longitude);
@@ -62,7 +72,7 @@ export class MappingService {
         return { i, j, tile, domain };
       }
 
-      // Sanity check: find the tile and calculate i,j based on lat/lon from CSV
+      // find the tile and calculate i,j based on lat/lon from CSV
       const parsed = Papa.parse(this.aermodFilesCsv, {
         header: true,
         skipEmptyLines: true,
@@ -177,122 +187,6 @@ export class MappingService {
       }
     }
     return inside;
-  }
-
-  getAermodTilesSimplified() {
-    try {
-      const data = fs.readFileSync('dist/public/js/gis/aermod_tiles_extended.json', 'utf-8');
-      return JSON.parse(data);
-    } catch (err) {
-      console.error('Failed to read aermod_tiles_extended.json:', err);
-      return [];
-    }
-  }
-
-  /**
-   * Returns the AERMOD tiles with all four corners calculated.
-   * Uses the CSV lat/lon values as control points and derives missing corners
-   * using the Lambert Conformal Conic projection.
-   *
-   * CSV format: I0,J0 corresponds to NE corner (lat0,lon0)
-   *             I1,J1 corresponds to SW corner (lat1,lon1)
-   */
-  getAermodTiles() {
-    const parsed = Papa.parse(this.aermodFilesCsv, {
-      header: true,
-      skipEmptyLines: true,
-    });
-
-    const proj = this.getProjInfo();
-
-    const tiles = [];
-    parsed.data.forEach((entry: any) => {
-      if (!entry || entry.domain !== 'd02') return;
-
-      const I0 = parseInt(entry.I0, 10);
-      const J0 = parseInt(entry.J0, 10);
-      const I1 = parseInt(entry.I1, 10);
-      const J1 = parseInt(entry.J1, 10);
-
-      // Use the lat/lon values directly from the CSV as control points
-      const lat0 = parseFloat(entry.lat0); // NE corner latitude
-      const lon0 = parseFloat(entry.lon0); // NE corner longitude
-      const lat1 = parseFloat(entry.lat1); // SW corner latitude
-      const lon1 = parseFloat(entry.lon1); // SW corner longitude
-
-      if (isNaN(I0) || isNaN(J0) || isNaN(I1) || isNaN(J1)) return;
-      if (isNaN(lat0) || isNaN(lon0) || isNaN(lat1) || isNaN(lon1)) return;
-
-      // Given control points from CSV (using actual lat/lon values)
-      const ne = { lat: lat0, lon: lon0 }; // (I0, J0) - NE corner
-      const sw = { lat: lat1, lon: lon1 }; // (I1, J1) - SW corner
-
-      // Calculate missing corners using the projection
-      // NW corner: same J as SW (J1), same I as NE (I0)
-      // SE corner: same J as NE (J0), same I as SW (I1)
-      const nw = this.calculateMissingCorner(ne, sw, I0, J1, I0, J0, I1, J1, proj);
-      const se = this.calculateMissingCorner(ne, sw, I1, J0, I0, J0, I1, J1, proj);
-
-      tiles.push({
-        tileId: parseInt(entry.tile, 10),
-        filename: entry.filename,
-        year: parseInt(entry.year, 10),
-        domain: entry.domain,
-        I0,
-        J0,
-        I1,
-        J1,
-        // Four corners: NE, NW, SW, SE
-        corners: [
-          { lat: ne.lat, lon: ne.lon }, // NE
-          { lat: nw.lat, lon: nw.lon }, // NW
-          { lat: sw.lat, lon: sw.lon }, // SW
-          { lat: se.lat, lon: se.lon }, // SE
-        ],
-        url: entry.url,
-      });
-    });
-
-    // return tiles;
-    return this.extendTiles(tiles);
-  }
-
-  private extendTiles(tiles: any) {
-    console.log('extending tiles');
-    // For each tile, extend I0/I1 and J0/J1 by 0.5 and recalculate corners
-    const proj = this.getProjInfo();
-    return tiles.map((tile: any) => {
-      // Extended indices
-      const I0_ext = tile.I0 - 0.5;
-      const I1_ext = tile.I1 + 0.5;
-      const J0_ext = tile.J0 - 0.5;
-      const J1_ext = tile.J1 + 0.5;
-
-      // Known NE and SW corners from original tile
-      const ne = tile.corners[0]; // NE (I0, J0)
-      const sw = tile.corners[2]; // SW (I1, J1)
-
-      // Calculate new corners for the extended tile
-      // Extended corners: NE, NW, SW, SE
-      const ext_ne = this.calculateMissingCorner(ne, sw, I0_ext, J0_ext, tile.I0, tile.J0, tile.I1, tile.J1, proj);
-      const ext_nw = this.calculateMissingCorner(ne, sw, I0_ext, J1_ext, tile.I0, tile.J0, tile.I1, tile.J1, proj);
-      const ext_sw = this.calculateMissingCorner(ne, sw, I1_ext, J1_ext, tile.I0, tile.J0, tile.I1, tile.J1, proj);
-      const ext_se = this.calculateMissingCorner(ne, sw, I1_ext, J0_ext, tile.I0, tile.J0, tile.I1, tile.J1, proj);
-
-      return {
-        ...tile,
-        I0_ext,
-        I1_ext,
-        J0_ext,
-        J1_ext,
-        extended_corners: [
-          { lat: ext_ne.lat, lon: ext_ne.lon }, // NE
-          { lat: ext_nw.lat, lon: ext_nw.lon }, // NW
-          { lat: ext_sw.lat, lon: ext_sw.lon }, // SW
-          { lat: ext_se.lat, lon: ext_se.lon }, // SE
-        ],
-      };
-    });
   }
 
   /**

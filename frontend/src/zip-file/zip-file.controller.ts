@@ -28,7 +28,7 @@ export class ZipFileController {
 
   @Post('zip')
   async beginZipping(@Body() dataDto: { stitchingConfig: string; urls: string[] }): Promise<{ subFolder: string }> {
-    return this.zipFileService.beginZipping(dataDto.stitchingConfig, dataDto.urls);
+    return this.zipFileService.beginZippingCalpuff(dataDto.stitchingConfig, dataDto.urls);
   }
 
   @Post('zipSearch')
