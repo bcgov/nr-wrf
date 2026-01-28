@@ -616,6 +616,7 @@ move wrf.* output\
       .padStart(2, '0')}`;
     // Autoinsert point 2
     const tz = tileDownloadInfo.timeZone;
+    const domain = tileDownloadInfo.closestPoint.domain;
     const timeZone = `TIMEZONE ${tz > 0 ? '-' : ''}${tz} !default is zero, i.e. GMT-00`;
     // Autoinsert point 3
     const latLonLine = `POINT LATLON ${tileDownloadInfo.latitude} ${tileDownloadInfo.longitude}`;
@@ -628,7 +629,7 @@ move wrf.* output\
         : ''
       : '';
     for (let year = tileDownloadInfo.startYear; year <= tileDownloadInfo.endYear; year++) {
-      inputLines.push(`Input "${tileId}\\wrfout_d02_${tileId}_${year}.nc"`);
+      inputLines.push(`Input "${tileId}\\wrfout_${domain}_${tileId}_${year}.nc"`);
     }
     const inputString = inputLines.join('\n');
 
