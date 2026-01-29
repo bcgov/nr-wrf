@@ -165,6 +165,7 @@ export class DataService {
         domainResult.maxI = Math.max(domainResult.maxI, tile.I1);
         domainResult.minJ = Math.min(domainResult.minJ, tile.J0);
         domainResult.maxJ = Math.max(domainResult.maxJ, tile.J1);
+        console.log('domainResult');
         console.log(domainResult);
       }
     }
@@ -177,6 +178,7 @@ export class DataService {
         // Entirely inside this domain
         const res = byDomain[domain];
         if (res) {
+          console.log({ domain: domain, minI: res.minI, maxI: res.maxI, minJ: res.minJ, maxJ: res.maxJ });
           return { domain, minI: res.minI, maxI: res.maxI, minJ: res.minJ, maxJ: res.maxJ };
         }
       }
