@@ -533,6 +533,10 @@ export class ZipFileService {
     minJ?: number,
     maxJ?: number
   ): string[] {
+    console.log(`minI: ${minI}`);
+    console.log(`maxI: ${maxI}`);
+    console.log(`minJ: ${minJ}`);
+    console.log(`maxJ: ${maxJ}`);
     this.ensureCalpuffIndexLoaded();
     if (!this.calpuffIndex) {
       return [];
@@ -585,6 +589,8 @@ export class ZipFileService {
         urls.push(rec.url);
       }
     }
+    console.log('download urls');
+    console.log(urls);
     return urls;
   }
 
@@ -833,7 +839,7 @@ INPUT GROUP 2: Tile Configuration
 `;
   }
 
-  @Cron('0 0 0 * * *')
+  @Cron('0 0 0 * * *', { timeZone: 'America/Los_Angeles' })
   cleanFolder() {
     console.log('Cleaning folders');
     let numDeleted = 0;
