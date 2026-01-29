@@ -5,162 +5,307 @@ import { ProjInfo } from '../../util/constants';
 
 @Injectable()
 export class MappingService {
-  private tileDomainInfo: string;
-  private tileCorners: string;
-  private parsedTileDomainInfo: any;
+  private aermodFilesCsv: string;
+  private calpuffDomains: any[];
+  private calpuffTiles: any[];
+  // private calpuffFilesCsv: string;
 
   onModuleInit() {
     try {
-      this.tileDomainInfo = fs.readFileSync('dist/public/js/gis/tile_domain_info.csv', 'utf-8');
-      this.tileCorners = fs.readFileSync('dist/public/js/gis/tile_corners.csv', 'utf-8');
-      this.parsedTileDomainInfo = Papa.parse(this.tileDomainInfo, {
-        header: true,
-        skipEmptyLines: true,
-      });
-      console.log('Tile domain info loaded into memory.');
+      this.aermodFilesCsv = fs.readFileSync('dist/public/js/gis/aermod_files.csv', 'utf-8');
+      this.calpuffDomains = JSON.parse(fs.readFileSync('dist/public/js/gis/calpuff_hr_domain_bounds.json', 'utf-8'));
+      this.calpuffTiles = JSON.parse(fs.readFileSync('dist/public/js/gis/calpuff_hr_domain_tiles.json', 'utf-8'));
+      // this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
+      console.log('AERMOD files loaded into memory.');
+      console.log('CALPUFF HR domains loaded into memory.');
+      console.log('CALPUFF HR tiles loaded into memory.');
+      // console.log('CALPUFF files loaded into memory.');
     } catch (error) {
-      console.log('Error loading tile domain info into memory:');
+      console.log('Error loading tile data into memory:');
       console.log(error);
+    }
+  }
+
+  getAermodTiles() {
+    try {
+      const data = fs.readFileSync('dist/public/js/gis/aermod_tiles_extended.json', 'utf-8');
+      return JSON.parse(data);
+    } catch (err) {
+      console.error('Failed to read aermod_tiles_extended.json:', err);
+      return [];
     }
   }
 
   async findClosestPoint(latitude: number, longitude: number): Promise<any> {
     try {
-      const parentIJ = this.findParentGridCell(latitude, longitude);
-      console.log('findParentGridCell(desiredLatitude, desiredLongitude)');
-      console.log(parentIJ);
-      const rawData = this.parsedTileDomainInfo;
+      const hrTile = this.isInsideHRDomain(latitude, longitude);
+      if (hrTile) {
+        // For HR domains, use projected calculation
+        const proj = this.getProjInfo();
+        const { x, y } = this.latLonToProjected(latitude, longitude, proj);
 
-      const parsedData = rawData.data.map((entry) => ({
-        i: parseInt(entry.i),
-        j: parseInt(entry.j),
-        lat: parseFloat(entry.lat),
-        lon: parseFloat(entry.lon),
-        tile_id: parseInt(entry.tile_id),
-        filename: entry.filename,
-        full_url: entry.full_url,
-      }));
-      const closestPoint = parsedData.find((point) => point.i === parentIJ.i_parent && point.j === parentIJ.j_parent);
-      return closestPoint;
+        const i = Math.round(1 + x / proj.dx);
+        const j = Math.round(1 + y / proj.dy);
+        const domain = hrTile.domain;
+        // second step: find closest tile in HR domain
+        let closestTile = null;
+        let minDist = Infinity;
+        for (const d of this.calpuffTiles) {
+          if (d.domain === domain) {
+            for (const tile of d.tiles) {
+              const lats = tile.corners.map((c) => c.lat);
+              const lons = tile.corners.map((c) => c.lon);
+              const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+              const centerLon = (Math.min(...lons) + Math.max(...lons)) / 2;
+              const dist = Math.sqrt((latitude - centerLat) ** 2 + (longitude - centerLon) ** 2);
+              if (dist < minDist) {
+                minDist = dist;
+                closestTile = tile.tileId;
+              }
+            }
+          }
+        }
+        const tile = closestTile;
+        console.log(
+          `findClosestPoint: lat=${latitude}, lon=${longitude} -> i=${i}, j=${j}, domain=${domain}, tile=${tile}`
+        );
+        return { i, j, tile, domain };
+      }
+
+      // find the tile and calculate i,j based on lat/lon from CSV
+      const parsed = Papa.parse(this.aermodFilesCsv, {
+        header: true,
+        skipEmptyLines: true,
+      });
+
+      let i = null;
+      let j = null;
+      let tile = null;
+      let minDistance = Infinity;
+      const proj = this.getProjInfo();
+
+      parsed.data.forEach((entry: any) => {
+        if (!entry || entry.domain !== 'd02') return;
+
+        const I0 = parseInt(entry.I0, 10);
+        const J0 = parseInt(entry.J0, 10);
+        const I1 = parseInt(entry.I1, 10);
+        const J1 = parseInt(entry.J1, 10);
+        const lat0 = parseFloat(entry.lat0); // NE
+        const lon0 = parseFloat(entry.lon0); // NE
+        const lat1 = parseFloat(entry.lat1); // SW
+        const lon1 = parseFloat(entry.lon1); // SW
+
+        if (
+          isNaN(I0) ||
+          isNaN(J0) ||
+          isNaN(I1) ||
+          isNaN(J1) ||
+          isNaN(lat0) ||
+          isNaN(lon0) ||
+          isNaN(lat1) ||
+          isNaN(lon1)
+        )
+          return;
+
+        // Check if point is within the tile's bounding box
+        const minLat = Math.min(lat0, lat1);
+        const maxLat = Math.max(lat0, lat1);
+        const minLon = Math.min(lon0, lon1);
+        const maxLon = Math.max(lon0, lon1);
+
+        if (latitude >= minLat && latitude <= maxLat && longitude >= minLon && longitude <= maxLon) {
+          // Interpolate i,j within the tile
+          const dLon = lon1 - lon0;
+          const dLat = lat0 - lat1; // lat0 > lat1
+          const i_interp = I0 + ((longitude - lon0) / dLon) * (I1 - I0);
+          const j_interp = J0 + ((lat0 - latitude) / dLat) * (J1 - J0);
+
+          i = Math.round(i_interp);
+          j = Math.round(j_interp);
+          tile = parseInt(entry.tile, 10);
+        } else {
+          // If not inside, calculate distance to each corner
+          const ne = { lat: lat0, lon: lon0 };
+          const sw = { lat: lat1, lon: lon1 };
+          const nw = this.calculateMissingCorner(ne, sw, I0, J1, I0, J0, I1, J1, proj);
+          const se = this.calculateMissingCorner(ne, sw, I1, J0, I0, J0, I1, J1, proj);
+
+          const corners = [ne, nw, sw, se];
+          corners.forEach((corner) => {
+            const dist = Math.sqrt((latitude - corner.lat) ** 2 + (longitude - corner.lon) ** 2);
+            if (dist < minDistance) {
+              minDistance = dist;
+              tile = parseInt(entry.tile, 10);
+            }
+          });
+        }
+      });
+
+      if (i === null) {
+        // Point not inside any tile, use projected calculation
+        const proj = this.getProjInfo();
+        const { x, y } = this.latLonToProjected(latitude, longitude, proj);
+
+        i = Math.round(1 + x / proj.dx);
+        j = Math.round(1 + y / proj.dy);
+
+        // Clamp to d02 domain bounds
+        i = Math.max(2, Math.min(391, i));
+        j = Math.max(2, Math.min(373, j));
+
+        // tile is already set to the closest
+      }
+
+      console.log(`findClosestPoint: lat=${latitude}, lon=${longitude} -> i=${i}, j=${j}, tile=${tile}`);
+      return { i, j, tile, domain: 'd02' };
     } catch (err) {
       console.log('Error in findClosestPoint');
       console.log(err);
+      return null;
     }
+  }
+
+  isInsideHRDomain(latitude: number, longitude: number): any {
+    for (const domain of this.calpuffDomains) {
+      if (this.isPointInPolygon({ lat: latitude, lon: longitude }, domain.corners)) {
+        return domain;
+      }
+    }
+    return null;
+  }
+
+  private isPointInPolygon(point: { lat: number; lon: number }, polygon: { lat: number; lon: number }[]): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].lon,
+        yi = polygon[i].lat;
+      const xj = polygon[j].lon,
+        yj = polygon[j].lat;
+      if (yi > point.lat !== yj > point.lat && point.lon < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+    }
+    return inside;
   }
 
   /**
-   * Returns the points used by the AERMOD page to draw tiles on the map
+   * Calculate a missing corner using the known anchor points from the CSV.
+   * Instead of using the global projection reference, we use the known CSV
+   * lat/lon values as local anchors and compute offsets based on grid spacing.
    *
-   * @returns pointsByTile
+   * @param ne - Known NE corner {lat, lon} from CSV
+   * @param sw - Known SW corner {lat, lon} from CSV
+   * @param targetI - I index of the corner to calculate
+   * @param targetJ - J index of the corner to calculate
+   * @param neI - I index of NE corner (I0)
+   * @param neJ - J index of NE corner (J0)
+   * @param swI - I index of SW corner (I1)
+   * @param swJ - J index of SW corner (J1)
+   * @param proj - Projection info
    */
-  getCornerPoints() {
-    return this.csvToJson(this.tileCorners);
-  }
+  private calculateMissingCorner(
+    ne: { lat: number; lon: number },
+    sw: { lat: number; lon: number },
+    targetI: number,
+    targetJ: number,
+    neI: number,
+    neJ: number,
+    swI: number,
+    swJ: number,
+    proj: ProjInfo
+  ): { lat: number; lon: number } {
+    // Convert known corners to projected coordinates
+    const neProj = this.latLonToProjected(ne.lat, ne.lon, proj);
+    const swProj = this.latLonToProjected(sw.lat, sw.lon, proj);
 
-  csvToJson(csvStr) {
-    const lines = csvStr.split('\n');
-    const result = {};
+    // Grid steps from NE to SW
+    const dI = swI - neI;
+    const dJ = swJ - neJ;
 
-    lines.slice(1).forEach((line) => {
-      const currentLine = line.split(',');
-      const tile_id = currentLine[0];
-      if (!isNaN(parseInt(tile_id, 10))) {
-        const obj = {
-          i: currentLine[1],
-          j: currentLine[2],
-          lon: currentLine[3],
-          lat: currentLine[4],
-          tile_id: parseInt(tile_id, 10),
-        };
-        if (!result[tile_id]) {
-          result[tile_id] = [];
-        }
-
-        result[tile_id].push(obj);
-      }
-    });
-
-    return result;
-  }
-
-  /** Tile info section */
-  findParentGridCell(latitude: number, longitude: number): { i_parent: number; j_parent: number } {
-    const result = this.latlonToIj(latitude, longitude);
-    return result; // Directly return the object containing i_parent and j_parent
-  }
-
-  findTileGridCell(i_parent: number, j_parent: number): { i_nest: number; j_nest: number } {
-    //Number of grid cells per tile
-    const TILE_SIZE: number = 10;
-    let i_nest: number;
-    let j_nest: number;
-
-    if (i_parent % 10 !== 0) {
-      i_nest = Math.floor(i_parent / TILE_SIZE + 0.5);
-    } else {
-      i_nest = Math.floor(i_parent / TILE_SIZE + (i_parent % TILE_SIZE));
+    // Avoid edge cases
+    if (dI === 0 && dJ === 0) {
+      return ne;
     }
 
-    if (j_parent % 10 !== 0) {
-      j_nest = Math.floor(j_parent / TILE_SIZE + 0.5);
-    } else {
-      j_nest = Math.floor(j_parent / TILE_SIZE + (j_parent % TILE_SIZE));
-    }
+    // Projected displacement from NE to SW
+    const dxTotal = swProj.x - neProj.x;
+    const dyTotal = swProj.y - neProj.y;
 
-    // TODO: If all is well, i should never exceed 48
-    i_nest = Math.min(48, i_nest);
+    // Use the projection's theoretical grid spacing to estimate the I and J
+    // direction vectors. In a Lambert Conformal Conic projection with uniform
+    // 4km grid spacing, moving 1 cell in I direction gives approximately
+    // dx = 4000m (proj.dx) and moving 1 cell in J gives dy = 4000m (proj.dy).
+    // However, we need to account for grid rotation.
+    //
+    // We can estimate the unit vectors by solving:
+    //   dI * uI_x + dJ * uJ_x = dxTotal
+    //   dI * uI_y + dJ * uJ_y = dyTotal
+    //
+    // With constraints that |uI| ≈ |uJ| ≈ grid spacing and uI ⊥ uJ
+    //
+    // A simpler approach: assume the grid locally is a parallelogram and
+    // decompose based on the ratio of dI to dJ.
 
-    // TODO: If all is well, j should never exceed 43
-    j_nest = Math.min(43, j_nest);
+    // For this tile, calculate per-cell displacement estimates
+    // by using the known diagonal and the grid step counts.
+    const gridSpacing = proj.dx; // 4000 meters
 
-    return { i_nest, j_nest };
+    // The diagonal distance in projected space
+    const diagonalDist = Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal);
+
+    // Expected diagonal based on grid spacing (Pythagorean)
+    const expectedDiagonal = gridSpacing * Math.sqrt(dI * dI + dJ * dJ);
+
+    // Scale factor (should be close to 1 if the projection is consistent)
+    const scale = expectedDiagonal > 0 ? diagonalDist / expectedDiagonal : 1;
+
+    // For a Lambert Conformal grid, I increases roughly eastward (positive x)
+    // and J increases roughly northward (positive y).
+    // However, there's some rotation. We estimate the rotation from the diagonal.
+
+    // Angle of the diagonal in projected space
+    const diagAngle = Math.atan2(dyTotal, dxTotal);
+
+    // Angle the diagonal should make if the grid were axis-aligned
+    // tan(theta) = dJ / dI
+    const gridAngle = Math.atan2(dJ, dI);
+
+    // Rotation between grid space and projected space
+    const rotation = diagAngle - gridAngle;
+
+    // Unit vectors for I and J directions in projected space
+    const uIx = gridSpacing * scale * Math.cos(rotation);
+    const uIy = gridSpacing * scale * Math.sin(rotation);
+    const uJx = gridSpacing * scale * Math.cos(rotation + Math.PI / 2);
+    const uJy = gridSpacing * scale * Math.sin(rotation + Math.PI / 2);
+
+    // Target corner offset from NE in grid space
+    const deltaI = targetI - neI;
+    const deltaJ = targetJ - neJ;
+
+    // Target position in projected space
+    const targetX = neProj.x + deltaI * uIx + deltaJ * uJx;
+    const targetY = neProj.y + deltaI * uIy + deltaJ * uJy;
+
+    // Convert back to lat/lon
+    return this.projectedToLatLon(targetX, targetY, proj);
   }
 
-  getTileFolder(i_10x10: number, j_10x10: number): number {
-    // Folders start at number 001 in the bottom left (SW) corner
-    // and counting from left to right (west to east) and bottom to top (south to north).
-    let folder = i_10x10 + 48 * (j_10x10 - 1);
-    return folder;
-  }
-
-  llijLc(lat: number, lon: number, proj: ProjInfo): { i: number; j: number } {
-    if (Math.abs(proj.truelat2) > 90.0) {
-      proj.truelat2 = proj.truelat1;
-    }
-
-    let deltalon1: number;
-    let deltalon: number;
-    let arg: number;
-    let tl1r: number;
-    let rm: number;
-    let ctl1r: number;
-
+  /**
+   * Convert lat/lon to projected (x, y) coordinates using Lambert Conformal Conic.
+   */
+  private latLonToProjected(lat: number, lon: number, proj: ProjInfo): { x: number; y: number } {
     const RAD_PER_DEG = Math.PI / 180.0;
 
-    deltalon1 = proj.lon1 - proj.stdlon;
-    if (deltalon1 > 180.0) deltalon1 -= 360;
-    if (deltalon1 < -180.0) deltalon1 += 360;
+    const tl1r = proj.truelat1 * RAD_PER_DEG;
+    const ctl1r = Math.cos(tl1r);
 
-    tl1r = proj.truelat1 * RAD_PER_DEG;
-    ctl1r = Math.cos(tl1r);
-
-    proj.rsw =
-      ((proj.rebydx * ctl1r) / proj.cone) *
-      Math.pow(
-        Math.tan(((90.0 * proj.hemi - proj.lat1) * RAD_PER_DEG) / 2.0) /
-          Math.tan(((90.0 * proj.hemi - proj.truelat1) * RAD_PER_DEG) / 2.0),
-        proj.cone
-      );
-
-    arg = proj.cone * (deltalon1 * RAD_PER_DEG);
-    proj.polei = proj.hemi * proj.knowni - proj.hemi * proj.rsw * Math.sin(arg);
-    proj.polej = proj.hemi * proj.knownj + proj.rsw * Math.cos(arg);
-
-    deltalon = lon - proj.stdlon;
+    let deltalon = lon - proj.stdlon;
     if (deltalon > 180.0) deltalon -= 360.0;
     if (deltalon < -180.0) deltalon += 360.0;
 
-    rm =
+    const rm =
       ((proj.rebydx * ctl1r) / proj.cone) *
       Math.pow(
         Math.tan(((90.0 * proj.hemi - lat) * RAD_PER_DEG) / 2.0) /
@@ -168,17 +313,43 @@ export class MappingService {
         proj.cone
       );
 
-    arg = proj.cone * (deltalon * RAD_PER_DEG);
-    let di = proj.polei + proj.hemi * rm * Math.sin(arg);
-    let dj = proj.polej - rm * Math.cos(arg);
+    const arg = proj.cone * (deltalon * RAD_PER_DEG);
+    const x = proj.polei + proj.hemi * rm * Math.sin(arg);
+    const y = proj.polej - rm * Math.cos(arg);
 
-    let i = Math.round(proj.hemi * di - 0.1);
-    let j = Math.round(proj.hemi * dj - 0.1);
-
-    return { i, j };
+    return { x, y };
   }
 
-  latlonToIj(inputLat: number, inputLon: number): { i_parent: number; j_parent: number } {
+  /**
+   * Convert projected (x, y) coordinates back to lat/lon.
+   */
+  private projectedToLatLon(x: number, y: number, proj: ProjInfo): { lat: number; lon: number } {
+    const RAD_PER_DEG = Math.PI / 180.0;
+    const DEG_PER_RAD = 180.0 / Math.PI;
+
+    const dx = x - proj.polei;
+    const dy = proj.polej - y;
+
+    const rm = Math.sqrt(Math.pow(dx / proj.hemi, 2) + Math.pow(dy, 2));
+    const arg = Math.atan2(dx / proj.hemi, dy);
+
+    const deltalon = (arg / proj.cone) * DEG_PER_RAD;
+    let lon = proj.stdlon + deltalon;
+
+    const ctl1r = Math.cos(proj.truelat1 * RAD_PER_DEG);
+    const T1 = Math.tan(((90.0 * proj.hemi - proj.truelat1) * RAD_PER_DEG) / 2.0);
+
+    const tan_half = T1 * Math.pow((rm * proj.cone) / (proj.rebydx * ctl1r), 1.0 / proj.cone);
+    const half_angle = Math.atan(tan_half);
+    const lat = 90.0 * proj.hemi - 2.0 * half_angle * DEG_PER_RAD;
+
+    if (lon > 180.0) lon -= 360.0;
+    if (lon < -180.0) lon += 360.0;
+
+    return { lat, lon };
+  }
+
+  private getProjInfo(): ProjInfo {
     enum WrfProjectionType {
       LambertConformal = 1,
       PolarSterographic = 2,
@@ -191,9 +362,9 @@ export class MappingService {
 
     proj.code = WrfProjectionType.LambertConformal;
 
-    //DX in meters from (full domain)
+    // DX in meters from (full domain)
     const DX: number = 4000.0;
-    //DY in meters from (full domain)
+    // DY in meters from (full domain)
     const DY: number = 4000.0;
     // DX and DY in meters
     proj.dx = DX;
@@ -227,6 +398,27 @@ export class MappingService {
 
     proj.rebydx = proj.re_m / proj.dx;
 
+    // Compute polei and polej based on known lat/lon at knowni, knownj
+    const tl1r = proj.truelat1 * RAD_PER_DEG;
+    const ctl1r = Math.cos(tl1r);
+
+    let deltalon_known = proj.lon1 - proj.stdlon;
+    if (deltalon_known > 180.0) deltalon_known -= 360.0;
+    if (deltalon_known < -180.0) deltalon_known += 360.0;
+
+    const rm_known =
+      ((proj.rebydx * ctl1r) / proj.cone) *
+      Math.pow(
+        Math.tan(((90.0 * proj.hemi - proj.lat1) * RAD_PER_DEG) / 2.0) /
+          Math.tan(((90.0 * proj.hemi - proj.truelat1) * RAD_PER_DEG) / 2.0),
+        proj.cone
+      );
+
+    const arg_known = proj.cone * (deltalon_known * RAD_PER_DEG);
+
+    proj.polei = -proj.hemi * rm_known * Math.sin(arg_known);
+    proj.polej = rm_known * Math.cos(arg_known);
+
     if (proj.stdlon < -180.0) {
       proj.stdlon += 360.0;
     }
@@ -235,9 +427,6 @@ export class MappingService {
       proj.stdlon -= 360.0;
     }
 
-    // Find the I,J of the input coordinate in the full domain
-    let { i, j } = this.llijLc(inputLat, inputLon, proj);
-
-    return { i_parent: i, j_parent: j };
+    return proj;
   }
 }

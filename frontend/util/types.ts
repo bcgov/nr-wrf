@@ -16,6 +16,7 @@ export interface TileDownloadInfo {
     lat: number;
     lon: number;
     tile_id: number;
+    domain: string;
     filename: string;
     full_url: string;
   };
