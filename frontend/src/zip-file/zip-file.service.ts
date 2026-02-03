@@ -310,17 +310,25 @@ export class ZipFileService {
     }
 
     try {
-      // m3d exe
-      const m3dExe = await lastValueFrom(
-        this.httpService.get('https://nrs.objectstore.gov.bc.ca/kadkvt/').pipe(map((response) => response.data))
+      // mmif exe
+      const mmifExe = await lastValueFrom(
+        this.httpService
+          .get('https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/setup_files/mmif.exe', {
+            responseType: 'arraybuffer',
+          })
+          .pipe(map((response) => response.data))
       );
-      fs.writeFile(folder + 'm3d_bild.exe', m3dExe, function (err) {
+      fs.writeFile(folder + 'mmif.exe', mmifExe, function (err) {
         if (err) throw err;
       });
-      console.log('Saved m3d_bild.exe');
+      console.log('Saved mmmif.exe');
       // readme.txt
-      const readmeContent = this.createAermodReadme();
-      fs.writeFile(folder + 'readme.txt', readmeContent, function (err) {
+      const readmeFile = await lastValueFrom(
+        this.httpService
+          .get('https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/setup_files/readme.txt')
+          .pipe(map((response) => response.data))
+      );
+      fs.writeFile(folder + 'readme.txt', readmeFile, function (err) {
         if (err) throw err;
       });
       console.log('Saved ' + 'readme.txt');
@@ -343,7 +351,7 @@ export class ZipFileService {
       });
       console.log('Saved ' + 'mmif.inp');
       const files = [
-        folder + 'm3d_bild.exe',
+        folder + 'mmif.exe',
         folder + 'readme.txt',
         folder + 'start.bat',
         folder + 'download.bat',
@@ -600,7 +608,7 @@ rem Batch file extract zip files, runs Fortran code
 
 call download.bat
 
-m3d_bild
+mmif
 md output
 ren "x???y???x???y???.?????????????????????.output.m3d" "/////////////////wrf.?????????????????????.output.m3d"
 move wrf.* output\
@@ -639,19 +647,9 @@ move wrf.* output\
     const inputString = inputLines.join('\n');
 
     const mmifContent = `
-# AUTOINSERT POINT 01
 ${startDate}
 ${stopDate}
-# based on user-specified start and end date
-# Start <yyyy mm dd hh>
-# Stop <yyyy mm dd hh>
-# example below
-# Start 2011 01 01 00
-# Stop 2012 01 01 23
-
 # TimeZone is relative to GMT, i.e. -5 (GMT-05) is the US East Coast
-
-# AUTOINSERT POINT 02
 ${timeZone}
 # based on user-specified time zone
 # TIMEZONE <tz> !default is zero, i.e. GMT-00
@@ -680,18 +678,11 @@ aer_min_speed 0.5 !default 0.5
 aer_min_mixht 1.0 !default 1
 aer_min_obuk 1.0 !default 1
 FSL_INTERVAL 12 !default 12
-
-# AUTOINSERT POINT 03
 ${latLonLine}
 # See the Users Guide for the OUTPUT keyword details
 OUTPUT AERMOD SFC "output\aermod.sfc"
 OUTPUT AERMOD PFL "output\aermod.pfl"
-
-# AUTOINSERT POINT 04
 ${inputString}
-# Insert the lines below based on user selection
-# insert one line for all included year/s
-# Input "<tile>\wrfout_d02_<tile>_<yyyy>.nc
 `;
     return mmifContent;
   }
