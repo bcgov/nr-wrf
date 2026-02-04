@@ -8,9 +8,6 @@ import { Cron } from '@nestjs/schedule';
 import { MappingService } from '../mapping/mapping.service';
 const fs = require('fs');
 
-let hostname: string;
-let port: number;
-
 interface CalpuffFileRecord {
   filename: string;
   year: number;
@@ -30,13 +27,7 @@ interface CalpuffFileRecord {
 
 @Injectable()
 export class ZipFileService {
-  constructor(private httpService: HttpService, private mappingService: MappingService) {
-    // docker hostname is the container name, use localhost for local development
-    hostname = process.env.BACKEND_URL ? process.env.BACKEND_URL : `http://localhost`;
-    // local development backend port is 3001, docker backend port is 3000
-    // port = process.env.BACKEND_URL ? 3000 : 3001;
-    port = 3000; // frontend = 8080, backend = 3000 for now
-  }
+  constructor(private httpService: HttpService, private mappingService: MappingService) {}
 
   private calpuffIndex: CalpuffFileRecord[] | null = null;
 
@@ -46,18 +37,7 @@ export class ZipFileService {
     bottomLeftXGlobal: number,
     topRightXGlobal: number
   ): Promise<any> {
-    const requestUrl = `${hostname}:${port}/data`;
-    const data = await lastValueFrom(
-      this.httpService
-        .post(requestUrl, {
-          bottomLeftYGlobal,
-          topRightYGlobal,
-          bottomLeftXGlobal,
-          topRightXGlobal,
-        })
-        .pipe(map((response) => response.data))
-    );
-    return data;
+    return this.mappingService.calculateVars(bottomLeftYGlobal, topRightYGlobal, bottomLeftXGlobal, topRightXGlobal);
   }
 
   /**

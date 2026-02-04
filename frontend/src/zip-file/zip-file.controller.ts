@@ -26,11 +26,6 @@ export class ZipFileController {
     return vars;
   }
 
-  @Post('zip')
-  async beginZipping(@Body() dataDto: { stitchingConfig: string; urls: string[] }): Promise<{ subFolder: string }> {
-    return this.zipFileService.beginZippingCalpuff(dataDto.stitchingConfig, dataDto.urls);
-  }
-
   @Post('zipSearch')
   async beginZippingFromBounds(
     @Body()

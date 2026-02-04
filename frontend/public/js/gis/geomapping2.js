@@ -85,9 +85,9 @@ require([
 
   async function loadHRDomainOverlays() {
     try {
-      const boundsResponse = await fetch('/js/gis/calpuff_hr_domain_bounds.json');
+      const boundsResponse = await fetch('/js/gis/hr_domain_bounds.json');
       if (!boundsResponse.ok) {
-        console.error('Failed to fetch calpuff_hr_domain_bounds.json');
+        console.error('Failed to fetch hr_domain_bounds.json');
         return;
       }
       const boundsData = await boundsResponse.json();
