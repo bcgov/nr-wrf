@@ -311,9 +311,7 @@ export class ZipFileService {
           })
           .pipe(map((response) => response.data))
       );
-      fs.writeFile(folder + 'mmif.exe', mmifExe, function (err) {
-        if (err) throw err;
-      });
+      await fs.promises.writeFile(folder + 'mmif.exe', mmifExe);
       console.log('Saved mmmif.exe');
       // readme.txt
       const readmeFile = await lastValueFrom(
@@ -321,27 +319,19 @@ export class ZipFileService {
           .get('https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/setup_files/readme.txt')
           .pipe(map((response) => response.data))
       );
-      fs.writeFile(folder + 'readme.txt', readmeFile, function (err) {
-        if (err) throw err;
-      });
+      await fs.promises.writeFile(folder + 'readme.txt', readmeFile);
       console.log('Saved ' + 'readme.txt');
       // start.bat
       const startBatContent = this.createAermodStartBat();
-      fs.writeFile(folder + 'start.bat', startBatContent, function (err) {
-        if (err) throw err;
-      });
+      await fs.promises.writeFile(folder + 'start.bat', startBatContent);
       console.log('Saved ' + 'start.bat');
       // download.bat
       const downloadBatContent = this.createAermodDownloadBat(downloadUrls);
-      fs.writeFile(folder + 'download.bat', downloadBatContent, function (err) {
-        if (err) throw err;
-      });
+      await fs.promises.writeFile(folder + 'download.bat', downloadBatContent);
       console.log('Saved ' + 'download.bat');
       // mmif.inp
       const mmifContent = this.createAermodConfig(tileDownloadInfo);
-      fs.writeFile(folder + 'mmif.inp', mmifContent, function (err) {
-        if (err) throw err;
-      });
+      await fs.promises.writeFile(folder + 'mmif.inp', mmifContent);
       console.log('Saved ' + 'mmif.inp');
       const files = [
         folder + 'mmif.exe',
@@ -352,16 +342,10 @@ export class ZipFileService {
       ];
       await zipFiles(files, folder);
       for (let file of files) {
-        fs.unlink(file, (err) => {
-          if (err) {
-            throw new Error(`Error deleting file: ${err}`);
-          }
-        });
+        await fs.promises.unlink(file);
       }
-      fs.writeFile(folder + 'Complete', '', function (err) {
-        if (err) throw err;
-        console.log('Zipping Complete');
-      });
+      await fs.promises.writeFile(folder + 'Complete', '');
+      console.log('Zipping Complete');
     } catch (err) {
       console.log('Something went wrong while downloading or zipping the files.');
       console.log(err);
