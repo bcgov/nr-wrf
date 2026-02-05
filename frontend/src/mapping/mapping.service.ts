@@ -68,6 +68,14 @@ export class MappingService {
     }
   }
 
+  /**
+   * For AERMOD: Find all domain/tile pairs that overlap with the closest d02 tile.
+   * Returns the d02 tile info plus any high-resolution tiles that overlap.
+   *
+   * @param latitude
+   * @param longitude
+   * @returns { d02Tile: { tile: number, domain: string, corners: {...} }, domainTiles: [{ domain: string, tiles: string[] }] }
+   */
   async calculateAermodTiles(latitude: number, longitude: number): Promise<any> {
     // Find the closest d02 tile to get the bounding box
     const closestTileData = await this.findClosestD02Tile(latitude, longitude);
@@ -91,13 +99,25 @@ export class MappingService {
     const bottomLeftXGlobal = lon1; // SW longitude
     const topRightXGlobal = lon0; // NE longitude
 
-    const { domain, minI, maxI, minJ, maxJ } = await this.calculateVars(
-      bottomLeftYGlobal,
-      topRightYGlobal,
-      bottomLeftXGlobal,
-      topRightXGlobal
+    // Call backend to get all overlapping domain/tile pairs
+    const requestUrl = `${hostname}:${port}/data/aermodDomainTiles`;
+    const domainTiles = await lastValueFrom(
+      this.httpService
+        .post(requestUrl, {
+          bottomLeftYGlobal,
+          topRightYGlobal,
+          bottomLeftXGlobal,
+          topRightXGlobal,
+        })
+        .pipe(map((response) => response.data))
     );
-    console.log(`domain: ${domain} - minI: ${minI} - maxI: ${maxI} - minJ: ${minJ} - maxJ: ${maxJ}`);
+
+    console.log('Domain tiles found:', domainTiles);
+
+    return {
+      d02Tile: closestTileData,
+      domainTiles,
+    };
   }
 
   async findClosestD02Tile(latitude: number, longitude: number): Promise<any> {

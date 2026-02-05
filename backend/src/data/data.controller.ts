@@ -24,4 +24,22 @@ export class DataController {
       dataDto.topRightXGlobal
     );
   }
+
+  @Post('aermodDomainTiles')
+  calculateAermodDomainTiles(
+    @Body()
+    dataDto: {
+      bottomLeftYGlobal: number;
+      topRightYGlobal: number;
+      bottomLeftXGlobal: number;
+      topRightXGlobal: number;
+    }
+  ) {
+    return this.dataService.calculateAermodDomainTiles(
+      dataDto.bottomLeftYGlobal,
+      dataDto.topRightYGlobal,
+      dataDto.bottomLeftXGlobal,
+      dataDto.topRightXGlobal
+    );
+  }
 }

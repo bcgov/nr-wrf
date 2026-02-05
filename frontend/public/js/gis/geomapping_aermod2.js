@@ -710,8 +710,6 @@ require([
     view.graphics.add(currentlyDrawnPoint);
   };
 
-  // download the data from the objects store
-  // TODO move this to backend
   async function downloadModelData() {
     var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
 

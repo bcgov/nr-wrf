@@ -138,15 +138,6 @@ export class ZipFileService {
     return { subFolder: subFolder };
   }
 
-  beginZippingAermod(tileDownloadInfo: TileDownloadInfo, dataUrls: string[]): { subFolder: string } {
-    const subFolder = uuid.v4();
-    const filePath = process.env.filePath;
-    const folder =
-      filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
-    this.zipFilesAermod(dataUrls, folder, tileDownloadInfo);
-    return { subFolder: subFolder };
-  }
-
   async beginZippingAermodFromCoords(request: {
     latitude: number;
     longitude: number;
@@ -198,16 +189,38 @@ export class ZipFileService {
       },
     };
 
-    const dataUrls: string[] = [];
-    const domain = closestPoint.domain;
-    const tileId = closestPoint.tile.toString().padStart(4, '0');
-    for (let year = startYear; year <= endYear; year++) {
-      dataUrls.push(`${baseUrl}/${domain}/${tileId}/wrfout_${domain}_${tileId}_${year}.nc`);
+    // Get all domain/tile pairs that overlap with the selected d02 tile
+    const aermodTileData = await this.mappingService.calculateAermodTiles(latitude, longitude);
+
+    if (!aermodTileData || !aermodTileData.domainTiles) {
+      throw new Error('Failed to calculate AERMOD domain tiles');
     }
 
-    // const urls: string[] = [baseUrl + 'start.bat', baseUrl + 'readme.txt', baseUrl + 'mmif.inp'];
+    // Build download URLs for all domains and tiles
+    const dataUrls: string[] = [];
+
+    for (const domainData of aermodTileData.domainTiles) {
+      const domain = domainData.domain;
+      for (const tile of domainData.tiles) {
+        const tileId = tile.toString().padStart(4, '0');
+        for (let year = startYear; year <= endYear; year++) {
+          dataUrls.push(`${baseUrl}/${domain}/${tileId}/wrfout_${domain}_${tileId}_${year}.nc`);
+        }
+      }
+    }
+
+    console.log(`Generated ${dataUrls.length} download URLs for AERMOD`);
 
     return this.beginZippingAermod(tileDownloadInfo, dataUrls);
+  }
+
+  beginZippingAermod(tileDownloadInfo: TileDownloadInfo, dataUrls: string[]): { subFolder: string } {
+    const subFolder = uuid.v4();
+    const filePath = process.env.filePath;
+    const folder =
+      filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
+    this.zipFilesAermod(dataUrls, folder, tileDownloadInfo);
+    return { subFolder: subFolder };
   }
 
   /**

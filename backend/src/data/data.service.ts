@@ -196,6 +196,69 @@ export class DataService {
   }
 
   /**
+   * For AERMOD: Find all domain/tile pairs that overlap with the given bounding box.
+   * This is used to identify high-resolution tiles that overlap with a selected d02 tile.
+   *
+   * @param southLat (bottomLeftYGlobal)
+   * @param northLat (topRightYGlobal)
+   * @param westLon (bottomLeftXGlobal)
+   * @param eastLon (topRightXGlobal)
+   * @returns Array of { domain: string, tiles: string[] }
+   */
+  async calculateAermodDomainTiles(
+    southLat: number,
+    northLat: number,
+    westLon: number,
+    eastLon: number
+  ): Promise<{ domain: string; tiles: string[] }[]> {
+    if (!dataLoaded) {
+      await this.waitForData();
+    }
+
+    // Track tiles by domain
+    const byDomain: { [domain: string]: Set<string> } = {};
+
+    for (const tile of tiles) {
+      // Check if bounding box overlaps with this tile's bounding box
+      const overlapsLat = southLat < tile.lat1 && northLat > tile.lat0;
+      const overlapsLon = westLon < tile.lon1 && eastLon > tile.lon0;
+
+      if (overlapsLat && overlapsLon) {
+        if (!byDomain[tile.domain]) {
+          byDomain[tile.domain] = new Set<string>();
+        }
+        // Add unique tile ID (ignore year duplicates)
+        byDomain[tile.domain].add(tile.tile);
+      }
+    }
+
+    // Convert to array format and sort
+    const result: { domain: string; tiles: string[] }[] = [];
+
+    // Always include d02 first if it has tiles
+    if (byDomain['d02']) {
+      result.push({
+        domain: 'd02',
+        tiles: Array.from(byDomain['d02']).sort(),
+      });
+    }
+
+    // Then add high-res domains (d03-d06) if they exist
+    const highResDomains = ['d03', 'd04', 'd05', 'd06'];
+    for (const domain of highResDomains) {
+      if (byDomain[domain]) {
+        result.push({
+          domain,
+          tiles: Array.from(byDomain[domain]).sort(),
+        });
+      }
+    }
+
+    this.logger.log(`Found tiles for AERMOD: ${JSON.stringify(result)}`);
+    return result;
+  }
+
+  /**
    * Scan the CSV to find the I/J ranges for each domain.
    * This is used to set the m3d_bild I/J ranges in each domain file
    */
