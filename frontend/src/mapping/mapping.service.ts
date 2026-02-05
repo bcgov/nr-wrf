@@ -2,19 +2,31 @@ import { Injectable } from '@nestjs/common';
 const fs = require('fs');
 import * as Papa from 'papaparse';
 import { ProjInfo } from '../../util/constants';
+import { HttpService } from '@nestjs/axios';
+import { lastValueFrom, map } from 'rxjs';
+
+let hostname: string;
+let port: number;
 
 @Injectable()
 export class MappingService {
   private aermodFilesCsv: string;
   private calpuffDomains: any[];
   private calpuffTiles: any[];
-  // private calpuffFilesCsv: string;
+
+  constructor(private httpService: HttpService) {
+    // docker hostname is the container name, use localhost for local development
+    hostname = process.env.BACKEND_URL ? process.env.BACKEND_URL : `http://localhost`;
+    // local development backend port is 3001, docker backend port is 3000
+    // port = process.env.BACKEND_URL ? 3000 : 3001;
+    port = 3000; // frontend = 8080, backend = 3000 for now
+  }
 
   onModuleInit() {
     try {
       this.aermodFilesCsv = fs.readFileSync('dist/public/js/gis/aermod_files.csv', 'utf-8');
-      this.calpuffDomains = JSON.parse(fs.readFileSync('dist/public/js/gis/calpuff_hr_domain_bounds.json', 'utf-8'));
-      this.calpuffTiles = JSON.parse(fs.readFileSync('dist/public/js/gis/calpuff_hr_domain_tiles.json', 'utf-8'));
+      this.calpuffDomains = JSON.parse(fs.readFileSync('dist/public/js/gis/hr_domain_bounds.json', 'utf-8'));
+      this.calpuffTiles = JSON.parse(fs.readFileSync('dist/public/js/gis/hr_domain_tiles.json', 'utf-8'));
       // this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
       console.log('AERMOD files loaded into memory.');
       console.log('CALPUFF HR domains loaded into memory.');
@@ -26,6 +38,26 @@ export class MappingService {
     }
   }
 
+  async calculateVars(
+    bottomLeftYGlobal: number,
+    topRightYGlobal: number,
+    bottomLeftXGlobal: number,
+    topRightXGlobal: number
+  ): Promise<any> {
+    const requestUrl = `${hostname}:${port}/data`;
+    const data = await lastValueFrom(
+      this.httpService
+        .post(requestUrl, {
+          bottomLeftYGlobal,
+          topRightYGlobal,
+          bottomLeftXGlobal,
+          topRightXGlobal,
+        })
+        .pipe(map((response) => response.data))
+    );
+    return data;
+  }
+
   getAermodTiles() {
     try {
       const data = fs.readFileSync('dist/public/js/gis/aermod_tiles_extended.json', 'utf-8');
@@ -33,6 +65,111 @@ export class MappingService {
     } catch (err) {
       console.error('Failed to read aermod_tiles_extended.json:', err);
       return [];
+    }
+  }
+
+  /**
+   * For AERMOD: Find all domain/tile pairs that overlap with the closest d02 tile.
+   * Returns the d02 tile info plus any high-resolution tiles that overlap.
+   *
+   * @param latitude
+   * @param longitude
+   * @returns { d02Tile: { tile: number, domain: string, corners: {...} }, domainTiles: [{ domain: string, tiles: string[] }] }
+   */
+  async calculateAermodTiles(latitude: number, longitude: number): Promise<any> {
+    // Find the closest d02 tile to get the bounding box
+    const closestTileData = await this.findClosestD02Tile(latitude, longitude);
+    console.log('~~~');
+    console.log(closestTileData);
+    console.log('~~~');
+
+    if (!closestTileData || !closestTileData.corners) {
+      console.error('Failed to find closest d02 tile');
+      return null;
+    }
+
+    // Extract corner coordinates
+    const { lat0, lon0, lat1, lon1 } = closestTileData.corners;
+
+    // Map corners to boundary variables
+    // lat0, lon0 = NE corner (top-right)
+    // lat1, lon1 = SW corner (bottom-left)
+    const bottomLeftYGlobal = lat1; // SW latitude
+    const topRightYGlobal = lat0; // NE latitude
+    const bottomLeftXGlobal = lon1; // SW longitude
+    const topRightXGlobal = lon0; // NE longitude
+
+    // Call backend to get all overlapping domain/tile pairs
+    const requestUrl = `${hostname}:${port}/data/aermodDomainTiles`;
+    const domainTiles = await lastValueFrom(
+      this.httpService
+        .post(requestUrl, {
+          bottomLeftYGlobal,
+          topRightYGlobal,
+          bottomLeftXGlobal,
+          topRightXGlobal,
+        })
+        .pipe(map((response) => response.data))
+    );
+
+    console.log('Domain tiles found:', domainTiles);
+
+    return {
+      d02Tile: closestTileData,
+      domainTiles,
+    };
+  }
+
+  async findClosestD02Tile(latitude: number, longitude: number): Promise<any> {
+    try {
+      // Parse the AERMOD CSV to find all d02 tiles
+      const parsed = Papa.parse(this.aermodFilesCsv, {
+        header: true,
+        skipEmptyLines: true,
+      });
+
+      let closestTile = null;
+      let minDistance = Infinity;
+      let closestCorners = { lat0: null, lon0: null, lat1: null, lon1: null };
+      const proj = this.getProjInfo();
+
+      parsed.data.forEach((entry: any) => {
+        if (!entry || entry.domain !== 'd02') return;
+
+        const lat0 = parseFloat(entry.lat0); // NE
+        const lon0 = parseFloat(entry.lon0); // NE
+        const lat1 = parseFloat(entry.lat1); // SW
+        const lon1 = parseFloat(entry.lon1); // SW
+
+        if (isNaN(lat0) || isNaN(lon0) || isNaN(lat1) || isNaN(lon1)) return;
+
+        // Calculate tile center
+        const centerLat = (lat0 + lat1) / 2;
+        const centerLon = (lon0 + lon1) / 2;
+
+        // Calculate distance to tile center
+        const dist = Math.sqrt((latitude - centerLat) ** 2 + (longitude - centerLon) ** 2);
+
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestTile = parseInt(entry.tile, 10);
+          closestCorners = { lat0, lon0, lat1, lon1 };
+        }
+      });
+
+      console.log(
+        `findClosestD02Tile: lat=${latitude}, lon=${longitude} -> tile=${closestTile}, distance=${minDistance}`
+      );
+
+      return {
+        tile: closestTile,
+        domain: 'd02',
+        corners: closestCorners,
+      };
+    } catch (err) {
+      console.log('Error in findClosestD02Tile');
+      console.log(err);
+      return null;
     }
   }
 

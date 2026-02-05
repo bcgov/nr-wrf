@@ -26,11 +26,6 @@ export class ZipFileController {
     return vars;
   }
 
-  @Post('zip')
-  async beginZipping(@Body() dataDto: { stitchingConfig: string; urls: string[] }): Promise<{ subFolder: string }> {
-    return this.zipFileService.beginZippingCalpuff(dataDto.stitchingConfig, dataDto.urls);
-  }
-
   @Post('zipSearch')
   async beginZippingFromBounds(
     @Body()
@@ -47,16 +42,16 @@ export class ZipFileController {
     return this.zipFileService.beginZippingFromBounds(dataDto);
   }
 
-  @Post('zipAermod')
-  async beginZippingAermod(
-    @Body()
-    dataDto: {
-      tileDownloadInfo: TileDownloadInfo;
-      urls: string[];
-    }
-  ): Promise<{ subFolder: string }> {
-    return this.zipFileService.beginZippingAermod(dataDto.tileDownloadInfo, dataDto.urls);
-  }
+  // @Post('zipAermod')
+  // async beginZippingAermod(
+  //   @Body()
+  //   dataDto: {
+  //     tileDownloadInfo: TileDownloadInfo;
+  //     urls: string[];
+  //   }
+  // ): Promise<{ subFolder: string }> {
+  //   return this.zipFileService.beginZippingAermod(dataDto.tileDownloadInfo, dataDto.urls);
+  // }
 
   @Post('zipAermodFromCoords')
   async beginZippingAermodFromCoords(

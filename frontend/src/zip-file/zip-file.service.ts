@@ -8,9 +8,6 @@ import { Cron } from '@nestjs/schedule';
 import { MappingService } from '../mapping/mapping.service';
 const fs = require('fs');
 
-let hostname: string;
-let port: number;
-
 interface CalpuffFileRecord {
   filename: string;
   year: number;
@@ -30,13 +27,7 @@ interface CalpuffFileRecord {
 
 @Injectable()
 export class ZipFileService {
-  constructor(private httpService: HttpService, private mappingService: MappingService) {
-    // docker hostname is the container name, use localhost for local development
-    hostname = process.env.BACKEND_URL ? process.env.BACKEND_URL : `http://localhost`;
-    // local development backend port is 3001, docker backend port is 3000
-    // port = process.env.BACKEND_URL ? 3000 : 3001;
-    port = 3000; // frontend = 8080, backend = 3000 for now
-  }
+  constructor(private httpService: HttpService, private mappingService: MappingService) {}
 
   private calpuffIndex: CalpuffFileRecord[] | null = null;
 
@@ -46,18 +37,7 @@ export class ZipFileService {
     bottomLeftXGlobal: number,
     topRightXGlobal: number
   ): Promise<any> {
-    const requestUrl = `${hostname}:${port}/data`;
-    const data = await lastValueFrom(
-      this.httpService
-        .post(requestUrl, {
-          bottomLeftYGlobal,
-          topRightYGlobal,
-          bottomLeftXGlobal,
-          topRightXGlobal,
-        })
-        .pipe(map((response) => response.data))
-    );
-    return data;
+    return this.mappingService.calculateVars(bottomLeftYGlobal, topRightYGlobal, bottomLeftXGlobal, topRightXGlobal);
   }
 
   /**
@@ -158,15 +138,6 @@ export class ZipFileService {
     return { subFolder: subFolder };
   }
 
-  beginZippingAermod(tileDownloadInfo: TileDownloadInfo, dataUrls: string[]): { subFolder: string } {
-    const subFolder = uuid.v4();
-    const filePath = process.env.filePath;
-    const folder =
-      filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
-    this.zipFilesAermod(dataUrls, folder, tileDownloadInfo);
-    return { subFolder: subFolder };
-  }
-
   async beginZippingAermodFromCoords(request: {
     latitude: number;
     longitude: number;
@@ -218,16 +189,38 @@ export class ZipFileService {
       },
     };
 
-    const dataUrls: string[] = [];
-    const domain = closestPoint.domain;
-    const tileId = closestPoint.tile.toString().padStart(4, '0');
-    for (let year = startYear; year <= endYear; year++) {
-      dataUrls.push(`${baseUrl}/${domain}/${tileId}/wrfout_${domain}_${tileId}_${year}.nc`);
+    // Get all domain/tile pairs that overlap with the selected d02 tile
+    const aermodTileData = await this.mappingService.calculateAermodTiles(latitude, longitude);
+
+    if (!aermodTileData || !aermodTileData.domainTiles) {
+      throw new Error('Failed to calculate AERMOD domain tiles');
     }
 
-    // const urls: string[] = [baseUrl + 'start.bat', baseUrl + 'readme.txt', baseUrl + 'mmif.inp'];
+    // Build download URLs for all domains and tiles
+    const dataUrls: string[] = [];
+
+    for (const domainData of aermodTileData.domainTiles) {
+      const domain = domainData.domain;
+      for (const tile of domainData.tiles) {
+        const tileId = tile.toString().padStart(4, '0');
+        for (let year = startYear; year <= endYear; year++) {
+          dataUrls.push(`${baseUrl}/${domain}/${tileId}/wrfout_${domain}_${tileId}_${year}.nc`);
+        }
+      }
+    }
+
+    console.log(`Generated ${dataUrls.length} download URLs for AERMOD`);
 
     return this.beginZippingAermod(tileDownloadInfo, dataUrls);
+  }
+
+  beginZippingAermod(tileDownloadInfo: TileDownloadInfo, dataUrls: string[]): { subFolder: string } {
+    const subFolder = uuid.v4();
+    const filePath = process.env.filePath;
+    const folder =
+      filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
+    this.zipFilesAermod(dataUrls, folder, tileDownloadInfo);
+    return { subFolder: subFolder };
   }
 
   /**
@@ -310,40 +303,38 @@ export class ZipFileService {
     }
 
     try {
-      // m3d exe
-      const m3dExe = await lastValueFrom(
-        this.httpService.get('https://nrs.objectstore.gov.bc.ca/kadkvt/').pipe(map((response) => response.data))
+      // mmif exe
+      const mmifExe = await lastValueFrom(
+        this.httpService
+          .get('https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/setup_files/mmif.exe', {
+            responseType: 'arraybuffer',
+          })
+          .pipe(map((response) => response.data))
       );
-      fs.writeFile(folder + 'm3d_bild.exe', m3dExe, function (err) {
-        if (err) throw err;
-      });
-      console.log('Saved m3d_bild.exe');
+      await fs.promises.writeFile(folder + 'mmif.exe', mmifExe);
+      console.log('Saved mmmif.exe');
       // readme.txt
-      const readmeContent = this.createAermodReadme();
-      fs.writeFile(folder + 'readme.txt', readmeContent, function (err) {
-        if (err) throw err;
-      });
+      const readmeFile = await lastValueFrom(
+        this.httpService
+          .get('https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/setup_files/readme.txt')
+          .pipe(map((response) => response.data))
+      );
+      await fs.promises.writeFile(folder + 'readme.txt', readmeFile);
       console.log('Saved ' + 'readme.txt');
       // start.bat
       const startBatContent = this.createAermodStartBat();
-      fs.writeFile(folder + 'start.bat', startBatContent, function (err) {
-        if (err) throw err;
-      });
+      await fs.promises.writeFile(folder + 'start.bat', startBatContent);
       console.log('Saved ' + 'start.bat');
       // download.bat
       const downloadBatContent = this.createAermodDownloadBat(downloadUrls);
-      fs.writeFile(folder + 'download.bat', downloadBatContent, function (err) {
-        if (err) throw err;
-      });
+      await fs.promises.writeFile(folder + 'download.bat', downloadBatContent);
       console.log('Saved ' + 'download.bat');
       // mmif.inp
       const mmifContent = this.createAermodConfig(tileDownloadInfo);
-      fs.writeFile(folder + 'mmif.inp', mmifContent, function (err) {
-        if (err) throw err;
-      });
+      await fs.promises.writeFile(folder + 'mmif.inp', mmifContent);
       console.log('Saved ' + 'mmif.inp');
       const files = [
-        folder + 'm3d_bild.exe',
+        folder + 'mmif.exe',
         folder + 'readme.txt',
         folder + 'start.bat',
         folder + 'download.bat',
@@ -351,16 +342,10 @@ export class ZipFileService {
       ];
       await zipFiles(files, folder);
       for (let file of files) {
-        fs.unlink(file, (err) => {
-          if (err) {
-            throw new Error(`Error deleting file: ${err}`);
-          }
-        });
+        await fs.promises.unlink(file);
       }
-      fs.writeFile(folder + 'Complete', '', function (err) {
-        if (err) throw err;
-        console.log('Zipping Complete');
-      });
+      await fs.promises.writeFile(folder + 'Complete', '');
+      console.log('Zipping Complete');
     } catch (err) {
       console.log('Something went wrong while downloading or zipping the files.');
       console.log(err);
@@ -600,7 +585,7 @@ rem Batch file extract zip files, runs Fortran code
 
 call download.bat
 
-m3d_bild
+mmif
 md output
 ren "x???y???x???y???.?????????????????????.output.m3d" "/////////////////wrf.?????????????????????.output.m3d"
 move wrf.* output\
@@ -639,19 +624,9 @@ move wrf.* output\
     const inputString = inputLines.join('\n');
 
     const mmifContent = `
-# AUTOINSERT POINT 01
 ${startDate}
 ${stopDate}
-# based on user-specified start and end date
-# Start <yyyy mm dd hh>
-# Stop <yyyy mm dd hh>
-# example below
-# Start 2011 01 01 00
-# Stop 2012 01 01 23
-
 # TimeZone is relative to GMT, i.e. -5 (GMT-05) is the US East Coast
-
-# AUTOINSERT POINT 02
 ${timeZone}
 # based on user-specified time zone
 # TIMEZONE <tz> !default is zero, i.e. GMT-00
@@ -680,18 +655,11 @@ aer_min_speed 0.5 !default 0.5
 aer_min_mixht 1.0 !default 1
 aer_min_obuk 1.0 !default 1
 FSL_INTERVAL 12 !default 12
-
-# AUTOINSERT POINT 03
 ${latLonLine}
 # See the Users Guide for the OUTPUT keyword details
 OUTPUT AERMOD SFC "output\aermod.sfc"
 OUTPUT AERMOD PFL "output\aermod.pfl"
-
-# AUTOINSERT POINT 04
 ${inputString}
-# Insert the lines below based on user selection
-# insert one line for all included year/s
-# Input "<tile>\wrfout_d02_<tile>_<yyyy>.nc
 `;
     return mmifContent;
   }
