@@ -158,22 +158,25 @@ export class ZipFileService {
     const startDate = new Date(startDateIso);
     const endDate = new Date(endDateIso);
 
-    // Adjust for timezone
-    startDate.setHours(startDate.getHours() + timezoneOffsetHours);
-    endDate.setHours(endDate.getHours() + timezoneOffsetHours);
+    // Adjust for Pacific Vancouver timezone using UTC methods
+    // timezoneOffsetHours represents hours behind UTC (positive = west of UTC)
+    // To convert FROM UTC TO Pacific time, we subtract the offset
+    startDate.setUTCHours(startDate.getUTCHours() - timezoneOffsetHours);
+    endDate.setUTCHours(endDate.getUTCHours() - timezoneOffsetHours);
 
-    const startYear = startDate.getFullYear();
-    const endYear = endDate.getFullYear();
+    const startYear = startDate.getUTCFullYear();
+    console.log(endDate);
+    const endYear = endDate.getUTCFullYear();
 
     const tileDownloadInfo: TileDownloadInfo = {
       startYear,
-      startMonth: startDate.getMonth() + 1,
-      startDay: startDate.getDate(),
-      startHour: startDate.getHours(),
+      startMonth: startDate.getUTCMonth() + 1,
+      startDay: startDate.getUTCDate(),
+      startHour: startDate.getUTCHours(),
       endYear,
-      endMonth: endDate.getMonth() + 1,
-      endDay: endDate.getDate(),
-      endHour: endDate.getHours(),
+      endMonth: endDate.getUTCMonth() + 1,
+      endDay: endDate.getUTCDate(),
+      endHour: endDate.getUTCHours(),
       timeZone: timezoneOffsetHours,
       latitude,
       longitude,
@@ -619,7 +622,7 @@ move wrf.* output\
         : ''
       : '';
     for (let year = tileDownloadInfo.startYear; year <= tileDownloadInfo.endYear; year++) {
-      inputLines.push(`Input "${tileId}\\wrfout_${domain}_${tileId}_${year}.nc"`);
+      inputLines.push(`Input "wrfout_${domain}_${tileId}_${year}.nc"`);
     }
     const inputString = inputLines.join('\n');
 
