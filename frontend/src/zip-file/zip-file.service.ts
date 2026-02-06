@@ -165,7 +165,6 @@ export class ZipFileService {
     endDate.setUTCHours(endDate.getUTCHours() - timezoneOffsetHours);
 
     const startYear = startDate.getUTCFullYear();
-    console.log(endDate);
     const endYear = endDate.getUTCFullYear();
 
     const tileDownloadInfo: TileDownloadInfo = {
@@ -214,15 +213,19 @@ export class ZipFileService {
 
     console.log(`Generated ${dataUrls.length} download URLs for AERMOD`);
 
-    return this.beginZippingAermod(tileDownloadInfo, dataUrls);
+    return this.beginZippingAermod(tileDownloadInfo, dataUrls, aermodTileData);
   }
 
-  beginZippingAermod(tileDownloadInfo: TileDownloadInfo, dataUrls: string[]): { subFolder: string } {
+  beginZippingAermod(
+    tileDownloadInfo: TileDownloadInfo,
+    dataUrls: string[],
+    tileList: { d02Tile: any; domainTiles: { domain: string; tiles: string[] }[] }
+  ): { subFolder: string } {
     const subFolder = uuid.v4();
     const filePath = process.env.filePath;
     const folder =
       filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
-    this.zipFilesAermod(dataUrls, folder, tileDownloadInfo);
+    this.zipFilesAermod(dataUrls, folder, tileDownloadInfo, tileList);
     return { subFolder: subFolder };
   }
 
@@ -300,7 +303,12 @@ export class ZipFileService {
     });
   }
 
-  async zipFilesAermod(downloadUrls: string[], folder: string, tileDownloadInfo: TileDownloadInfo): Promise<void> {
+  async zipFilesAermod(
+    downloadUrls: string[],
+    folder: string,
+    tileDownloadInfo: TileDownloadInfo,
+    tileList: { d02Tile: any; domainTiles: { domain: string; tiles: string[] }[] }
+  ): Promise<void> {
     if (!fs.existsSync(folder)) {
       fs.mkdirSync(folder);
     }
@@ -333,7 +341,7 @@ export class ZipFileService {
       await fs.promises.writeFile(folder + 'download.bat', downloadBatContent);
       console.log('Saved ' + 'download.bat');
       // mmif.inp
-      const mmifContent = this.createAermodConfig(tileDownloadInfo);
+      const mmifContent = this.createAermodConfig(tileDownloadInfo, tileList);
       await fs.promises.writeFile(folder + 'mmif.inp', mmifContent);
       console.log('Saved ' + 'mmif.inp');
       const files = [
@@ -577,8 +585,6 @@ export class ZipFileService {
         urls.push(rec.url);
       }
     }
-    console.log('download urls');
-    console.log(urls);
     return urls;
   }
 
@@ -595,7 +601,10 @@ move wrf.* output\
     `;
   }
 
-  createAermodConfig(tileDownloadInfo: TileDownloadInfo): string {
+  createAermodConfig(
+    tileDownloadInfo: TileDownloadInfo,
+    tileList: { d02Tile: any; domainTiles: { domain: string; tiles: string[] }[] }
+  ): string {
     // Autoinsert point 1
     const startDate = `Start ${tileDownloadInfo.startYear} ${tileDownloadInfo.startMonth
       .toString()
@@ -615,14 +624,14 @@ move wrf.* output\
     const latLonLine = `POINT LATLON ${tileDownloadInfo.latitude} ${tileDownloadInfo.longitude}`;
     // Autoinsert point 4
     const inputLines = [];
-    let tileId = '';
-    tileId = tileDownloadInfo.closestPoint
-      ? tileDownloadInfo.closestPoint.filename
-        ? tileDownloadInfo.closestPoint.filename.split('.')[0]
-        : ''
-      : '';
-    for (let year = tileDownloadInfo.startYear; year <= tileDownloadInfo.endYear; year++) {
-      inputLines.push(`Input "wrfout_${domain}_${tileId}_${year}.nc"`);
+    for (const domainData of tileList.domainTiles) {
+      const domainName = domainData.domain;
+      for (const tile of domainData.tiles) {
+        const tileId = tile.toString().padStart(4, '0');
+        for (let year = tileDownloadInfo.startYear; year <= tileDownloadInfo.endYear; year++) {
+          inputLines.push(`Input "wrfout_${domainName}_${tileId}_${year}.nc"`);
+        }
+      }
     }
     const inputString = inputLines.join('\n');
 
