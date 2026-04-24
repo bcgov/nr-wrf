@@ -15,7 +15,7 @@
         79,
         100
     ],
-    "editor.hover.enabled": false,
+    "editor.hover.enabled": "off",
     "editor.hover.sticky": false,
     "terminal.integrated.scrollback": 5000
 }
