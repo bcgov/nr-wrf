@@ -271,9 +271,26 @@ require([
     var startDate = $('#startDate').datetimepicker('getDate');
     var endDate = $('#endDate').datetimepicker('getDate');
 
+    // ORIGINAL, issue with time zone
     // factor in the timezone
-    startDate.setHours(startDate.getHours() + timezoneOffset);
-    endDate.setHours(endDate.getHours() + timezoneOffset);
+    // startDate.setHours(startDate.getHours() + timezoneOffset);
+    // endDate.setHours(endDate.getHours() + timezoneOffset);
+
+    //Force UTC entry for dates to avoid timezone issues
+    startDate = new Date(Date.UTC(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      startDate.getHours() + timezoneOffset,
+      startDate.getMinutes()
+    ));
+    endDate = new Date(Date.UTC(
+      endDate.getFullYear(),
+      endDate.getMonth(),
+      endDate.getDate(),
+      endDate.getHours() + timezoneOffset,
+      endDate.getMinutes()
+    ));
 
     view.popup.content = 'Preparing download... please wait';
 
