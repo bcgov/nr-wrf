@@ -12,12 +12,14 @@ import { DataService } from './data.service';
 //   Uses the original lat/lon overlap algorithm to find matching CALPUFF tiles.
 //   Returns the min/max I/J grid index range for the best-fit WRF domain.
 //
-// Tab 2 — AERMOD:   POST /data/aermodTilesAtPoint
-//   Accepts a single lat/lon point entered by the user.
+// Tab 2 — AERMOD:   POST /data/calculateAermodTiles
+//   Accepts a single lat/lon point entered by the user (no radius needed).
 //   Uses the LCC projection to find:
 //     - The coarse d02 tile containing the point (always returned).
 //     - The high-res tile (d03–d06) containing the point (if applicable).
 //   Returns { domain, tiles[] } matching the original response format.
+//
+//   Request fields use "latitude" and "longitude" to match the frontend.
 // =============================================================================
 
 @ApiTags('data')
@@ -57,11 +59,11 @@ export class DataController {
 
   // ===========================================================================
   // Tab 2 — AERMOD
-  // POST /data/aermodTilesAtPoint
+  // POST /data/calculateAermodTiles
   //
   // Request body:
-  //   lat  — latitude  of the project location (degrees N)
-  //   lon  — longitude of the project location (degrees E, -180..180)
+  //   latitude   — latitude  of the project location (degrees N)
+  //   longitude  — longitude of the project location (degrees E, -180..180)
   //
   // Response: array of { domain, tiles[] }, d02 first then high-res if applicable:
   //   [
@@ -72,17 +74,17 @@ export class DataController {
   // tiles[] contains a single tile ID — the one tile that contains the point.
   // The array format matches the original response structure.
   // ===========================================================================
-  @Post('aermodTilesAtPoint')
+  @Post('calculateAermodTiles')
   findAermodTilesAtPoint(
     @Body()
     dataDto: {
-      lat: number;
-      lon: number;
+      latitude: number;
+      longitude: number;
     },
   ) {
     return this.dataService.findAermodTilesAtPoint(
-      dataDto.lat,
-      dataDto.lon,
+      dataDto.latitude,
+      dataDto.longitude,
     );
   }
 }
