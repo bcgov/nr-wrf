@@ -13,21 +13,20 @@ import { DomainProjectionConfig, HIGH_RES_DOMAINS, COARSE_DOMAIN } from './domai
 // The original algorithm is kept completely unchanged.
 // =============================================================================
 
-// One row from calpuff_files.csv
 export interface Tile {
   filename: string;
   year: number;
   month?: number;
   domain: string;
   tile: string;
-  I0: number; // min I (west edge)
-  J0: number; // min J (south edge)
-  I1: number; // max I (east edge)
-  J1: number; // max J (north edge)
-  lat0: number; // south latitude
-  lon0: number; // west longitude
-  lat1: number; // north latitude
-  lon1: number; // east longitude
+  I0: number;
+  J0: number;
+  I1: number;
+  J1: number;
+  lat0: number;
+  lon0: number;
+  lat1: number;
+  lon1: number;
   url: string;
 }
 
@@ -58,20 +57,17 @@ export interface CalculateVarsResult {
 //   5. Also returns the matching high-res tile (d03–d06) if the location falls
 //      within one of those domains. A location can be in at most one high-res
 //      domain at a time.
-//
-// Return format matches the original: { domain: string, tiles: number[] }
 // =============================================================================
 
-// One row from aermod_files.csv
 export interface AermodTile {
   filename: string;
-  tile: number;   // numeric tile ID
+  tile: number;
   domain: string;
   year: number;
-  I0: number;     // SW corner — min I (mass-point index, inclusive)
-  J0: number;     // SW corner — min J (mass-point index, inclusive)
-  I1: number;     // NE corner — max I (mass-point index, inclusive)
-  J1: number;     // NE corner — max J (mass-point index, inclusive)
+  I0: number;
+  J0: number;
+  I1: number;
+  J1: number;
   lat0: number;
   lon0: number;
   lat1: number;
@@ -79,33 +75,17 @@ export interface AermodTile {
   url: string;
 }
 
-// Return type for findAermodTilesAtPoint.
-// Matches the original format: one entry per domain, with a list of tile IDs.
-// d02 is always present. A high-res domain entry is included only if the
-// user-specified location falls within that domain's coverage area.
-//
-// Example:
-//   [
-//     { domain: 'd02', tiles: [187] },
-//     { domain: 'd04', tiles: [12] }   ← only if location is within d04
-//   ]
 export interface AermodTileResult {
   domain: string;
   tiles: number[];
 }
 
 // =============================================================================
-// Module-level caches — loaded once at startup, shared across all requests
+// Module-level caches
 // =============================================================================
-
-// CALPUFF: all rows from calpuff_files.csv
 let tiles: Tile[] = [];
 let dataLoaded = false;
 
-// AERMOD: two-level index for fast lookup
-//   Level 1: domain name  (e.g. "d02")
-//   Level 2: tile ID      (e.g. 26)
-//   Value:   one AermodTile per unique tile ID (year duplicates removed)
 type AermodTileIndex = Map<string, Map<number, AermodTile>>;
 let aermodTileIndex: AermodTileIndex = new Map();
 let aermodDataLoaded = false;
@@ -114,8 +94,6 @@ let aermodDataLoaded = false;
 export class DataService {
   private readonly logger = new Logger(DataService.name);
 
-  // Geographic bounding box of each domain, computed from calpuff_files.csv.
-  // Used by calculateVars to decide high-res vs coarse domain priority.
   private domainExtents: {
     [domain: string]: {
       minLat: number;
@@ -125,9 +103,6 @@ export class DataService {
     };
   } = {};
 
-  // DomainProjectionConfig is injected by NestJS.
-  // Reads domain_projection.csv and supplies the LCC projection for each domain.
-  // Used only by the AERMOD tab.
   constructor(private readonly domainConfig: DomainProjectionConfig) {
     this.loadTileData();
     this.loadAermodTiles();
@@ -135,12 +110,12 @@ export class DataService {
 
   // ===========================================================================
   // CALPUFF — load calpuff_files.csv
-  // columns: filename, year, month, domain, tile, I0, J0, I1, J1,
-  //          lat0, lon0, lat1, lon1, url
   // ===========================================================================
   private async loadTileData(): Promise<void> {
     try {
       const csvPath = path.join(process.cwd(), 'src', 'util', 'calpuff_files.csv');
+      this.logger.log(`DataService: loading CALPUFF tiles from ${csvPath}`);
+
       const csv = fs.readFileSync(csvPath, 'utf-8');
       const lines = csv.split('\n');
 
@@ -168,7 +143,6 @@ export class DataService {
         });
       }
 
-      // Compute geographic bounding box per domain
       for (const tile of tiles) {
         if (!this.domainExtents[tile.domain]) {
           this.domainExtents[tile.domain] = {
@@ -186,29 +160,26 @@ export class DataService {
       }
 
       dataLoaded = true;
-      this.logger.log(`Loaded ${tiles.length} CALPUFF tiles from calpuff_files.csv`);
+      this.logger.log(`DataService: loaded ${tiles.length} CALPUFF tiles`);
       this.getDomainRanges();
     } catch (error) {
-      this.logger.error('Failed to load calpuff_files.csv', error);
+      this.logger.error(`DataService: failed to load calpuff_files.csv: ${error.message}`);
     }
   }
 
   // ===========================================================================
   // AERMOD — load aermod_files.csv
-  // columns: filename, tile, domain, year, I0, J0, I1, J1,
-  //          lat0, lon0, lat1, lon1, url
-  //
-  // Only the first occurrence of each tile ID per domain is stored since all
-  // years share the same I0/J0/I1/J1 geometry. Year duplicates are discarded.
-  // Header-driven parsing so column order does not matter.
   // ===========================================================================
   private async loadAermodTiles(): Promise<void> {
     try {
       const csvPath = path.join(process.cwd(), 'src', 'util', 'aermod_files.csv');
+      this.logger.log(`DataService: loading AERMOD tiles from ${csvPath}`);
+
       const lines = fs.readFileSync(csvPath, 'utf-8').split('\n');
 
-      // Build column-index map from header (order-independent)
       const headers = lines[0].trim().split(',').map(h => h.trim().toLowerCase());
+      this.logger.log(`DataService: AERMOD CSV headers: ${headers.join(', ')}`);
+
       const col = (name: string): number => {
         const idx = headers.indexOf(name);
         if (idx === -1) throw new Error(`aermod_files.csv: missing column "${name}"`);
@@ -240,8 +211,6 @@ export class DataService {
           aermodTileIndex.set(domain, new Map<number, AermodTile>());
         }
 
-        // Store only the first occurrence of each tile ID per domain.
-        // All years share identical I0/J0/I1/J1 geometry — verified.
         const bucket = aermodTileIndex.get(domain)!;
         if (!bucket.has(tileId)) {
           bucket.set(tileId, {
@@ -265,18 +234,16 @@ export class DataService {
 
       aermodDataLoaded = true;
       this.logger.log(
-        `Loaded ${uniqueCount} unique AERMOD tiles from aermod_files.csv: ` +
-        `${[...aermodTileIndex.entries()]
-          .map(([d, m]) => `${d}: ${m.size} tiles`)
-          .join(', ')}`,
+        `DataService: loaded ${uniqueCount} unique AERMOD tiles: ` +
+        `${[...aermodTileIndex.entries()].map(([d, m]) => `${d}:${m.size}`).join(', ')}`,
       );
     } catch (error) {
-      this.logger.error('Failed to load aermod_files.csv', error);
+      this.logger.error(`DataService: failed to load aermod_files.csv: ${error.message}`);
     }
   }
 
   // ===========================================================================
-  // Wait helpers — pause incoming requests until CSVs finish loading
+  // Wait helpers
   // ===========================================================================
   private waitForData(): Promise<void> {
     return new Promise(resolve => {
@@ -295,16 +262,7 @@ export class DataService {
   }
 
   // ===========================================================================
-  // TAB 1 — CALPUFF: calculateVars
-  //
-  // Original algorithm — completely unchanged.
-  // Finds CALPUFF tiles whose geographic lat/lon extents overlap a bounding box.
-  // Returns the min/max I/J range for the best-fit domain.
-  //
-  // @param southLat  bottomLeftYGlobal
-  // @param northLat  topRightYGlobal
-  // @param westLon   bottomLeftXGlobal
-  // @param eastLon   topRightXGlobal
+  // TAB 1 — CALPUFF: calculateVars (original algorithm — unchanged)
   // ===========================================================================
   async calculateVars(
     southLat: number,
@@ -350,7 +308,6 @@ export class DataService {
       }
     }
 
-    // Return high-res domain result if bounding box is entirely within it
     const highResDomains = ['d03', 'd04', 'd05', 'd06'];
     for (const domain of highResDomains) {
       const ext = this.domainExtents[domain];
@@ -369,7 +326,6 @@ export class DataService {
       }
     }
 
-    // Otherwise return coarse d02
     const res = byDomain['d02'];
     if (res) {
       console.log({ domain: 'd02', minI: res.minI, maxI: res.maxI, minJ: res.minJ, maxJ: res.maxJ });
@@ -380,11 +336,7 @@ export class DataService {
   }
 
   // ===========================================================================
-  // TAB 1 — CALPUFF: getDomainRanges
-  //
-  // Original method — completely unchanged.
-  // Scans calpuff_files.csv to find the full I/J range for each domain.
-  // Used to set the m3d_bild I/J ranges in each domain configuration file.
+  // TAB 1 — CALPUFF: getDomainRanges (original — unchanged)
   // ===========================================================================
   getDomainRanges(): {
     [domain: string]: {
@@ -435,28 +387,11 @@ export class DataService {
   // ===========================================================================
   // TAB 2 — AERMOD: findAermodTilesAtPoint
   //
-  // Given a lat/lon point entered by the user:
-  //
-  //   1. Converts lat/lon to decimal i/j using the LCC projection for d02.
-  //   2. Floors decimal i/j to nearest integer mass-point (SW-corner convention):
-  //        80.3→80,  80.5→80,  81.0→81
-  //   3. Finds the one d02 tile whose I0/J0/I1/J1 contains the floored i/j.
-  //   4. Checks each high-res domain (d03, d04, d05, d06) using that domain's
-  //      own LCC projection. Includes the high-res result only if the floored
-  //      i/j falls within a tile in that domain.
-  //      A location can be in at most ONE high-res domain at a time.
-  //
-  // Return format matches the original: { domain: string, tiles: number[] }
-  // d02 is always returned. High-res domain is returned only if applicable.
-  //
-  // Example response:
-  //   [
-  //     { domain: 'd02', tiles: [187] },
-  //     { domain: 'd04', tiles: [12] }   ← only if location is within d04
-  //   ]
-  //
-  // @param lat  latitude of the project location (degrees N)
-  // @param lon  longitude of the project location (degrees E, -180..180)
+  // Given a lat/lon point:
+  //   1. Converts to decimal i/j using LCC projection for each domain.
+  //   2. Floors decimal i/j to nearest integer mass-point (SW-corner convention).
+  //   3. Finds the tile containing that point.
+  //   4. Always returns d02 tile. Returns high-res tile if point is within one.
   // ===========================================================================
   async findAermodTilesAtPoint(
     lat: number,
@@ -464,56 +399,71 @@ export class DataService {
   ): Promise<AermodTileResult[]> {
     if (!aermodDataLoaded) await this.waitForAermod();
 
-    const result: AermodTileResult[] = [];
+    this.logger.log(`findAermodTilesAtPoint called with lat=${lat}, lon=${lon}`);
+    this.logger.log(`DomainProjectionConfig loaded: ${this.domainConfig.isLoaded()}`);
+    this.logger.log(`Available domains: ${this.domainConfig.getDomainNames().join(', ')}`);
 
-    // ── Step 1: always find the d02 (coarse) tile ────────────────────────────
-    const d02Proj = this.domainConfig.getProjection(COARSE_DOMAIN);
-    const d02IJ   = lccLatLonToIJ(d02Proj, lat, lon);
-    const d02Tile = this.findTileContainingPoint(COARSE_DOMAIN, d02IJ.i, d02IJ.j);
+    try {
+      const result: AermodTileResult[] = [];
 
-    if (!d02Tile) {
-      throw new Error(
-        `findAermodTilesAtPoint: lat=${lat}, lon=${lon} is outside all d02 tiles. ` +
-        `Please check that the coordinates are within BC.`,
-      );
-    }
+      // Step 1: always find the d02 (coarse) tile
+      this.logger.log(`Getting d02 projection...`);
+      const d02Proj = this.domainConfig.getProjection(COARSE_DOMAIN);
 
-    result.push({ domain: COARSE_DOMAIN, tiles: [d02Tile.tile] });
+      this.logger.log(`Converting lat/lon to i/j for d02...`);
+      const d02IJ = lccLatLonToIJ(d02Proj, lat, lon);
+      this.logger.log(`d02 i/j: ${d02IJ.i}, ${d02IJ.j}`);
 
-    // ── Step 2: check each high-res domain (d03, d04, d05, d06) ─────────────
-    // A location can be in at most one high-res domain.
-    // Once found, we stop checking the remaining domains.
-    for (const domain of HIGH_RES_DOMAINS) {
-      if (!this.domainConfig.hasDomain(domain)) continue;
+      const d02Tile = this.findTileContainingPoint(COARSE_DOMAIN, d02IJ.i, d02IJ.j);
 
-      const proj = this.domainConfig.getProjection(domain);
-      const ij   = lccLatLonToIJ(proj, lat, lon);
-      const tile = this.findTileContainingPoint(domain, ij.i, ij.j);
-
-      if (tile) {
-        result.push({ domain, tiles: [tile.tile] });
-        break; // location can only be in one high-res domain — stop here
+      if (!d02Tile) {
+        throw new Error(
+          `lat=${lat}, lon=${lon} is outside all d02 tiles. ` +
+          `Please check that the coordinates are within BC.`,
+        );
       }
-    }
 
-    this.logger.log(
-      `findAermodTilesAtPoint(lat=${lat}, lon=${lon}) → ${JSON.stringify(result)}`,
-    );
-    return result;
+      this.logger.log(`d02 tile found: ${d02Tile.tile}`);
+      result.push({ domain: COARSE_DOMAIN, tiles: [d02Tile.tile] });
+
+      // Step 2: check each high-res domain
+      for (const domain of HIGH_RES_DOMAINS) {
+        if (!this.domainConfig.hasDomain(domain)) {
+          this.logger.log(`Domain ${domain} not available — skipping`);
+          continue;
+        }
+
+        const proj = this.domainConfig.getProjection(domain);
+        const ij   = lccLatLonToIJ(proj, lat, lon);
+        this.logger.log(`${domain} i/j: ${ij.i}, ${ij.j}`);
+
+        const tile = this.findTileContainingPoint(domain, ij.i, ij.j);
+
+        if (tile) {
+          this.logger.log(`${domain} tile found: ${tile.tile}`);
+          result.push({ domain, tiles: [tile.tile] });
+          break;
+        } else {
+          this.logger.log(`Point is outside ${domain} coverage area`);
+        }
+      }
+
+      this.logger.log(`findAermodTilesAtPoint result: ${JSON.stringify(result)}`);
+      return result;
+
+    } catch (error) {
+      this.logger.error(`findAermodTilesAtPoint failed: ${error.message}`);
+      throw error;
+    }
   }
 
   // ===========================================================================
-  // Private helper — find the AERMOD tile that contains a decimal i/j point.
+  // Private helper — find the AERMOD tile containing a decimal i/j point.
   //
-  // Decimal → integer conversion: Math.floor (SW-corner convention)
-  //   80.3 → 80  (belongs to tile whose I1=80)
-  //   80.5 → 80  (tie → SW tile wins)
-  //   81.0 → 81  (belongs to tile whose I0=81)
+  // Uses Math.floor (SW-corner convention):
+  //   80.3→80, 80.5→80, 81.0→81
   //
-  // Containment check (inclusive on both ends):
-  //   tile.I0 <= iInt <= tile.I1   AND   tile.J0 <= jInt <= tile.J1
-  //
-  // Returns the matching tile, or null if the point is outside this domain.
+  // Returns null if the point is outside this domain's coverage.
   // ===========================================================================
   private findTileContainingPoint(
     domain: string,
@@ -521,17 +471,25 @@ export class DataService {
     j: number,
   ): AermodTile | null {
     const bucket = aermodTileIndex.get(domain);
-    if (!bucket) return null;
+    if (!bucket) {
+      this.logger.warn(`findTileContainingPoint: no tiles found for domain "${domain}"`);
+      return null;
+    }
 
-    // Floor to integer mass-point (SW-corner convention)
     const iInt = Math.floor(i);
     const jInt = Math.floor(j);
+
+    this.logger.log(
+      `findTileContainingPoint: domain=${domain}, ` +
+      `i=${i}→${iInt}, j=${j}→${jInt}, ` +
+      `searching ${bucket.size} tiles`,
+    );
 
     for (const tile of bucket.values()) {
       if (iInt >= tile.I0 && iInt <= tile.I1 && jInt >= tile.J0 && jInt <= tile.J1) {
         return tile;
       }
     }
-    return null; // point is outside this domain's coverage area
+    return null;
   }
 }
