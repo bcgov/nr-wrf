@@ -251,7 +251,7 @@
               (i.e., Readme.txt) for instructions on next steps. If you have any questions, please email
               <a href="mailto:bcdispersion.model@gov.bc.ca">bcdispersion.model@gov.bc.ca</a>.
             </p>
-            <p><em>Note: High-resolution (1.3 km) data is available for the dark-shaded regions shown on the map. </em></p>
+            <p><em>Note: High-resolution (1.33 km) data is available for the dark-shaded regions shown on the map. </em></p>
           </div>
         </div>
       </div>
@@ -306,7 +306,7 @@
             </button>
             <!-- 👇 ADD NOTE HERE -->
             <p style="margin-top: 15px; font-size: 0.9em;">
-              <em>Please download data in one-month segments to ensure CALMET compatibility.</em>
+              <em>Please download data in segments of one month or less, following best practice for CALMET input.</em>
             </p>
 
           </div>
@@ -348,7 +348,7 @@
             </button>
                <!-- 👇 ADD NOTE HERE -->
             <p style="margin-top: 15px; font-size: 0.9em;">
-              <em>Please download data in one-month segments to ensure CALMET compatibility.</em>
+              <em>Please download data in segments of one month or less, following best practice for CALMET input.</em>
             </p>
           </div>
           <div id="search-3">
@@ -365,7 +365,7 @@
               </button>
                <!-- 👇 ADD NOTE HERE -->
                <p style="margin-top: 15px; font-size: 0.9em;">
-                  <em>Please download data in one-month segments to ensure CALMET compatibility.</em>
+                  <em>Please download data in segments of one month or less, following best practice for CALMET input.</em>
                </p>
             </fieldset>
           </div>
@@ -462,6 +462,13 @@
           timeFormat: 'HH:mm',
           controlType: 'select',
           showMinute: false,
+          onSelect: function() {
+            var start = $(this).datetimepicker('getDate');
+            var maxDate = new Date(2024, 0, 1, 0, 0, 0);
+            var end = new Date(start.getFullYear(), start.getMonth() + 1, 1, 0, 0, 0);
+            if (end > maxDate) end = maxDate;
+            $('#endDate').datetimepicker('setDate', end);
+          },
         });
         $('#endDate').datetimepicker({
           changeMonth: true,
