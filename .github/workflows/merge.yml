@@ -1,0 +1,101 @@
+name: Merge
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - '.github/**'
+      - '.github/graphics/**'
+      - '!.github/workflows/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  init:
+    name: Initialize
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr: ${{ steps.pr.outputs.pr }}
+    runs-on: ubuntu-24.04
+    steps:
+      # Get PR number for squash merges to main
+      - id: pr
+        uses: bcgov/action-get-pr@28b0adf8e4d40720d41f9c87356ce24b0a4bd6af # v0.3.1
+  deploy-test:
+    name: TEST Deploys (${{ needs.init.outputs.pr }})
+    needs: [init]
+    uses: ./.github/workflows/reusable-deploy.yml
+    secrets:
+      db_password: ${{ secrets.db_password }}
+      oc_namespace: ${{ secrets.oc_namespace }}
+      oc_token: ${{ secrets.oc_token }}
+    with:
+      environment: test
+      target: test
+      tag: ${{ needs.init.outputs.pr }}
+
+  tests:
+    name: Tests
+    needs: [deploy-test]
+    uses: ./.github/workflows/reusable-tests.yml
+    with:
+      target: test
+
+  deploy-prod:
+    name: PROD Deploys (${{ needs.init.outputs.pr }})
+    needs: [tests, init]
+    uses: ./.github/workflows/reusable-deploy.yml
+    secrets:
+      db_password: ${{ secrets.db_password }}
+      oc_namespace: ${{ secrets.oc_namespace }}
+      oc_token: ${{ secrets.oc_token }}
+    with:
+      environment: prod
+      target: prod
+      tag: ${{ needs.init.outputs.pr }}
+
+  # Sync Sysdig email alerts for PROD. No-ops cleanly if SYSDIG_API_TOKEN is
+  # unset or monitoring/alerts/ is empty — adoption is gradual. Alert
+  # templates live in monitoring/alerts/ in this repo; add or remove files
+  # there to customize the alert set.
+  monitor-prod:
+    name: Sysdig Monitor (PROD)
+    needs: [deploy-prod]
+    runs-on: ubuntu-24.04
+    environment: prod
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: bcgov/action-sysdig-monitor@122c7672e37f97cf27c1b17d1c0738f152b1bcf7 # 0.0.2
+        with:
+          sysdig_api_token: ${{ secrets.SYSDIG_API_TOKEN }}
+          oc_namespace: ${{ secrets.oc_namespace }}
+          app: ${{ github.event.repository.name }}
+
+  promote:
+    name: Promote Images
+    needs: [deploy-prod, init]
+    runs-on: ubuntu-slim
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        package: [migrations, backend, frontend]
+    timeout-minutes: 1
+    steps:
+      - uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
+        with:
+          registry: ghcr.io
+          repository: ${{ github.repository }}/${{ matrix.package }}
+          target: ${{ needs.init.outputs.pr }}
+          tags: prod

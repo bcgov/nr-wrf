@@ -1,0 +1,112 @@
+name: Scheduled
+
+on:
+  schedule: [cron: "0 11 * * 6"] # 3 AM PST = 12 PM UDT, Saturdays
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  stale-branches:
+    name: Close Stale Branches & PRs
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/stale@v10
+        with:
+          days-before-stale: 14
+          days-before-close: 7
+          stale-label: stale
+          close-issue-message: >
+            This issue has been marked stale due to no activity for 14 days.
+            It will be closed in 7 days if no action is taken.
+            If you still need this, please reopen or comment to reset the timer.
+          close-pr-message: >
+            This PR has been marked stale due to no activity for 14 days.
+            It will be closed in 7 days if no action is taken.
+            If you still need this, please reopen or request review to reset the timer.
+          remove-stale-when-updated: true
+          operations-per-run: 100
+          debug-only: false
+
+  ageOutPRs:
+    name: PR Deployment Purge
+    env:
+      # https://tecadmin.net/getting-yesterdays-date-in-bash/
+      CUTOFF: "1 week ago"
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - name: Clean up PR Deployments
+        uses: bcgov/action-oc-runner@09b5eeae15bdbc7f7a21b406ee2c66a1d5819f8c # v1.6.0
+        with:
+          oc_namespace: ${{ secrets.oc_namespace }}
+          oc_token: ${{ secrets.oc_token }}
+          oc_server: ${{ vars.oc_server }}
+          commands: |
+            # Catch errors, unset variables, and pipe failures (e.g. grep || true )
+            set -euo pipefail
+
+            # Echos
+            echo "Delete stale PR deployments"
+            echo "Cutoff: ${{ env.CUTOFF }}"
+
+            # Before date
+            BEFORE=$(date +%s -d "${{ env.CUTOFF }}")
+            REPO="${{ github.event.repository.name }}"
+
+            # Get deployments matching the repo-PR naming pattern
+            DEPLOYS=$(oc get deploy --no-headers -o custom-columns=:metadata.name,:metadata.creationTimestamp 2>/dev/null | grep -E "${REPO}-[0-9]+" || :)
+
+            # If deployments, then iterate
+            if [ -n "${DEPLOYS}" ]; then
+              while read -r name created; do
+                # Convert creation timestamp to epoch
+                UPDATED=$(date -d "${created}" +%s 2>/dev/null || :)
+
+                # Compare to cutoff and delete as necessary
+                if [[ -n "${UPDATED}" ]] && [[ ${UPDATED} -lt ${BEFORE} ]]; then
+                  # Get the app label for this deployment
+                  LABEL=$(oc get deploy "${name}" -o jsonpath='{.metadata.labels.app}' 2>/dev/null || :)
+                  if [ -n "${LABEL}" ]; then
+                    echo -e "\nOlder than cutoff: ${name} (app=${LABEL})"
+                    oc delete all,secret,pvc,cm -l "app=${LABEL}" --ignore-not-found
+                  else
+                    echo -e "\nERROR: No app label found on deployment ${name}"
+                    exit 1
+                  fi
+                else
+                  echo -e "\nNewer than cutoff: ${name}"
+                  echo "No need to delete"
+                fi
+              done <<< "${DEPLOYS}"
+            else
+              echo "No PR deployments found for ${{ github.event.repository.name }}"
+            fi
+
+  schema-spy:
+    name: SchemaSpy
+    permissions:
+      contents: write
+      pages: write
+    uses: bcgov/quickstart-openshift-helpers/.github/workflows/.schema-spy.yml@a11ad3d1b9288fb40757c4314a62eb86ff227931 # v1.2.1
+
+  # Run sequentially to reduce chances of rate limiting
+  zap:
+    name: ZAP Scans
+    permissions:
+      issues: write
+    runs-on: ubuntu-24.04
+    steps:
+      - name: ZAP Scan
+        uses: zaproxy/action-full-scan@3c58388149901b9a03b7718852c5ba889646c27c # v0.13.0
+        with:
+          allow_issue_writing: true
+          issue_title: "ZAP Security Report"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: https://${{ github.event.repository.name }}-test.apps.silver.devops.gov.bc.ca
