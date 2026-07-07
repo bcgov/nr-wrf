@@ -27,16 +27,14 @@ objects:
       database-name: ${NAME}
       database-password: ${DB_PASSWORD}
       database-user: ${NAME}
-    - apiVersion: networking.k8s.io/v1
+  - apiVersion: networking.k8s.io/v1
     kind: NetworkPolicy
     metadata:
-      name: ${NAME}-${ZONE}-frontend-ingress
+      name: allow-from-openshift-ingress
       labels:
-        app: ${NAME}-${ZONE}
+        template: openshift-test
     spec:
-      podSelector:
-        matchLabels:
-          deployment: ${NAME}-${ZONE}-frontend
+      podSelector: {}
       ingress:
         - from:
             - namespaceSelector:
@@ -47,18 +45,13 @@ objects:
   - apiVersion: networking.k8s.io/v1
     kind: NetworkPolicy
     metadata:
-      name: ${NAME}-${ZONE}-backend-ingress
+      name: allow-same-namespace
       labels:
-        app: ${NAME}-${ZONE}
+        template: quickstart-network-security-policy
     spec:
-      podSelector:
-        matchLabels:
-          deployment: ${NAME}-${ZONE}-backend
+      podSelector: {}
       ingress:
         - from:
-            - podSelector:
-                matchLabels:
-                  app: ${NAME}-${ZONE}
-                  deployment: ${NAME}-${ZONE}-frontend
+            - podSelector: {}
       policyTypes:
         - Ingress
