@@ -51,11 +51,11 @@ jobs:
         id: deploy
         with:
           file: common/openshift.init.yml
-          oc_namespace: ${{ secrets.oc_namespace }}
-          oc_server: ${{ vars.oc_server }}
-          oc_token: ${{ secrets.oc_token }}
+          oc_namespace: ${{ secrets.OC_NAMESPACE }}
+          oc_server: ${{ vars.OC_SERVER }}
+          oc_token: ${{ secrets.OC_TOKEN }}
           overwrite: true
-          parameters: -p DB_PASSWORD="${{ secrets.db_password }}"
+          parameters: 
             -p ZONE="${{ inputs.target }}"
             -p NAME="${{ github.event.repository.name }}"
           triggers: ${{ inputs.triggers }}
@@ -84,9 +84,9 @@ jobs:
         id: deploy
         with:
           file: ${{ matrix.file }}
-          oc_namespace: ${{ secrets.oc_namespace }}
-          oc_server: ${{ vars.oc_server }}
-          oc_token: ${{ secrets.oc_token }}
+          oc_namespace: ${{ secrets.OC_NAMESPACE }}
+          oc_server: ${{ vars.OC_SERVER }}
+          oc_token: ${{ secrets.OC_TOKEN }}
           debug: true
           # Lite mode strips HPA + PDB and scales to 1 replica (Recreate) for PR/sandbox deploys
           lite_mode: ${{ github.event_name == 'pull_request' }}
