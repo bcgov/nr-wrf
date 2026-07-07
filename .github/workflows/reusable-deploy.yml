@@ -31,6 +31,9 @@ on:
       oc_token:
         description: OpenShift token
         required: true
+      oc_server:
+        description: OpenShift server
+        required: true
 
     outputs:
       triggered:
