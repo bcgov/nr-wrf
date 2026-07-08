@@ -75,35 +75,67 @@ objects:
         app: ${NAME}-${ZONE}
       name: ${NAME}-${ZONE}-${COMPONENT}
     spec:
-      replicas: 1
-      triggers:
-        - type: ConfigChange
-        - type: ImageChange
-          imageChangeParams:
-            automatic: true
-            containerNames:
-              - ${NAME}
-            from:
-              kind: ImageStreamTag
-              name: ${NAME}-${ZONE}-${COMPONENT}:${IMAGE_TAG}
       selector:
-        deployment: ${NAME}-${ZONE}-${COMPONENT}
+        matchLabels:
+          deployment: ${NAME}-${ZONE}-${COMPONENT}
       strategy:
-        type: Rolling
+        type: RollingUpdate
       template:
         metadata:
           labels:
             app: ${NAME}-${ZONE}
             deployment: ${NAME}-${ZONE}-${COMPONENT}
         spec:
-          volumes:
-            - name: wrf-files
-              persistentVolumeClaim:
-                claimName: wrf-files
+          terminationGracePeriodSeconds: 30
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        deployment: ${NAME}-${ZONE}-${COMPONENT}
+                    topologyKey: kubernetes.io/hostname
+          initContainers:
+            - name: wait-for-backend
+              image: ${REGISTRY}/${ORG_NAME}/${NAME}/${COMPONENT}:${IMAGE_TAG}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Waiting for backend to be healthy..."
+                  max_retries=30
+                  attempt=1
+                  until wget -q --spider http://${NAME}-${ZONE}-backend/api/health; do
+                    if [ "$attempt" -ge "$max_retries" ]; then
+                      echo "ERROR: Backend ${NAME}-${ZONE}-backend is not reachable/healthy after ${max_retries} attempts." >&2
+                      exit 1
+                    fi
+                    echo "Backend not ready (attempt ${attempt}/${max_retries}), sleeping..."
+                    attempt=$((attempt + 1))
+                    sleep 2
+                  done
+                  echo "Backend is UP and healthy!"
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - mountPath: /mnt/wrf-files
+                  name: wrf-files
           containers:
-            - image: ${NAME}-${ZONE}-${COMPONENT}:${IMAGE_TAG}
+            - name: ${NAME}
+              image: ${REGISTRY}/${ORG_NAME}/${NAME}/${COMPONENT}:${IMAGE_TAG}
               imagePullPolicy: Always
-              name: ${NAME}
+              ports:
+                - name: http
+                  containerPort: 3000
+                - name: health
+                  containerPort: 3001
               env:
                 - name: BACKEND_URL
                   value: http://${NAME}-${ZONE}-backend
@@ -116,34 +148,49 @@ objects:
                     secretKeyRef:
                       name: esri-config-api-key
                       key: esriConfigApiKey
-              ports:
-                - containerPort: 3000
-                  protocol: TCP
-              volumeMounts:
-                - mountPath: /mnt/wrf-files
-                  name: wrf-files
               resources:
                 requests:
                   cpu: ${CPU_REQUEST}
                   memory: ${MEMORY_REQUEST}
+                limits:
+                  memory: ${MEMORY_LIMIT}
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - mountPath: /mnt/wrf-files
+                  name: wrf-files
+              startupProbe:
+                httpGet:
+                  path: /health
+                  port: health
+                periodSeconds: 5
+                failureThreshold: 30
               readinessProbe:
                 httpGet:
-                  path: /
-                  port: 3000
-                  scheme: HTTP
-                initialDelaySeconds: 15
-                periodSeconds: 30
-                timeoutSeconds: 1
-              livenessProbe:
-                successThreshold: 1
+                  path: /health
+                  port: health
+                periodSeconds: 5
                 failureThreshold: 3
+              livenessProbe:
                 httpGet:
-                  path: /
-                  port: 3000
-                  scheme: HTTP
-                initialDelaySeconds: 15
-                periodSeconds: 30
-                timeoutSeconds: 5
+                  path: /health
+                  port: health
+                periodSeconds: 10
+                failureThreshold: 3
+              lifecycle:
+                preStop:
+                  exec:
+                    command: ["/bin/sleep", "10"]
+          volumes:
+            - name: wrf-files
+              persistentVolumeClaim:
+                claimName: wrf-files
   - apiVersion: v1
     kind: Service
     metadata:
