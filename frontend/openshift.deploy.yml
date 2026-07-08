@@ -68,8 +68,8 @@ objects:
         requests:
           storage: "1Gi"
       storageClassName: netapp-file-standard
-  - apiVersion: v1
-    kind: DeploymentConfig
+  - apiVersion: apps/v1
+    kind: Deployment
     metadata:
       labels:
         app: ${NAME}-${ZONE}
@@ -87,14 +87,14 @@ objects:
               kind: ImageStreamTag
               name: ${NAME}-${ZONE}-${COMPONENT}:${IMAGE_TAG}
       selector:
-        deploymentconfig: ${NAME}-${ZONE}-${COMPONENT}
+        deployment: ${NAME}-${ZONE}-${COMPONENT}
       strategy:
         type: Rolling
       template:
         metadata:
           labels:
             app: ${NAME}-${ZONE}
-            deploymentconfig: ${NAME}-${ZONE}-${COMPONENT}
+            deployment: ${NAME}-${ZONE}-${COMPONENT}
         spec:
           volumes:
             - name: wrf-files
@@ -157,7 +157,7 @@ objects:
           port: 80
           targetPort: 3000
       selector:
-        deploymentconfig: ${NAME}-${ZONE}-${COMPONENT}
+        deployment: ${NAME}-${ZONE}-${COMPONENT}
   - apiVersion: route.openshift.io/v1
     kind: Route
     metadata:
@@ -182,7 +182,7 @@ objects:
     spec:
       scaleTargetRef:
         apiVersion: apps.openshift.io/v1
-        kind: DeploymentConfig
+        kind: Deployment
         name: ${NAME}-${ZONE}-${COMPONENT}
       minReplicas: ${{MIN_REPLICAS}}
       maxReplicas: ${{MAX_REPLICAS}}
