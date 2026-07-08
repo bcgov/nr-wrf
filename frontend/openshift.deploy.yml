@@ -38,6 +38,9 @@ parameters:
   - name: PROMOTE
     description: Image (namespace/name:tag) to promote/import
     value: bcgov/nr-wrf-typescript:prod-frontend
+  - name: ORG_NAME
+    description: Organization name
+    value: bcgov
 objects:
   - apiVersion: v1
     kind: ImageStream
@@ -125,8 +128,8 @@ objects:
                 seccompProfile:
                   type: RuntimeDefault
               volumeMounts:
-                - mountPath: /mnt/wrf-files
-                  name: wrf-files
+                - name: caddy-data
+                  mountPath: /tmp/caddy
           containers:
             - name: ${NAME}
               image: ${REGISTRY}/${ORG_NAME}/${NAME}/${COMPONENT}:${IMAGE_TAG}
@@ -139,6 +142,16 @@ objects:
               env:
                 - name: BACKEND_URL
                   value: http://${NAME}-${ZONE}-backend
+                # readOnlyRootFilesystem: true → redirect every writable path
+                # onto an emptyDir. Caddy stores config/data under the XDG dirs
+                # (mounted at /tmp/caddy); Coraza writes SecTmpDir/SecDataDir
+                # under /tmp/coraza; generic temp files go to TMPDIR.
+                - name: XDG_CONFIG_HOME
+                  value: /tmp/caddy
+                - name: XDG_DATA_HOME
+                  value: /tmp/caddy
+                - name: TMPDIR
+                  value: /tmp/caddy
                 - name: NODE_TLS_REJECT_UNAUTHORIZED 
                   value: '0'
                 - name: filePath
@@ -163,6 +176,10 @@ objects:
                 seccompProfile:
                   type: RuntimeDefault
               volumeMounts:
+                - name: caddy-data
+                  mountPath: /tmp/caddy
+                - name: coraza-tmp
+                  mountPath: /tmp/coraza
                 - mountPath: /mnt/wrf-files
                   name: wrf-files
               startupProbe:
@@ -188,6 +205,14 @@ objects:
                   exec:
                     command: ["/bin/sleep", "10"]
           volumes:
+            - name: caddy-data
+              emptyDir:
+                medium: Memory
+                sizeLimit: 256Mi
+            - name: coraza-tmp
+              emptyDir:
+                medium: Memory
+                sizeLimit: 256Mi
             - name: wrf-files
               persistentVolumeClaim:
                 claimName: wrf-files
