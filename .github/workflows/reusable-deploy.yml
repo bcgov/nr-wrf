@@ -54,14 +54,13 @@ jobs:
         id: deploy
         with:
           file: common/openshift.init.yml
-          oc_namespace: ${{ secrets.oc_namespace }}
-          oc_server: ${{ secrets.oc_server }}
-          oc_token: ${{ secrets.oc_token }}
+          oc_namespace: ${{ secrets.OC_NAMESPACE }}
+          oc_server: ${{ secrets.OC_SERVER }}
+          oc_token: ${{ secrets.OC_TOKEN }}
           overwrite: false
           parameters: -p DB_PASSWORD="${{ secrets.db_password }}"
-            -p ZONE=${{ github.event.number }} -p NAME=wrf
-            -p PROMOTE=${{ github.repository }}/${{ matrix.name }}:${{ github.event.number }}
-            ${{ matrix.parameters }}
+            -p ZONE="${{ inputs.target }}"
+            -p NAME="${{ github.event.repository.name }}"
           triggers: ${{ inputs.triggers }}
           debug: true
 
@@ -88,14 +87,13 @@ jobs:
         id: deploy
         with:
           file: ${{ matrix.file }}
-          oc_namespace: ${{ secrets.oc_namespace }}
-          oc_server: ${{ secrets.oc_server }}
-          oc_token: ${{ secrets.oc_token }}
+          oc_namespace: ${{ secrets.OC_NAMESPACE }}
+          oc_server: ${{ secrets.OC_SERVER }}
+          oc_token: ${{ secrets.OC_TOKEN }}
           debug: true
           # Lite mode strips HPA + PDB and scales to 1 replica (Recreate) for PR/sandbox deploys
           lite_mode: ${{ github.event_name == 'pull_request' }}
-          parameters: 
-            -p ZONE=${{ github.event.number }} -p NAME=wrf
-            -p PROMOTE=${{ github.repository }}/${{ matrix.name }}:${{ github.event.number }}
+          parameters: -p ZONE="${{ inputs.target }}"
+            -p NAME="${{ github.event.repository.name }}"
             ${{ matrix.parameters }}
           triggers: ${{ inputs.triggers }}

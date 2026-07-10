@@ -36,9 +36,9 @@ jobs:
     uses: ./.github/workflows/reusable-deploy.yml
     secrets:
       db_password: ${{ secrets.db_password }}
-      oc_namespace: ${{ secrets.oc_namespace }}
-      oc_server: ${{ secrets.oc_server }}
-      oc_token: ${{ secrets.oc_token }}
+      oc_namespace: ${{ secrets.OC_NAMESPACE }}
+      oc_server: ${{ secrets.OC_SERVER }}
+      oc_token: ${{ secrets.OC_TOKEN }}
     with:
       target: ${{ github.event.number }}
       triggers: ('backend/', 'frontend/', 'common/', '.github/workflows/')
