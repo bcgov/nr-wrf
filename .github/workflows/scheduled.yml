@@ -45,9 +45,9 @@ jobs:
       - name: Clean up PR Deployments
         uses: bcgov/action-oc-runner@09b5eeae15bdbc7f7a21b406ee2c66a1d5819f8c # v1.6.0
         with:
-          oc_namespace: ${{ secrets.oc_namespace }}
-          oc_token: ${{ secrets.oc_token }}
-          oc_server: ${{ vars.oc_server }}
+          oc_namespace: ${{ secrets.OC_NAMESPACE }}
+          oc_token: ${{ secrets.OC_TOKEN }}
+          oc_server: ${{ vars.OC_SERVER }}
           commands: |
             # Catch errors, unset variables, and pipe failures (e.g. grep || true )
             set -euo pipefail

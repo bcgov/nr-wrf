@@ -35,8 +35,8 @@ jobs:
     uses: ./.github/workflows/reusable-deploy.yml
     secrets:
       db_password: ${{ secrets.db_password }}
-      oc_namespace: ${{ secrets.oc_namespace }}
-      oc_token: ${{ secrets.oc_token }}
+      oc_namespace: ${{ secrets.OC_NAMESPACE }}
+      oc_token: ${{ secrets.OC_TOKEN }}
     with:
       environment: test
       target: test
@@ -55,8 +55,8 @@ jobs:
     uses: ./.github/workflows/reusable-deploy.yml
     secrets:
       db_password: ${{ secrets.db_password }}
-      oc_namespace: ${{ secrets.oc_namespace }}
-      oc_token: ${{ secrets.oc_token }}
+      oc_namespace: ${{ secrets.OC_NAMESPACE }}
+      oc_token: ${{ secrets.OC_TOKEN }}
     with:
       environment: prod
       target: prod
@@ -79,7 +79,7 @@ jobs:
       - uses: bcgov/action-sysdig-monitor@122c7672e37f97cf27c1b17d1c0738f152b1bcf7 # 0.0.2
         with:
           sysdig_api_token: ${{ secrets.SYSDIG_API_TOKEN }}
-          oc_namespace: ${{ secrets.oc_namespace }}
+          oc_namespace: ${{ secrets.OC_NAMESPACE }}
           app: ${{ github.event.repository.name }}
 
   promote:
