@@ -55,7 +55,7 @@ objects:
         - name: ${IMAGE_TAG}
           from:
             kind: DockerImage
-            name: ${REGISTRY}/${PROMOTE}
+            name: ${REGISTRY}/${ORG_NAME}/${NAME}/${COMPONENT}:${{ github.event.number }}
           referencePolicy:
             type: Local
   - apiVersion: apps/v1
