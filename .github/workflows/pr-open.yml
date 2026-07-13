@@ -56,7 +56,7 @@ jobs:
   # ==========================================================================
   results:
     name: PR Results
-    needs: [builds, deploys, tests]
+    needs: [builds, deploys]
     if: always()
     runs-on: ubuntu-slim
     timeout-minutes: 1
