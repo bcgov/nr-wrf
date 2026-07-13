@@ -38,6 +38,9 @@ parameters:
   - name: PROMOTE
     description: Image (namespace/name:tag) to promote/import
     value: bcgov/nr-wrf-typescript:prod-frontend
+  - name: ORG_NAME
+    description: Organization name
+    value: bcgov
 objects:
   - apiVersion: v1
     kind: ImageStream
@@ -52,7 +55,7 @@ objects:
         - name: ${IMAGE_TAG}
           from:
             kind: DockerImage
-            name: ${REGISTRY}/${PROMOTE}
+            name: ${REGISTRY}/${ORG_NAME}/${NAME}/${COMPONENT}:${ZONE}
           referencePolicy:
             type: Local
   - kind: PersistentVolumeClaim
@@ -68,42 +71,45 @@ objects:
         requests:
           storage: "1Gi"
       storageClassName: netapp-file-standard
-  - apiVersion: v1
-    kind: DeploymentConfig
+  - apiVersion: apps/v1
+    kind: Deployment
     metadata:
       labels:
         app: ${NAME}-${ZONE}
       name: ${NAME}-${ZONE}-${COMPONENT}
     spec:
-      replicas: 1
-      triggers:
-        - type: ConfigChange
-        - type: ImageChange
-          imageChangeParams:
-            automatic: true
-            containerNames:
-              - ${NAME}
-            from:
-              kind: ImageStreamTag
-              name: ${NAME}-${ZONE}-${COMPONENT}:${IMAGE_TAG}
       selector:
-        deploymentconfig: ${NAME}-${ZONE}-${COMPONENT}
+        matchLabels:
+          deployment: ${NAME}-${ZONE}-${COMPONENT}
       strategy:
-        type: Rolling
+        type: RollingUpdate
       template:
         metadata:
           labels:
             app: ${NAME}-${ZONE}
-            deploymentconfig: ${NAME}-${ZONE}-${COMPONENT}
+            deployment: ${NAME}-${ZONE}-${COMPONENT}
         spec:
           volumes:
             - name: wrf-files
               persistentVolumeClaim:
                 claimName: wrf-files
+          terminationGracePeriodSeconds: 30
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        deployment: ${NAME}-${ZONE}-${COMPONENT}
+                    topologyKey: kubernetes.io/hostname
           containers:
-            - image: ${NAME}-${ZONE}-${COMPONENT}:${IMAGE_TAG}
+            - name: ${NAME}
+              image: ${REGISTRY}/${ORG_NAME}/${NAME}/${COMPONENT}:${IMAGE_TAG}
               imagePullPolicy: Always
-              name: ${NAME}
+              ports:
+                - containerPort: 3000
+                  protocol: TCP
               env:
                 - name: BACKEND_URL
                   value: http://${NAME}-${ZONE}-backend
@@ -116,16 +122,13 @@ objects:
                     secretKeyRef:
                       name: esri-config-api-key
                       key: esriConfigApiKey
-              ports:
-                - containerPort: 3000
-                  protocol: TCP
-              volumeMounts:
-                - mountPath: /mnt/wrf-files
-                  name: wrf-files
               resources:
                 requests:
                   cpu: ${CPU_REQUEST}
                   memory: ${MEMORY_REQUEST}
+              volumeMounts:
+                - mountPath: /mnt/wrf-files
+                  name: wrf-files
               readinessProbe:
                 httpGet:
                   path: /
@@ -157,7 +160,7 @@ objects:
           port: 80
           targetPort: 3000
       selector:
-        deploymentconfig: ${NAME}-${ZONE}-${COMPONENT}
+        deployment: ${NAME}-${ZONE}-${COMPONENT}
   - apiVersion: route.openshift.io/v1
     kind: Route
     metadata:
@@ -181,8 +184,8 @@ objects:
       name: ${NAME}-${ZONE}-${COMPONENT}
     spec:
       scaleTargetRef:
-        apiVersion: apps.openshift.io/v1
-        kind: DeploymentConfig
+        apiVersion: apps/v1
+        kind: Deployment
         name: ${NAME}-${ZONE}-${COMPONENT}
       minReplicas: ${{MIN_REPLICAS}}
       maxReplicas: ${{MAX_REPLICAS}}

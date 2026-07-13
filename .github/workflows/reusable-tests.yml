@@ -1,0 +1,116 @@
+name: Reusable Tests
+
+on:
+  workflow_call:
+    inputs:
+      ### Required
+      target:
+        description: PR number, test or prod
+        default: ${{ github.event.number }}
+        type: string
+
+env:
+  DOMAIN: apps.silver.devops.gov.bc.ca
+  PREFIX: ${{ github.event.repository.name }}-${{ inputs.target }}
+
+permissions: {}
+
+jobs:
+  integration-tests:
+    name: Integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        name: Setup Node
+        with:
+          node-version: 24
+      - id: cache-npm
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-build-cache-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-cache-node-modules-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: Wait for backend health check
+        env:
+          BASE_URL: https://${{ env.PREFIX }}.${{ env.DOMAIN }}
+        run: |
+          echo "Waiting for backend health check at ${BASE_URL}/api/health..."
+          for i in {1..30}; do
+            status=$(curl -k --connect-timeout 5 --max-time 10 -s -o /dev/null -w "%{http_code}" "${BASE_URL}/api/health" || true)
+            if [ "$status" -eq 200 ]; then
+              echo "Backend is healthy!"
+              exit 0
+            fi
+            echo "Waiting for health check (HTTP $status), retrying in 10s... ($i/30)"
+            sleep 10
+          done
+          echo "ERROR: Backend did not become healthy in time."
+          exit 1
+
+      - name: Run Integration Tests
+        env:
+          API_NAME: nest
+          BASE_URL: https://${{ env.PREFIX }}.${{ env.DOMAIN }}
+        run: |
+          cd common/tests/integration
+          npm ci
+          node src/main.js
+
+  e2e-tests:
+    name: E2E
+    defaults:
+      run:
+        working-directory: frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        name: Checkout
+      - uses: actions/setup-node@v6
+        name: Setup Node
+        with:
+          node-version: 24
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Run Tests
+        env:
+          E2E_BASE_URL: https://${{ env.PREFIX }}.${{ env.DOMAIN }}/
+          CI: "true"
+        run: |
+          npx playwright test --project="chromium" --reporter=html
+
+      - uses: actions/upload-artifact@v7
+        if: (! cancelled())
+        name: upload results
+        with:
+          name: playwright-report-chromium
+          path: "./frontend/playwright-report" # path from current folder
+          retention-days: 7
+
+  load-tests:
+    name: Load
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        name: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1.2.1
+      - uses: grafana/run-k6-action@de51a7390bdf0ac85a3bef493691bd71d4c7c158 # v1.4.0
+        env:
+          BACKEND_URL: https://${{ env.PREFIX }}.${{ env.DOMAIN }}/api
+          FRONTEND_URL: https://${{ env.PREFIX }}.${{ env.DOMAIN }}
+        with:
+          path: ./common/tests/load/${{ matrix.name }}-test.js
+          flags: --vus 100 --duration 300s

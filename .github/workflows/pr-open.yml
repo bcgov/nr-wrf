@@ -1,103 +1,76 @@
-name: Pull Request
+name: PR
 
 on:
   pull_request:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.event.number }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
-  pr-greeting:
-    name: PR Greeting
-    env:
-      DOMAIN: apps.silver.devops.gov.bc.ca
-      PREFIX: ${{ github.event.repository.name }}-${{ github.event.number }}
-    runs-on: ubuntu-22.04
-    permissions:
-      pull-requests: write
-    steps:
-      - name: PR Greeting
-        uses: bcgov-nr/action-pr-description-add@v0.0.2
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          add_markdown: |
-            ---
-
-            Thanks for the PR!
-
-            Any successful deployments (not always required) will be available below.
-            [Backend](https://${{ env.PREFIX }}-backend.${{ env.DOMAIN }}/) available
-            [Frontend](https://${{ env.PREFIX }}-frontend.${{ env.DOMAIN }}/) available
-
-            Once merged, code will be promoted and handed off to following workflow run.
-            [Main Merge Workflow](https://github.com/${{ github.repository }}/actions/workflows/merge-main.yml)
-
-  # secret-search:
-  #   name: Secret Search
-  #   runs-on: ubuntu-22.04
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - name: secret-search
-  #       uses: Hacks4Snacks/secret-search@v1.1
-  #       with:
-  #         exclude-file: docker-compose.yml
-
+  # https://github.com/bcgov/action-builder-ghcr
   builds:
     name: Builds
-    runs-on: ubuntu-22.04
     permissions:
+      attestations: write
+      id-token: write
       packages: write
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         package: [backend, frontend]
-        include:
-          - package: backend
-            triggers: ('backend/')
-          - package: frontend
-            triggers: ('frontend/')
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
-      - uses: bcgov-nr/action-builder-ghcr@v0.0.2
+      - uses: bcgov/action-builder-ghcr@cb2629351c87dd1c2130073e4ebb7233a9653a63 # v4.4.1
         with:
           package: ${{ matrix.package }}
-          tag: ${{ github.event.number }}
-          tag_fallback: test
-          token: ${{ secrets.GITHUB_TOKEN }}
-          triggers: ${{ matrix.triggers }}
+          tags: ${{ github.event.number }}
+          tag_fallback: latest
+          triggers: ('${{ matrix.package }}/', '.github/workflows/')
 
   deploys:
-    environment:
-      name: dev
-    name: Deploys
-    needs:
-      - builds
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        name: [backend, init, frontend]
-        include:
-          - name: backend
-            file: backend/openshift.deploy.yml
-            overwrite: true
-            parameters: -p MIN_REPLICAS=1 -p MAX_REPLICAS=2
-          - name: frontend
-            file: frontend/openshift.deploy.yml
-            overwrite: true
-            parameters: -p MIN_REPLICAS=1 -p MAX_REPLICAS=2
-          - name: init
-            file: common/openshift.init.yml
-            overwrite: false
+    name: Deploys (${{ github.event.number }})
+    needs: [builds]
+    uses: ./.github/workflows/reusable-deploy.yml
+    secrets:
+      db_password: ${{ secrets.db_password }}
+      oc_namespace: ${{ secrets.OC_NAMESPACE }}
+      oc_server: ${{ secrets.OC_SERVER }}
+      oc_token: ${{ secrets.OC_TOKEN }}
+    with:
+      target: ${{ github.event.number }}
+      triggers: ('backend/', 'frontend/', 'common/', '.github/workflows/')
+
+  #tests:
+     #name: Tests
+     #if: needs.deploys.outputs.triggered == 'true'
+     #needs: [deploys]
+     #uses: ./.github/workflows/reusable-tests.yml
+
+  # ==========================================================================
+  # WARNING: This job acts as the required merge gate for this workflow.
+  # If you add a new job to this workflow, you MUST add its ID to the 'needs'
+  # array below, otherwise its failure or cancellation will not block the PR!
+  # ==========================================================================
+  results:
+    name: PR Results
+    needs: [builds, deploys]
+    if: always()
+    runs-on: ubuntu-slim
+    timeout-minutes: 1
     steps:
-      - uses: bcgov-nr/action-deployer-openshift@v0.1.0
-        with:
-          file: ${{ matrix.file }}
-          oc_namespace: ${{ secrets.OC_NAMESPACE }}
-          oc_server: ${{ secrets.OC_SERVER }}
-          oc_token: ${{ secrets.OC_TOKEN }}
-          overwrite: ${{ matrix.overwrite }}
-          penetration_test: false
-          parameters:
-            -p ZONE=${{ github.event.number }} -p NAME=wrf
-            -p PROMOTE=${{ github.repository }}/${{ matrix.name }}:${{ github.event.number }}
-            ${{ matrix.parameters }}
+      - name: Log Job Results Context
+        run: |
+          echo "=== Upstream Job Statuses ==="
+          echo '${{ toJson(needs) }}'
+
+      - name: Evaluate Overall Status
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "❌ Critical Check Failure: At least one required job has failed or was cancelled."
+          exit 1
+
+      - name: Success Message
+        run: echo "✅ All critical checks passed or were intentionally skipped!"
