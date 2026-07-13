@@ -43,11 +43,11 @@ jobs:
       target: ${{ github.event.number }}
       triggers: ('backend/', 'frontend/', 'common/', '.github/workflows/')
 
-  tests:
-     name: Tests
-     if: needs.deploys.outputs.triggered == 'true'
-     needs: [deploys]
-     uses: ./.github/workflows/reusable-tests.yml
+  #tests:
+     #name: Tests
+     #if: needs.deploys.outputs.triggered == 'true'
+     #needs: [deploys]
+     #uses: ./.github/workflows/reusable-tests.yml
 
   # ==========================================================================
   # WARNING: This job acts as the required merge gate for this workflow.

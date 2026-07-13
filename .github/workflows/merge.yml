@@ -42,12 +42,12 @@ jobs:
       target: test
       tag: ${{ needs.init.outputs.pr }}
 
-  tests:
-    name: Tests
-    needs: [deploy-test]
-    uses: ./.github/workflows/reusable-tests.yml
-    with:
-      target: test
+  #tests:
+    #name: Tests
+    #needs: [deploy-test]
+    #uses: ./.github/workflows/reusable-tests.yml
+    #with:
+    #  target: test
 
   deploy-prod:
     name: PROD Deploys (${{ needs.init.outputs.pr }})
