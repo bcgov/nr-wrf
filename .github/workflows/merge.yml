@@ -58,6 +58,7 @@ jobs:
       db_password: ${{ secrets.db_password }}
       oc_namespace: ${{ secrets.OC_NAMESPACE }}
       oc_token: ${{ secrets.OC_TOKEN }}
+      oc_server: ${{ secrets.OC_SERVER }}
     with:
       environment: prod
       target: prod
