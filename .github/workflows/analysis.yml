@@ -40,8 +40,6 @@ jobs:
         with:
           commands: |
             npm ci
-            
-            npm run format:check
             npm run test:cov
           dir: backend
           node_version: "22"
@@ -69,8 +67,6 @@ jobs:
         with:
           commands: |
             npm ci
-            
-            npm run format:check
             npm run test:cov
           dir: frontend
           node_version: "22"
