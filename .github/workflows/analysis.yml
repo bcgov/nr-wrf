@@ -1,6 +1,6 @@
 name: Analysis
 
-on: []
+on:
   push:
     branches: [main]
   pull_request:
