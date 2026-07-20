@@ -1,7 +1,7 @@
 name: Scheduled
 
 on:
-  schedule: [cron: "0 11 * * 6"] # 3 AM PST = 12 PM UDT, Saturdays
+  schedule: [cron: "0 16 * * *"] # 3 AM PST = 12 PM UDT, Saturdays
   workflow_dispatch:
   workflow_call:
 
@@ -47,7 +47,7 @@ jobs:
         with:
           oc_namespace: ${{ secrets.OC_NAMESPACE }}
           oc_token: ${{ secrets.OC_TOKEN }}
-          oc_server: ${{ vars.OC_SERVER }}
+          oc_server: ${{ secrets.OC_SERVER }}
           commands: |
             # Catch errors, unset variables, and pipe failures (e.g. grep || true )
             set -euo pipefail
