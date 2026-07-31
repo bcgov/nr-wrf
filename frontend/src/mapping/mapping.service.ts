@@ -181,8 +181,8 @@ export class MappingService {
         const proj = this.getProjInfo();
         const { x, y } = this.latLonToProjected(latitude, longitude, proj);
 
-        const i = Math.round(1 + x / proj.dx);
-        const j = Math.round(1 + y / proj.dy);
+        const i = Math.round(x - 0.1);
+        const j = Math.round(y - 0.1);
         const domain = hrTile.domain;
         // second step: find closest tile in HR domain
         let closestTile = null;
@@ -283,9 +283,9 @@ export class MappingService {
         // Point not inside any tile, use projected calculation
         const proj = this.getProjInfo();
         const { x, y } = this.latLonToProjected(latitude, longitude, proj);
-
-        i = Math.round(1 + x / proj.dx);
-        j = Math.round(1 + y / proj.dy);
+        // x and y are decimal WRF i/j coordinates calculated from the Lambert projection.
+        i = Math.round(x - 0.1);
+        j = Math.round(y - 0.1);
 
         // Clamp to d02 domain bounds
         i = Math.max(2, Math.min(391, i));
@@ -508,9 +508,9 @@ export class MappingService {
     proj.dy = DY;
 
     // STAND_LON, TRUELAT1, TRUELAT2
-    proj.stdlon = -125.0;
-    proj.truelat1 = 46.5;
-    proj.truelat2 = 63.5;
+    //proj.stdlon = -125.0;
+    //proj.truelat1 = 46.5;
+    //proj.truelat2 = 63.5;
 
     // Coordinate of Lower Left Grid Cell (1,1)
     proj.lat1 = 46.3873596;
@@ -553,8 +553,8 @@ export class MappingService {
 
     const arg_known = proj.cone * (deltalon_known * RAD_PER_DEG);
 
-    proj.polei = -proj.hemi * rm_known * Math.sin(arg_known);
-    proj.polej = rm_known * Math.cos(arg_known);
+    proj.polei =  proj.hemi * proj.knowni - proj.hemi * rm_known * Math.sin(arg_known);
+    proj.polej =  proj.hemi * proj.knownj + rm_known * Math.cos(arg_known);
 
     if (proj.stdlon < -180.0) {
       proj.stdlon += 360.0;
