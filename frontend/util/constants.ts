@@ -17,15 +17,12 @@ export class ProjInfo {
   dlat: number = -999.9;
   /// Lon increment for lat/lon grids
   dlon: number = -999.9;
-
-  // Lambert projection parameters
   /// Longitude parallel to y-axis (-180->180E)
-  stdlon: number = -120.87899780273438;
+  stdlon: number;
   /// First true latitude (all projections)
-  truelat1: number = 55.15700149356133;
+  truelat1: number;
   /// Second true lat (LC only)
-  truelat2: number = 55.15700149356133;
-
+  truelat2: number;
   /// 1 for NH, -1 for SH
   hemi: number = 1; //1 for NH, -1 for SH
   /// Cone factor for LC projections
