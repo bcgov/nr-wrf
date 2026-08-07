@@ -28,6 +28,11 @@ require([
 
   const graphicsLayer = new GraphicsLayer();
 
+  // O(1) lookup for a tile's Graphic by "domain:tile_id", populated as tiles
+  // are drawn. Avoids scanning graphicsLayer.graphics.items (potentially
+  // thousands of polygons) on every map click/search.
+  const tileGraphicsIndex = {};
+
   // const domainLayers = {};
 
   const map = new Map({
@@ -40,7 +45,7 @@ require([
     // center: [-123.329, 48.407],
     // zoom: 9,
     center: [-122, 50.25],
-    zoom: 7,
+    zoom: 6,
     container: 'viewDiv',
   });
 
@@ -78,17 +83,16 @@ require([
     color: [169, 169, 169, 0.05], // Light gray with 10% transparency
     outline: {
       color: [69, 69, 69, 0.2], // Dark gray outline
-      width: 1,
+      width: 0,
     },
   };
 
   // high resolution polygon
   const highResPolygonSymbol = {
     type: 'simple-fill',
-    color: [112, 143, 230, 0.3], // Light blue with 50% transparency
+    color: [112, 143, 230, 0.5], // Light blue with 50% transparency
     outline: {
-      color: [0, 0, 255, 0.5], // Blue outline
-      width: 1,
+      width: 0,
     },
   };
 
@@ -117,6 +121,10 @@ require([
       latitude: lat,
       longitude: lon,
     };
+
+    // show a loading indicator while we fetch tile data for this location
+    view.container.style.cursor = 'progress';
+
     console.log('calculateAermodTiles');
     fetch('mapping/calculateAermodTiles', {
       method: 'POST',
@@ -124,22 +132,54 @@ require([
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
-    });
-    fetch('mapping/findClosestD02Tile', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
     })
-      .then((response) => response.json())
+      //   .then((response) => {
+      //     if (!response.ok) {
+      //       throw new Error(`Failed to calculate AERMOD tiles (status ${response.status})`);
+      //     }
+      //     return response.json();
+      //   })
+      //   .then((response) => {
+      //     if (!response) {
+      //       console.warn('calculateAermodTiles: no tile data for this location (outside the model domain)');
+      //       return;
+      //     }
+      //     console.log('response: ' + JSON.stringify(response));
+      //   })
+      //   .catch((error) => {
+      //     console.error('calculateAermodTiles Error:', error);
+      //   });
+      // fetch('mapping/findClosestD02Tile', {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify(data),
+      // })
       .then((response) => {
+       // console.log(response);
+        if (!response.ok) {
+          throw new Error(`Failed to calculate AERMOD tiles (status ${response.status})`);
+        }
+        return response.json();
+      })
+      .then((response) => {
+        if (!response) {
+          console.warn('calculateAermodTiles: no tile data for this location (outside the model domain)');
+          closestPoint = null;
+          return;
+        }
+
         closestPoint = response;
       })
       .catch((error) => {
-        console.error('findClosestPoint Error:', error);
+        console.error('calculateAermodTiles Error:', error);
+        closestPoint = null;
       })
       .finally(() => {
+        // done loading - restore the normal cursor
+        view.container.style.cursor = 'default';
+
         // reset previous selected polygon
         if (selectedPolygon) {
           if (
@@ -159,7 +199,11 @@ require([
         if (currentlyDrawnText) {
           graphicsLayer.remove(currentlyDrawnText);
         }
-
+        //console.log('The closestPoint is: ' + JSON.stringify(closestPoint));
+        if (!closestPoint || closestPoint === null) {
+          alert('You have entered a coordinate outside of the bounds of this application.');
+          return;
+        }
         if (closestPoint.domain === 'd02') {
           // // find and highlight the new polygon
           // const found = graphicsLayer.graphics.items.find(
@@ -218,12 +262,7 @@ require([
         } else {
           console.log('in else, trying to draw hr tile highlight');
           // find and highlight the new polygon
-          const found = graphicsLayer.graphics.items.find(
-            (gr) =>
-              gr.attributes &&
-              gr.attributes.tile_id === closestPoint.tile &&
-              gr.attributes.domain === closestPoint.domain
-          );
+          const found = tileGraphicsIndex[`${closestPoint.domain}:${closestPoint.tile}`];
           if (found) {
             // selectedPolygon = found;
             // found.symbol = greenPolygonSymbol;
@@ -310,6 +349,8 @@ require([
     fetch('/js/gis/aermod_tiles_hr.json')
       .then((response) => response.json())
       .then((tiles) => {
+        const graphics = [];
+
         tiles.forEach((tile) => {
           // Create polygon from four corners: NE -> NW -> SW -> SE
           const coordinates = tile.extended_corners.map((corner) => [corner.lon, corner.lat]);
@@ -325,7 +366,8 @@ require([
             attributes: { tile_id: tile.tileId.toString(), domain: tile.domain },
           });
 
-          graphicsLayer.add(g);
+          graphics.push(g);
+          tileGraphicsIndex[`${tile.domain}:${tile.tileId}`] = g;
 
           // Add tile number label
           // const centerPoint = calculateCenter(coordinates);
@@ -355,6 +397,7 @@ require([
           // graphicsLayer.add(textGraphic);
         });
 
+        graphicsLayer.addMany(graphics);
         console.log(`Loaded ${tiles.length} HR tiles from aermod_tiles_hr.json`);
       })
       .catch((error) => console.error('Error loading HR tiles:', error));
@@ -365,6 +408,8 @@ require([
     fetch('/mapping/getAermodTiles')
       .then((response) => response.json())
       .then((tiles) => {
+        const graphics = [];
+
         tiles.forEach((tile) => {
           // Create polygon from four corners: NE -> NW -> SW -> SE
           const coordinates = tile.extended_corners.map((corner) => [corner.lon, corner.lat]);
@@ -380,7 +425,8 @@ require([
             attributes: { tile_id: tile.tileId, domain: 'd02' },
           });
 
-          graphicsLayer.add(g);
+          graphics.push(g);
+          tileGraphicsIndex[`d02:${tile.tileId}`] = g;
 
           // Add tile number label
           // const centerPoint = calculateCenter(coordinates);
@@ -410,6 +456,7 @@ require([
           // graphicsLayer.add(textGraphic);
         });
 
+        graphicsLayer.addMany(graphics);
         console.log(`Loaded ${tiles.length} debug tiles from AERMOD service`);
       })
       .catch((error) => console.error('Error loading debug tiles:', error));
@@ -610,11 +657,18 @@ require([
    * @param {*} lon
    */
   function highlightAndSearch(lat, lon) {
+
+    // Guard: skip fetching tile data for locations outside the d02 domain
+    if (!closestPoint) {
+      alert('You have entered a coordinate outside of the bounds of this application.');
+      return;
+    }
+
     const data = {
       latitude: lat,
       longitude: lon,
     };
-    fetch('mapping/findClosestD02Tile', {
+    fetch('mapping/findClosestPoint', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -636,10 +690,7 @@ require([
         }
 
         // find and highlight the new polygon
-        const found = graphicsLayer.graphics.items.find(
-          (gr) =>
-            gr.attributes && gr.attributes.tile_id === closestPoint.tile && gr.attributes.domain === closestPoint.domain
-        );
+        const found = tileGraphicsIndex[`${closestPoint.domain}:${closestPoint.tile}`];
         if (found) {
           selectedPolygon = found;
           found.symbol = greenPolygonSymbol;
@@ -711,6 +762,11 @@ require([
   };
 
   async function downloadModelData() {
+    if (!closestPoint || !closestPoint.domain) {
+      alert('The selected location is outside the model domain. Please choose a location within the highlighted area.');
+      return;
+    }
+    console.info('Download Model Data: ' + JSON.stringify(closestPoint));
     var timezoneOffset = parseInt($('input[name="timezone"]:checked').val());
 
     var startDate = $('#startDate').datetimepicker('getDate');
@@ -729,6 +785,7 @@ require([
       timezoneOffsetHours: timezoneOffset,
       domain: closestPoint.domain,
     };
+    let requestFailed = false;
     await fetch(zipRequestUrl, {
       method: 'POST',
       responseType: 'arraybuffer',
@@ -737,11 +794,25 @@ require([
       },
       body: JSON.stringify(zipData),
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to start download (status ${res.status})`);
+        }
+        return res.json();
+      })
       .then((json) => {
         zipCheckUrl = zipCheckUrl.concat(json.subFolder);
         zipFileUrl = zipFileUrl.concat(json.subFolder);
+      })
+      .catch((error) => {
+        console.error('downloadModelData Error:', error);
+        view.popup.content = 'An error occurred while preparing your download. Please try again later.';
+        requestFailed = true;
       });
+
+    if (requestFailed) {
+      return;
+    }
 
     checkZipFile(zipCheckUrl);
   }

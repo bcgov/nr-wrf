@@ -19,8 +19,8 @@ export class MappingController {
     return this.zipFileService.getAermodTiles();
   }
 
-  @Post('findClosestD02Tile')
-  async findClosestD02Tile(@Body() data: { latitude: number; longitude: number }): Promise<any> {
-    return this.zipFileService.findClosestD02Tile(data.latitude, data.longitude);
-  }
+  // @Post('findClosestD02Tile')
+  // async findClosestD02Tile(@Body() data: { latitude: number; longitude: number }): Promise<any> {
+  //   return this.zipFileService.findClosestD02Tile(data.latitude, data.longitude);
+  // }
 }

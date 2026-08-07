@@ -187,7 +187,7 @@ export class ZipFileService {
         tile_id: closestPoint.tile,
         domain: closestPoint.domain,
         filename: closestPoint.tile.toString().padStart(4, '0'),
-        full_url: '', // not used now
+        full_url: closestPoint.url ?? '',
       },
     };
 
@@ -219,7 +219,7 @@ export class ZipFileService {
   beginZippingAermod(
     tileDownloadInfo: TileDownloadInfo,
     dataUrls: string[],
-    tileList: { d02Tile: any; domainTiles: { domain: string; tiles: string[] }[] }
+    tileList: { domainTile: any; domainTiles: { domain: string; tiles: string[] }[] }
   ): { subFolder: string } {
     const subFolder = uuid.v4();
     const filePath = process.env.filePath;
@@ -307,7 +307,7 @@ export class ZipFileService {
     downloadUrls: string[],
     folder: string,
     tileDownloadInfo: TileDownloadInfo,
-    tileList: { d02Tile: any; domainTiles: { domain: string; tiles: string[] }[] }
+    tileList: { domainTile: any; domainTiles: { domain: string; tiles: string[] }[] }
   ): Promise<void> {
     if (!fs.existsSync(folder)) {
       fs.mkdirSync(folder);
@@ -603,7 +603,7 @@ move wrf.* output\
 
   createAermodConfig(
     tileDownloadInfo: TileDownloadInfo,
-    tileList: { d02Tile: any; domainTiles: { domain: string; tiles: string[] }[] }
+    tileList: { domainTile: any; domainTiles: { domain: string; tiles: string[] }[] }
   ): string {
     // Autoinsert point 1
     const startDate = `Start ${tileDownloadInfo.startYear} ${tileDownloadInfo.startMonth

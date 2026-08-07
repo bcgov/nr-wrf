@@ -18,11 +18,11 @@ export class ProjInfo {
   /// Lon increment for lat/lon grids
   dlon: number = -999.9;
   /// Longitude parallel to y-axis (-180->180E)
-  stdlon: number;
+  stdlon: number = -120.87899780273438;
   /// First true latitude (all projections)
-  truelat1: number;
+  truelat1: number = 55.15700149356133;
   /// Second true lat (LC only)
-  truelat2: number;
+  truelat2: number = 55.15700149356133;
   /// 1 for NH, -1 for SH
   hemi: number = 1; //1 for NH, -1 for SH
   /// Cone factor for LC projections
