@@ -8,9 +8,24 @@ import { lastValueFrom, map } from 'rxjs';
 let hostname: string;
 let port: number;
 
+interface AermodTileRow {
+  domain: string;
+  tile: string;
+  I0: number;
+  J0: number;
+  I1: number;
+  J1: number;
+  lat0: number;
+  lon0: number;
+  lat1: number;
+  lon1: number;
+  url: string;
+}
+
 @Injectable()
 export class MappingService {
   private aermodFilesCsv: string;
+  private aermodRows: AermodTileRow[];
   private calpuffDomains: any[];
   private calpuffTiles: any[];
 
@@ -25,17 +40,60 @@ export class MappingService {
   onModuleInit() {
     try {
       this.aermodFilesCsv = fs.readFileSync('dist/public/js/gis/aermod_files.csv', 'utf-8');
+      this.aermodRows = this.parseAermodRows(this.aermodFilesCsv);
       this.calpuffDomains = JSON.parse(fs.readFileSync('dist/public/js/gis/hr_domain_bounds.json', 'utf-8'));
       this.calpuffTiles = JSON.parse(fs.readFileSync('dist/public/js/gis/hr_domain_tiles.json', 'utf-8'));
-      // this.calpuffFilesCsv = fs.readFileSync('dist/public/js/gis/calpuff_files.csv', 'utf-8');
       console.log('AERMOD files loaded into memory.');
       console.log('CALPUFF HR domains loaded into memory.');
       console.log('CALPUFF HR tiles loaded into memory.');
-      // console.log('CALPUFF files loaded into memory.');
     } catch (error) {
       console.log('Error loading tile data into memory:');
       console.log(error);
     }
+  }
+
+  /**
+   * Parse the AERMOD tile CSV once into typed rows, coercing numeric fields
+   * up front so downstream lookups don't re-parse the CSV text or re-run
+   * parseInt/parseFloat/isNaN on every request.
+   */
+  private parseAermodRows(csvText: string): AermodTileRow[] {
+    const parsed = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+    });
+
+    const rows: AermodTileRow[] = [];
+    for (const entry of parsed.data as any[]) {
+      if (!entry) continue;
+
+      const I0 = parseInt(entry.I0, 10);
+      const J0 = parseInt(entry.J0, 10);
+      const I1 = parseInt(entry.I1, 10);
+      const J1 = parseInt(entry.J1, 10);
+      const lat0 = parseFloat(entry.lat0);
+      const lon0 = parseFloat(entry.lon0);
+      const lat1 = parseFloat(entry.lat1);
+      const lon1 = parseFloat(entry.lon1);
+
+      if ([I0, J0, I1, J1, lat0, lon0, lat1, lon1].some((v) => isNaN(v))) continue;
+
+      rows.push({
+        domain: entry.domain,
+        tile: entry.tile,
+        I0,
+        J0,
+        I1,
+        J1,
+        lat0,
+        lon0,
+        lat1,
+        lon1,
+        url: entry.url,
+      });
+    }
+
+    return rows;
   }
 
   async calculateVars(
@@ -74,22 +132,32 @@ export class MappingService {
    *
    * @param latitude
    * @param longitude
-   * @returns { d02Tile: { tile: number, domain: string, corners: {...} }, domainTiles: [{ domain: string, tiles: string[] }] }
+   * @returns { domainTile: { tile: number, domain: string, corners: {...} }, domainTiles: [{ domain: string, tiles: string[] }] }
    */
   async calculateAermodTiles(latitude: number, longitude: number): Promise<any> {
-    // Find the closest d02 tile to get the bounding box
-    const closestTileData = await this.findClosestD02Tile(latitude, longitude);
+    // Find the closest tile to get the bounding box
+    //const closestTileData = await this.findClosestD02Tile(latitude, longitude);
+    const closestTileData = await this.findClosestPoint(latitude, longitude);
+
     console.log('~~~');
     console.log(closestTileData);
     console.log('~~~');
 
-    if (!closestTileData || !closestTileData.corners) {
+    if (!closestTileData) {
       console.error('Failed to find closest d02 tile');
       return null;
     }
 
+    // findClosestPoint only returns {i, j, tile, domain, url} - look up this
+    // tile's corners from its domain's CSV (aermod for d02, calpuff for d03-d06).
+    const corners = this.getTileCorners(closestTileData.domain, closestTileData.tile);
+    if (!corners) {
+      console.error('Failed to find corners for closest tile', closestTileData);
+      return null;
+    }
+
     // Extract corner coordinates
-    const { lat0, lon0, lat1, lon1 } = closestTileData.corners;
+    const { lat0, lon0, lat1, lon1 } = corners;
 
     // Map corners to boundary variables
     // lat0, lon0 = NE corner (top-right)
@@ -115,135 +183,111 @@ export class MappingService {
     console.log('Domain tiles found:', domainTiles);
 
     return {
-      d02Tile: closestTileData,
+      domainTile: { ...closestTileData, corners },
       domainTiles,
     };
   }
 
-  async findClosestD02Tile(latitude: number, longitude: number): Promise<any> {
-    try {
-      // Parse the AERMOD CSV to find all d02 tiles
-      const parsed = Papa.parse(this.aermodFilesCsv, {
-        header: true,
-        skipEmptyLines: true,
-      });
+  //Note: commented out because of WRF-6 ticket
+  // async findClosestD02Tile(latitude: number, longitude: number): Promise<any> {
+  //   try {
+  //     let closestTile = null;
+  //     let minDistance = Infinity;
+  //     let closestCorners = { lat0: null, lon0: null, lat1: null, lon1: null };
 
-      let closestTile = null;
-      let minDistance = Infinity;
-      let closestCorners = { lat0: null, lon0: null, lat1: null, lon1: null };
-      const proj = this.getProjInfo();
+  //     this.aermodRows.forEach((row) => {
+  //       if (row.domain !== 'd02') return;
 
-      parsed.data.forEach((entry: any) => {
-        if (!entry || entry.domain !== 'd02') return;
+  //       // Calculate tile center
+  //       const centerLat = (row.lat0 + row.lat1) / 2;
+  //       const centerLon = (row.lon0 + row.lon1) / 2;
 
-        const lat0 = parseFloat(entry.lat0); // NE
-        const lon0 = parseFloat(entry.lon0); // NE
-        const lat1 = parseFloat(entry.lat1); // SW
-        const lon1 = parseFloat(entry.lon1); // SW
+  //       // Calculate distance to tile center
+  //       const dist = Math.sqrt((latitude - centerLat) ** 2 + (longitude - centerLon) ** 2);
 
-        if (isNaN(lat0) || isNaN(lon0) || isNaN(lat1) || isNaN(lon1)) return;
+  //       if (dist < minDistance) {
+  //         minDistance = dist;
+  //         closestTile = parseInt(row.tile, 10);
+  //         closestCorners = { lat0: row.lat0, lon0: row.lon0, lat1: row.lat1, lon1: row.lon1 };
+  //       }
+  //     });
 
-        // Calculate tile center
-        const centerLat = (lat0 + lat1) / 2;
-        const centerLon = (lon0 + lon1) / 2;
+  //     console.log(
+  //       `findClosestD02Tile: lat=${latitude}, lon=${longitude} -> tile=${closestTile}, distance=${minDistance}`
+  //     );
 
-        // Calculate distance to tile center
-        const dist = Math.sqrt((latitude - centerLat) ** 2 + (longitude - centerLon) ** 2);
+  //     return {
+  //       tile: closestTile,
+  //       domain: 'd02',
+  //       corners: closestCorners,
+  //     };
+  //   } catch (err) {
+  //     console.log('Error in findClosestD02Tile');
+  //     console.log(err);
+  //     return null;
+  //   }
+  // }
 
-        if (dist < minDistance) {
-          minDistance = dist;
-          closestTile = parseInt(entry.tile, 10);
-          closestCorners = { lat0, lon0, lat1, lon1 };
+  findIjForHrDomain(hrTile: any, latitude: number, longitude: number) {
+    const domain = hrTile.domain;
+
+    // Each nested domain (d03-d06) has its own local I/J grid, so i,j must
+    // be interpolated from that domain's own tile CSV rather than the
+    // shared d02 projection.
+    const domainMatch = this.findIJInDomainCsv(this.aermodRows, domain, latitude, longitude);
+
+    let i = domainMatch ? domainMatch.i : null;
+    let j = domainMatch ? domainMatch.j : null;
+    let tile = domainMatch ? domainMatch.tile : null;
+    let url = domainMatch ? domainMatch.url : null;
+
+    if (tile === null) {
+      // Point is inside the domain polygon but didn't land inside any
+      // tile's bounding box (e.g. right on a domain edge) - fall back to
+      // nearest tile by center distance.
+      let minDist = Infinity;
+      for (const d of this.calpuffTiles) {
+        if (d.domain === domain) {
+          for (const t of d.tiles) {
+            const lats = t.corners.map((c) => c.lat);
+            const lons = t.corners.map((c) => c.lon);
+            const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+            const centerLon = (Math.min(...lons) + Math.max(...lons)) / 2;
+            const dist = Math.sqrt((latitude - centerLat) ** 2 + (longitude - centerLon) ** 2);
+            if (dist < minDist) {
+              minDist = dist;
+              tile = t.tileId;
+            }
+          }
         }
-      });
-
-      console.log(
-        `findClosestD02Tile: lat=${latitude}, lon=${longitude} -> tile=${closestTile}, distance=${minDistance}`
-      );
-
-      return {
-        tile: closestTile,
-        domain: 'd02',
-        corners: closestCorners,
-      };
-    } catch (err) {
-      console.log('Error in findClosestD02Tile');
-      console.log(err);
-      return null;
+      }
     }
+
+    console.log(
+      `findClosestPoint: lat=${latitude}, lon=${longitude} -> i=${i}, j=${j}, domain=${domain}, tile=${tile}`
+    );
+    return { i, j, tile, domain, url };
   }
 
   async findClosestPoint(latitude: number, longitude: number): Promise<any> {
     try {
       const hrTile = this.isInsideHRDomain(latitude, longitude);
-      if (hrTile) {
-        // For HR domains, use projected calculation
-        const proj = this.getProjInfo();
-        const { x, y } = this.latLonToProjected(latitude, longitude, proj);
 
-        const i = Math.round(x - 0.1);
-        const j = Math.round(y - 0.1);
-        const domain = hrTile.domain;
-        // second step: find closest tile in HR domain
-        let closestTile = null;
-        let minDist = Infinity;
-        for (const d of this.calpuffTiles) {
-          if (d.domain === domain) {
-            for (const tile of d.tiles) {
-              const lats = tile.corners.map((c) => c.lat);
-              const lons = tile.corners.map((c) => c.lon);
-              const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-              const centerLon = (Math.min(...lons) + Math.max(...lons)) / 2;
-              const dist = Math.sqrt((latitude - centerLat) ** 2 + (longitude - centerLon) ** 2);
-              if (dist < minDist) {
-                minDist = dist;
-                closestTile = tile.tileId;
-              }
-            }
-          }
-        }
-        const tile = closestTile;
-        console.log(
-          `findClosestPoint: lat=${latitude}, lon=${longitude} -> i=${i}, j=${j}, domain=${domain}, tile=${tile}`
-        );
-        return { i, j, tile, domain };
-      }
+      if (hrTile) return this.findIjForHrDomain(hrTile, latitude, longitude);
 
-      // find the tile and calculate i,j based on lat/lon from CSV
-      const parsed = Papa.parse(this.aermodFilesCsv, {
-        header: true,
-        skipEmptyLines: true,
-      });
-
+      //For non-HR domain
+      // find the tile and calculate i,j based on lat/lon from cached CSV rows
       let i = null;
       let j = null;
       let tile = null;
+      let url = null;
       let minDistance = Infinity;
       const proj = this.getProjInfo();
 
-      parsed.data.forEach((entry: any) => {
-        if (!entry || entry.domain !== 'd02') return;
+      for (const row of this.aermodRows) {
+        if (row.domain !== 'd02') continue;
 
-        const I0 = parseInt(entry.I0, 10);
-        const J0 = parseInt(entry.J0, 10);
-        const I1 = parseInt(entry.I1, 10);
-        const J1 = parseInt(entry.J1, 10);
-        const lat0 = parseFloat(entry.lat0); // NE
-        const lon0 = parseFloat(entry.lon0); // NE
-        const lat1 = parseFloat(entry.lat1); // SW
-        const lon1 = parseFloat(entry.lon1); // SW
-
-        if (
-          isNaN(I0) ||
-          isNaN(J0) ||
-          isNaN(I1) ||
-          isNaN(J1) ||
-          isNaN(lat0) ||
-          isNaN(lon0) ||
-          isNaN(lat1) ||
-          isNaN(lon1)
-        )
-          return;
+        const { I0, J0, I1, J1, lat0, lon0, lat1, lon1 } = row; // lat0,lon0 = NE; lat1,lon1 = SW
 
         // Check if point is within the tile's bounding box
         const minLat = Math.min(lat0, lat1);
@@ -260,47 +304,133 @@ export class MappingService {
 
           i = Math.round(i_interp);
           j = Math.round(j_interp);
-          tile = parseInt(entry.tile, 10);
-        } else {
-          // If not inside, calculate distance to each corner
-          const ne = { lat: lat0, lon: lon0 };
-          const sw = { lat: lat1, lon: lon1 };
-          const nw = this.calculateMissingCorner(ne, sw, I0, J1, I0, J0, I1, J1, proj);
-          const se = this.calculateMissingCorner(ne, sw, I1, J0, I0, J0, I1, J1, proj);
-
-          const corners = [ne, nw, sw, se];
-          corners.forEach((corner) => {
-            const dist = Math.sqrt((latitude - corner.lat) ** 2 + (longitude - corner.lon) ** 2);
-            if (dist < minDistance) {
-              minDistance = dist;
-              tile = parseInt(entry.tile, 10);
-            }
-          });
+          tile = parseInt(row.tile, 10);
+          url = row.url;
+          // Point is confirmed inside this tile - stop scanning. Otherwise the
+          // corner-distance fallback below would keep running for every
+          // remaining row and could overwrite tile/url with a different tile.
+          break;
         }
-      });
+
+        // Cheap O(1) lower bound: distance from the point to this tile's
+        // axis-aligned bounding box. If even that already exceeds the best
+        // distance found so far, this tile's corners (nw/se included, since
+        // they sit at/near the same box) can't possibly win, so skip the
+        // expensive projection math below entirely.
+        const clampedLat = Math.max(minLat, Math.min(maxLat, latitude));
+        const clampedLon = Math.max(minLon, Math.min(maxLon, longitude));
+        const boxDist = Math.sqrt((latitude - clampedLat) ** 2 + (longitude - clampedLon) ** 2);
+        if (boxDist >= minDistance) continue;
+
+        // If not inside, calculate distance to each corner
+        const ne = { lat: lat0, lon: lon0 };
+        const sw = { lat: lat1, lon: lon1 };
+        const nw = this.calculateMissingCorner(ne, sw, I0, J1, I0, J0, I1, J1, proj);
+        const se = this.calculateMissingCorner(ne, sw, I1, J0, I0, J0, I1, J1, proj);
+
+        const corners = [ne, nw, sw, se];
+        corners.forEach((corner) => {
+          const dist = Math.sqrt((latitude - corner.lat) ** 2 + (longitude - corner.lon) ** 2);
+          if (dist < minDistance) {
+            minDistance = dist;
+            tile = parseInt(row.tile, 10);
+            url = row.url;
+          }
+        });
+      }
 
       if (i === null) {
-        // Point not inside any tile, use projected calculation
-        const proj = this.getProjInfo();
+        // Point not inside any tile, use projected calculation (reuses the
+        // proj computed above - it's the same static projection either way)
         const { x, y } = this.latLonToProjected(latitude, longitude, proj);
         // x and y are decimal WRF i/j coordinates calculated from the Lambert projection.
-        i = Math.round(x - 0.1);
-        j = Math.round(y - 0.1);
+        const rawI = Math.round(x - 0.1);
+        const rawJ = Math.round(y - 0.1);
 
-        // Clamp to d02 domain bounds
-        i = Math.max(2, Math.min(391, i));
-        j = Math.max(2, Math.min(373, j));
+        // Guard: reject points that fall outside the d02 domain entirely,
+        // rather than silently clamping them to the domain edge.
+        const D02_MIN_I = 2;
+        const D02_MAX_I = 391;
+        const D02_MIN_J = 2;
+        const D02_MAX_J = 373;
+        if (rawI < D02_MIN_I || rawI > D02_MAX_I || rawJ < D02_MIN_J || rawJ > D02_MAX_J) {
+          console.error(
+            `findClosestPoint: lat=${latitude}, lon=${longitude} is outside the d02 domain (i=${rawI}, j=${rawJ})`
+          );
+          return null;
+        }
+
+        i = rawI;
+        j = rawJ;
 
         // tile is already set to the closest
       }
 
       console.log(`findClosestPoint: lat=${latitude}, lon=${longitude} -> i=${i}, j=${j}, tile=${tile}`);
-      return { i, j, tile, domain: 'd02' };
+      return { i, j, tile, domain: 'd02', url };
     } catch (err) {
       console.log('Error in findClosestPoint');
       console.log(err);
       return null;
     }
+  }
+
+  /**
+   * Look up a tile's corner lat/lon by domain + tile id, from that domain's
+   * CSV (aermod_files.csv for d02, calpuff_files.csv for d03-d06). Normalizes
+   * to NE (lat0,lon0) / SW (lat1,lon1) regardless of how the source CSV
+   * orders its corner columns - aermod_files.csv and calpuff_files.csv use
+   * opposite conventions.
+   */
+  private getTileCorners(
+    domain: string,
+    tile: string | number
+  ): { lat0: number; lon0: number; lat1: number; lon1: number } | null {
+    for (const row of this.aermodRows) {
+      if (row.domain !== domain || String(row.tile) !== String(tile)) continue;
+
+      return {
+        lat0: Math.max(row.lat0, row.lat1), // NE
+        lon0: Math.max(row.lon0, row.lon1), // NE
+        lat1: Math.min(row.lat0, row.lat1), // SW
+        lon1: Math.min(row.lon0, row.lon1), // SW
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Find i,j and tile for a lat/lon within a specific domain's own tile grid,
+   * using that domain's local I0/J0/I1/J1 indices from the tile CSV. Each
+   * nested domain (d03-d06) has its own grid, distinct from d02's, and
+   * different domains order their corners differently (e.g. lat0 is not
+   * always the northern corner), so the interpolation below is direction-agnostic.
+   */
+  private findIJInDomainCsv(
+    rows: AermodTileRow[],
+    domain: string,
+    latitude: number,
+    longitude: number
+  ): { i: number; j: number; tile: string; url: string } | null {
+    for (const row of rows) {
+      if (row.domain !== domain) continue;
+
+      const { I0, J0, I1, J1, lat0, lon0, lat1, lon1 } = row;
+
+      const minLat = Math.min(lat0, lat1);
+      const maxLat = Math.max(lat0, lat1);
+      const minLon = Math.min(lon0, lon1);
+      const maxLon = Math.max(lon0, lon1);
+
+      if (latitude >= minLat && latitude <= maxLat && longitude >= minLon && longitude <= maxLon) {
+        const i = Math.round(I0 + ((longitude - lon0) / (lon1 - lon0)) * (I1 - I0));
+        const j = Math.round(J0 + ((latitude - lat0) / (lat1 - lat0)) * (J1 - J0));
+        return { i, j, tile: row.tile, url: row.url };
+      }
+    }
+
+    return null;
   }
 
   isInsideHRDomain(latitude: number, longitude: number): any {
@@ -553,8 +683,8 @@ export class MappingService {
 
     const arg_known = proj.cone * (deltalon_known * RAD_PER_DEG);
 
-    proj.polei =  proj.hemi * proj.knowni - proj.hemi * rm_known * Math.sin(arg_known);
-    proj.polej =  proj.hemi * proj.knownj + rm_known * Math.cos(arg_known);
+    proj.polei = proj.hemi * proj.knowni - proj.hemi * rm_known * Math.sin(arg_known);
+    proj.polej = proj.hemi * proj.knownj + rm_known * Math.cos(arg_known);
 
     if (proj.stdlon < -180.0) {
       proj.stdlon += 360.0;
