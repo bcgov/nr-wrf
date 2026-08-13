@@ -192,6 +192,18 @@ export class ZipFileService {
     'zlib1.dll',
   ];
 
+  /**
+   * True when a filename can be placed in a download.bat URL unchanged.
+   *
+   * The object store requires characters like "+" to be percent-encoded, but
+   * a "%" in a .bat file is consumed by cmd.exe as a script-argument or
+   * environment-variable reference before curl sees the line. Files whose
+   * names need encoding are therefore bundled into the zip server-side.
+   */
+  private static isBatchSafeFilename(name: string): boolean {
+    return encodeURIComponent(name) === name;
+  }
+
   async beginZippingAermodFromCoords(request: {
     latitude: number;
     longitude: number;
@@ -274,12 +286,17 @@ export class ZipFileService {
     // mmif.exe's runtime libraries. curl saves to the current directory,
     // which is the unzipped folder containing mmif.exe, and start.bat runs
     // download.bat before mmif, so they are in place when it executes.
-    // Filenames are percent-encoded: "+" in a URL path is ambiguous (some
-    // object stores decode it as a space), which would silently fetch an
-    // error page instead of libstdc++-6.dll.
+    //
+    // Only names that survive a .bat file unchanged go here. The object store
+    // needs "+" percent-encoded as "%2B" (a literal "+" returns 404), but
+    // cmd.exe expands "%2" as a script argument when download.bat runs, which
+    // corrupts the URL. Those files are fetched server-side into the zip
+    // instead - see zipFilesAermod().
     const dataFileCount = dataUrls.length;
     for (const dll of ZipFileService.MMIF_DLLS) {
-      dataUrls.push(`${baseUrl}/setup_files/${encodeURIComponent(dll)}`);
+      if (ZipFileService.isBatchSafeFilename(dll)) {
+        dataUrls.push(`${baseUrl}/setup_files/${dll}`);
+      }
     }
 
     console.log(
@@ -418,12 +435,31 @@ export class ZipFileService {
       const mmifContent = this.createAermodConfig(tileDownloadInfo, tileList);
       await fs.promises.writeFile(folder + 'mmif.inp', mmifContent);
       console.log('Saved ' + 'mmif.inp');
+
+      // Runtime libraries whose names cannot go through download.bat (see
+      // isBatchSafeFilename) are fetched here and shipped inside the zip.
+      const bundledDlls: string[] = [];
+      for (const dll of ZipFileService.MMIF_DLLS) {
+        if (ZipFileService.isBatchSafeFilename(dll)) continue;
+        const dllData = await lastValueFrom(
+          this.httpService
+            .get(`https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/setup_files/${encodeURIComponent(dll)}`, {
+              responseType: 'arraybuffer',
+            })
+            .pipe(map((response) => response.data))
+        );
+        await fs.promises.writeFile(folder + dll, dllData);
+        bundledDlls.push(folder + dll);
+        console.log(`Saved ${dll} (bundled: name is not batch-safe)`);
+      }
+
       const files = [
         folder + 'mmif.exe',
         folder + 'readme.txt',
         folder + 'start.bat',
         folder + 'download.bat',
         folder + 'mmif.inp',
+        ...bundledDlls,
       ];
       await zipFiles(files, folder);
       for (let file of files) {
@@ -512,9 +548,15 @@ export class ZipFileService {
   createAermodDownloadBat(downloadUrls: string[]): string {
     let batchFileContent = '';
     downloadUrls.forEach((url) => {
-      // Save under the decoded filename (so libstdc%2B%2B-6.dll lands as
-      // libstdc++-6.dll), and use --fail so an HTTP error is reported instead
-      // of being written to disk as if it were the requested file.
+      // The object store needs the percent-encoded URL: a literal "+" in the
+      // path returns 404, while "%2B" resolves. The "%" is written singly and
+      // is passed through to curl unchanged when download.bat runs - verified
+      // against a generated download.bat on Windows.
+      //
+      // -o names the output explicitly, so the file lands as libstdc++-6.dll
+      // rather than under the encoded name. --fail makes curl report (and
+      // retry) an HTTP error instead of writing the error body to disk as if
+      // it were the requested file.
       const filename = decodeURIComponent(url.substring(url.lastIndexOf('/') + 1));
       batchFileContent += `curl -o "${filename}" "${url}" --retry 10 --fail\n`;
     });
