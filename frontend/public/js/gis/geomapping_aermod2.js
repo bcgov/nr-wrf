@@ -659,12 +659,9 @@ require([
    */
   function highlightAndSearch(lat, lon) {
 
-    // Guard: skip fetching tile data for locations outside the d02 domain
-    if (!closestPoint) {
-      alert('You have entered a coordinate outside of the bounds of this application.');
-      return;
-    }
-
+    // Note: no guard on the previously stored point here. The lookup below
+    // decides whether the entered coordinates are inside a domain; gating on
+    // stale state would reject every search made before a map click.
     const data = {
       latitude: lat,
       longitude: lon,
