@@ -191,12 +191,18 @@ export class ZipFileService {
       },
     };
 
-    // Get all domain/tile pairs that overlap with the selected d02 tile
-    const aermodTileData = await this.mappingService.calculateAermodTiles(latitude, longitude);
-
-    if (!aermodTileData || !aermodTileData.domainTiles) {
-      throw new Error('Failed to calculate AERMOD domain tiles');
-    }
+    // Package exactly the one tile that contains the searched location.
+    // closestPoint already applied resolution priority (HR domains d03-d06
+    // are checked before the coarse d02 fallback) and is validated against
+    // aermod_files.csv, so this can never reference a tile that doesn't
+    // exist in AERMOD object storage. This intentionally avoids the
+    // CALPUFF-index bbox-overlap query, whose d02 index contains 371 tiles
+    // that AERMOD storage doesn't have (AERMOD's d02 domain is smaller),
+    // and whose lat/lon bbox test can also pull in neighboring tiles.
+    const aermodTileData = {
+      domainTile: { ...tileDownloadInfo.closestPoint },
+      domainTiles: [{ domain: closestPoint.domain, tiles: [closestPoint.tile] }],
+    };
 
     // Build download URLs for all domains and tiles
     const dataUrls: string[] = [];

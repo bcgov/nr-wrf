@@ -125,8 +125,8 @@ require([
     // show a loading indicator while we fetch tile data for this location
     view.container.style.cursor = 'progress';
 
-    console.log('calculateAermodTiles');
-    fetch('mapping/calculateAermodTiles', {
+    console.log('findClosestPoint');
+    fetch('mapping/findClosestPoint', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -157,23 +157,24 @@ require([
       //   body: JSON.stringify(data),
       // })
       .then((response) => {
-       // console.log(response);
         if (!response.ok) {
-          throw new Error(`Failed to calculate AERMOD tiles (status ${response.status})`);
+          throw new Error(`Failed to find closest point (status ${response.status})`);
         }
-        return response.json();
+        // findClosestPoint returns {i, j, tile, domain, url} - or an empty
+        // body when the location is outside every model domain (null).
+        return response.text();
       })
-      .then((response) => {
-        if (!response) {
-          console.warn('calculateAermodTiles: no tile data for this location (outside the model domain)');
+      .then((text) => {
+        const point = text ? JSON.parse(text) : null;
+        if (!point || !point.domain) {
+          console.warn('findClosestPoint: no tile data for this location (outside the model domain)');
           closestPoint = null;
           return;
         }
-
-        closestPoint = response;
+        closestPoint = point;
       })
       .catch((error) => {
-        console.error('calculateAermodTiles Error:', error);
+        console.error('findClosestPoint Error:', error);
         closestPoint = null;
       })
       .finally(() => {
@@ -675,18 +676,28 @@ require([
       },
       body: JSON.stringify(data),
     })
-      .then((response) => response.json())
-      .then((response) => {
-        closestPoint = response;
+      .then((response) => (response.ok ? response.text() : Promise.reject(new Error(`status ${response.status}`))))
+      .then((text) => {
+        // An empty body means findClosestPoint returned null (outside all domains)
+        closestPoint = text ? JSON.parse(text) : null;
       })
       .catch((error) => {
         console.error('findClosestPoint Error:', error);
+        // Don't let a stale point from a previous search slip through
+        closestPoint = null;
       })
       .finally(() => {
         // reset previous selected polygon
         if (selectedPolygon) {
           selectedPolygon.symbol = polygonSymbol;
           selectedPolygon = null;
+        }
+
+        // The searched coordinate is outside every model domain (including
+        // the coarse d02 domain) - inform the user and stop.
+        if (!closestPoint || !closestPoint.domain) {
+          alert('You have entered a coordinate outside of the bounds of this application.');
+          return;
         }
 
         // find and highlight the new polygon

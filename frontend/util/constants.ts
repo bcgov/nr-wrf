@@ -44,3 +44,32 @@ export class ProjInfo {
 
   constructor() {}
 }
+
+/**
+ * WRF domain configuration for the AERMOD tile grids.
+ * Source: WRF domain definition (domain_llcrns.xlsx).
+ *
+ * - dx: grid spacing in meters (d02 = 4 km; d03-d06 = 4/3 km high resolution).
+ * - llcrnLat / llcrnLon: the domain's lower-left corner mass point, i.e. the
+ *   lat/lon of grid point (1, 1). This anchors the domain's Lambert projection.
+ *
+ * IMPORTANT: an anchor is a four-number fact - (lat, lon) and the grid indices
+ * (knowni, knownj) of the SAME physical point. These values pair with
+ * knowni = knownj = 1. If the anchor point is ever changed to a different mass
+ * point, its grid indices must change with it; updating either half alone
+ * shifts the entire grid.
+ *
+ * All domains share the parent projection (ProjInfo defaults: stdlon,
+ * truelat1/truelat2); only dx (i.e., grid spacing) and the anchor differ per domain.
+ *
+ * If the WRF domains are re-run, update dx and anchors here, then re-validate:
+ * projecting every tile corner mass point in aermod_files.csv must reproduce
+ * its I/J indices to within ~0.01 grid cells.
+ */
+export const WRF_DOMAINS: { [domain: string]: { dx: number; llcrnLat: number; llcrnLon: number } } = {
+  d02: { dx: 4000.0, llcrnLat: 47.07421875, llcrnLon: -134.49696350097599 },
+  d03: { dx: 4000.0 / 3.0, llcrnLat: 53.425212860107401, llcrnLon: -129.46455383300699 },
+  d04: { dx: 4000.0 / 3.0, llcrnLat: 53.3097114562988, llcrnLon: -123.702377319335 },
+  d05: { dx: 4000.0 / 3.0, llcrnLat: 48.7634468078613, llcrnLon: -118.64852905273401 },
+  d06: { dx: 4000.0 / 3.0, llcrnLat: 48.785228729247997, llcrnLon: -123.697021484375 },
+};
