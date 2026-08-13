@@ -138,6 +138,60 @@ export class ZipFileService {
     return { subFolder: subFolder };
   }
 
+  /**
+   * Runtime libraries required by mmif.exe, stored in object storage under
+   * setup_files/ alongside the executable. They are appended to the
+   * download.bat URL list so the user's machine fetches them into the same
+   * folder as mmif.exe before start.bat runs it.
+   */
+  private static readonly MMIF_DLLS = [
+    'libaws-c-auth.dll',
+    'libaws-c-cal.dll',
+    'libaws-c-common.dll',
+    'libaws-c-compression.dll',
+    'libaws-c-event-stream.dll',
+    'libaws-c-http.dll',
+    'libaws-c-io.dll',
+    'libaws-c-mqtt.dll',
+    'libaws-c-s3.dll',
+    'libaws-c-sdkutils.dll',
+    'libaws-checksums.dll',
+    'libaws-cpp-sdk-core.dll',
+    'libaws-cpp-sdk-s3.dll',
+    'libaws-crt-cpp.dll',
+    'libbrotlicommon.dll',
+    'libbrotlidec.dll',
+    'libbz2-1.dll',
+    'libcrypto-3-x64.dll',
+    'libcurl-4.dll',
+    'libgcc_s_seh-1.dll',
+    'libgfortran-5.dll',
+    'libhdf5-320.dll',
+    'libhdf5_hl-320.dll',
+    'libiconv-2.dll',
+    'libidn2-0.dll',
+    'libintl-8.dll',
+    'liblzma-5.dll',
+    'libnetcdf.dll',
+    'libnetcdff-7.dll',
+    'libnghttp2-14.dll',
+    'libnghttp3-9.dll',
+    'libngtcp2-16.dll',
+    'libngtcp2_crypto_ossl-0.dll',
+    'libpsl-5.dll',
+    'libquadmath-0.dll',
+    'libssh2-1.dll',
+    'libssl-3-x64.dll',
+    'libstdc++-6.dll',
+    'libsz-2.dll',
+    'libunistring-5.dll',
+    'libwinpthread-1.dll',
+    'libxml2-16.dll',
+    'libzip.dll',
+    'libzstd.dll',
+    'zlib1.dll',
+  ];
+
   async beginZippingAermodFromCoords(request: {
     latitude: number;
     longitude: number;
@@ -217,7 +271,18 @@ export class ZipFileService {
       }
     }
 
-    console.log(`Generated ${dataUrls.length} download URLs for AERMOD`);
+    // mmif.exe's runtime libraries. curl -O saves to the current directory,
+    // which is the unzipped folder containing mmif.exe, and start.bat runs
+    // download.bat before mmif, so they are in place when it executes.
+    const dataFileCount = dataUrls.length;
+    for (const dll of ZipFileService.MMIF_DLLS) {
+      dataUrls.push(`${baseUrl}/setup_files/${dll}`);
+    }
+
+    console.log(
+      `Generated ${dataUrls.length} download URLs for AERMOD ` +
+        `(${dataFileCount} data files, ${ZipFileService.MMIF_DLLS.length} runtime libraries)`
+    );
 
     return this.beginZippingAermod(tileDownloadInfo, dataUrls, aermodTileData);
   }
@@ -602,8 +667,7 @@ call download.bat
 
 mmif
 md output
-ren "x???y???x???y???.?????????????????????.output.m3d" "/////////////////wrf.?????????????????????.output.m3d"
-move wrf.* output\
+move aermod.* output\\
     `;
   }
 
@@ -675,8 +739,11 @@ aer_min_obuk 1.0 !default 1
 FSL_INTERVAL 12 !default 12
 ${latLonLine}
 # See the Users Guide for the OUTPUT keyword details
-OUTPUT AERMOD SFC "output\aermod.sfc"
-OUTPUT AERMOD PFL "output\aermod.pfl"
+# NOTE: keep these paths free of backslashes, or escape them as \\ - a single
+# backslash before a letter is consumed as a JavaScript escape sequence, which
+# previously turned "output\aermod.sfc" into "outputaermod.sfc".
+OUTPUT AERMOD SFC "aermod.sfc"
+OUTPUT AERMOD PFL "aermod.pfl"
 ${inputString}
 `;
     return mmifContent;
