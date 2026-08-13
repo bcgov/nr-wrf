@@ -710,11 +710,15 @@ export class ZipFileService {
 
   createAermodStartBat(): string {
     return `
-rem Batch file extract zip files, runs Fortran code
+rem Batch file downloads data, runs MMIF, collects output
 
 call download.bat
 
-mmif
+rem "start /wait" blocks until mmif.exe exits. Without it, cmd.exe continues
+rem immediately and the move below can grab aermod.sfc while MMIF is still
+rem writing it, corrupting the output and crashing the run.
+start "" /wait mmif.exe
+
 md output
 move aermod.* output\\
     `;
