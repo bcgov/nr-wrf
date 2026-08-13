@@ -271,12 +271,15 @@ export class ZipFileService {
       }
     }
 
-    // mmif.exe's runtime libraries. curl -O saves to the current directory,
+    // mmif.exe's runtime libraries. curl saves to the current directory,
     // which is the unzipped folder containing mmif.exe, and start.bat runs
     // download.bat before mmif, so they are in place when it executes.
+    // Filenames are percent-encoded: "+" in a URL path is ambiguous (some
+    // object stores decode it as a space), which would silently fetch an
+    // error page instead of libstdc++-6.dll.
     const dataFileCount = dataUrls.length;
     for (const dll of ZipFileService.MMIF_DLLS) {
-      dataUrls.push(`${baseUrl}/setup_files/${dll}`);
+      dataUrls.push(`${baseUrl}/setup_files/${encodeURIComponent(dll)}`);
     }
 
     console.log(
@@ -509,7 +512,11 @@ export class ZipFileService {
   createAermodDownloadBat(downloadUrls: string[]): string {
     let batchFileContent = '';
     downloadUrls.forEach((url) => {
-      batchFileContent += `curl -O ${url} --retry 10\n`;
+      // Save under the decoded filename (so libstdc%2B%2B-6.dll lands as
+      // libstdc++-6.dll), and use --fail so an HTTP error is reported instead
+      // of being written to disk as if it were the requested file.
+      const filename = decodeURIComponent(url.substring(url.lastIndexOf('/') + 1));
+      batchFileContent += `curl -o "${filename}" "${url}" --retry 10 --fail\n`;
     });
     return batchFileContent;
   }
