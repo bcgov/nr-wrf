@@ -125,8 +125,8 @@ require([
     // show a loading indicator while we fetch tile data for this location
     view.container.style.cursor = 'progress';
 
-    console.log('calculateAermodTiles');
-    fetch('mapping/calculateAermodTiles', {
+    console.log('findClosestPoint');
+    fetch('mapping/findClosestPoint', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -157,23 +157,24 @@ require([
       //   body: JSON.stringify(data),
       // })
       .then((response) => {
-       // console.log(response);
         if (!response.ok) {
-          throw new Error(`Failed to calculate AERMOD tiles (status ${response.status})`);
+          throw new Error(`Failed to find closest point (status ${response.status})`);
         }
-        return response.json();
+        // findClosestPoint returns {i, j, tile, domain, url} - or an empty
+        // body when the location is outside every model domain (null).
+        return response.text();
       })
-      .then((response) => {
-        if (!response) {
-          console.warn('calculateAermodTiles: no tile data for this location (outside the model domain)');
+      .then((text) => {
+        const point = text ? JSON.parse(text) : null;
+        if (!point || !point.domain) {
+          console.warn('findClosestPoint: no tile data for this location (outside the model domain)');
           closestPoint = null;
           return;
         }
-
-        closestPoint = response;
+        closestPoint = point;
       })
       .catch((error) => {
-        console.error('calculateAermodTiles Error:', error);
+        console.error('findClosestPoint Error:', error);
         closestPoint = null;
       })
       .finally(() => {
@@ -658,12 +659,9 @@ require([
    */
   function highlightAndSearch(lat, lon) {
 
-    // Guard: skip fetching tile data for locations outside the d02 domain
-    if (!closestPoint) {
-      alert('You have entered a coordinate outside of the bounds of this application.');
-      return;
-    }
-
+    // Note: no guard on the previously stored point here. The lookup below
+    // decides whether the entered coordinates are inside a domain; gating on
+    // stale state would reject every search made before a map click.
     const data = {
       latitude: lat,
       longitude: lon,
@@ -675,18 +673,28 @@ require([
       },
       body: JSON.stringify(data),
     })
-      .then((response) => response.json())
-      .then((response) => {
-        closestPoint = response;
+      .then((response) => (response.ok ? response.text() : Promise.reject(new Error(`status ${response.status}`))))
+      .then((text) => {
+        // An empty body means findClosestPoint returned null (outside all domains)
+        closestPoint = text ? JSON.parse(text) : null;
       })
       .catch((error) => {
         console.error('findClosestPoint Error:', error);
+        // Don't let a stale point from a previous search slip through
+        closestPoint = null;
       })
       .finally(() => {
         // reset previous selected polygon
         if (selectedPolygon) {
           selectedPolygon.symbol = polygonSymbol;
           selectedPolygon = null;
+        }
+
+        // The searched coordinate is outside every model domain (including
+        // the coarse d02 domain) - inform the user and stop.
+        if (!closestPoint || !closestPoint.domain) {
+          alert('You have entered a coordinate outside of the bounds of this application.');
+          return;
         }
 
         // find and highlight the new polygon
@@ -839,6 +847,11 @@ require([
               actions: [downloadZipAction],
               content: 'Your files are ready, click the link below to download them.',
             });
+          } else if (resJson.status === 'Error') {
+            // The server hit a problem while assembling the package. Stop
+            // polling and tell the user, rather than spinning indefinitely.
+            clearInterval(interval);
+            view.popup.content = 'Preparing your download failed. Please try again later.';
           } else {
             if (resJson.num <= 3 && (resJson.num >= prevNum || !zipping)) {
               view.popup.content = `Downloading ${resJson?.num || '3'}/3... please wait`;

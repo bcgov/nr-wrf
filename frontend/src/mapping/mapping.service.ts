@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 const fs = require('fs');
 import * as Papa from 'papaparse';
-import { ProjInfo } from '../../util/constants';
+import { ProjInfo, WRF_DOMAINS } from '../../util/constants';
 import { HttpService } from '@nestjs/axios';
 import { lastValueFrom, map } from 'rxjs';
 
@@ -28,6 +28,10 @@ export class MappingService {
   private aermodRows: AermodTileRow[];
   private calpuffDomains: any[];
   private calpuffTiles: any[];
+  /** Per-domain Lambert projections (d02 @ 4km, d03-d06 @ 1.333km), built from the CSV anchors. */
+  private domainProjections: { [domain: string]: ProjInfo } = {};
+  /** HR domains are checked before the coarse d02 fallback (resolution priority). */
+  private static readonly DOMAIN_SEARCH_ORDER = ['d03', 'd04', 'd05', 'd06', 'd02'];
 
   constructor(private httpService: HttpService) {
     // docker hostname is the container name, use localhost for local development
@@ -41,6 +45,7 @@ export class MappingService {
     try {
       this.aermodFilesCsv = fs.readFileSync('dist/public/js/gis/aermod_files.csv', 'utf-8');
       this.aermodRows = this.parseAermodRows(this.aermodFilesCsv);
+      this.buildDomainProjections();
       this.calpuffDomains = JSON.parse(fs.readFileSync('dist/public/js/gis/hr_domain_bounds.json', 'utf-8'));
       this.calpuffTiles = JSON.parse(fs.readFileSync('dist/public/js/gis/hr_domain_tiles.json', 'utf-8'));
       console.log('AERMOD files loaded into memory.');
@@ -126,68 +131,6 @@ export class MappingService {
     }
   }
 
-  /**
-   * For AERMOD: Find all domain/tile pairs that overlap with the closest d02 tile.
-   * Returns the d02 tile info plus any high-resolution tiles that overlap.
-   *
-   * @param latitude
-   * @param longitude
-   * @returns { domainTile: { tile: number, domain: string, corners: {...} }, domainTiles: [{ domain: string, tiles: string[] }] }
-   */
-  async calculateAermodTiles(latitude: number, longitude: number): Promise<any> {
-    // Find the closest tile to get the bounding box
-    //const closestTileData = await this.findClosestD02Tile(latitude, longitude);
-    const closestTileData = await this.findClosestPoint(latitude, longitude);
-
-    console.log('~~~');
-    console.log(closestTileData);
-    console.log('~~~');
-
-    if (!closestTileData) {
-      console.error('Failed to find closest d02 tile');
-      return null;
-    }
-
-    // findClosestPoint only returns {i, j, tile, domain, url} - look up this
-    // tile's corners from its domain's CSV (aermod for d02, calpuff for d03-d06).
-    const corners = this.getTileCorners(closestTileData.domain, closestTileData.tile);
-    if (!corners) {
-      console.error('Failed to find corners for closest tile', closestTileData);
-      return null;
-    }
-
-    // Extract corner coordinates
-    const { lat0, lon0, lat1, lon1 } = corners;
-
-    // Map corners to boundary variables
-    // lat0, lon0 = NE corner (top-right)
-    // lat1, lon1 = SW corner (bottom-left)
-    const bottomLeftYGlobal = lat1; // SW latitude
-    const topRightYGlobal = lat0; // NE latitude
-    const bottomLeftXGlobal = lon1; // SW longitude
-    const topRightXGlobal = lon0; // NE longitude
-
-    // Call backend to get all overlapping domain/tile pairs
-    const requestUrl = `${hostname}:${port}/data/aermodDomainTiles`;
-    const domainTiles = await lastValueFrom(
-      this.httpService
-        .post(requestUrl, {
-          bottomLeftYGlobal,
-          topRightYGlobal,
-          bottomLeftXGlobal,
-          topRightXGlobal,
-        })
-        .pipe(map((response) => response.data))
-    );
-
-    console.log('Domain tiles found:', domainTiles);
-
-    return {
-      domainTile: { ...closestTileData, corners },
-      domainTiles,
-    };
-  }
-
   //Note: commented out because of WRF-6 ticket
   // async findClosestD02Tile(latitude: number, longitude: number): Promise<any> {
   //   try {
@@ -269,135 +212,80 @@ export class MappingService {
     return { i, j, tile, domain, url };
   }
 
+  /**
+   * Build one Lambert Conformal projection per domain found in the CSV. All
+   * WRF nests share the same map projection (stdlon/truelat); only the grid
+   * spacing (dx) and the anchor point differ per domain. Both come from the
+   * WRF_DOMAINS configuration in util/constants.ts.
+   *
+   * The anchor for every domain is, by policy, its official lower-left corner
+   * mass point (grid point (1, 1)) from the WRF domain definition. The lat/lon
+   * and I/J values in aermod_files.csv are NOT used for anchoring - the CSV is
+   * a tile inventory only. A domain present in the CSV but missing from
+   * WRF_DOMAINS gets no projection: searches in it will report out-of-bounds
+   * until its dx and LLCRN anchor are added to WRF_DOMAINS.
+   */
+  private buildDomainProjections(): void {
+    this.domainProjections = {};
+    for (const row of this.aermodRows) {
+      if (this.domainProjections[row.domain]) continue;
+
+      const config = WRF_DOMAINS[row.domain];
+      if (!config) {
+        console.error(
+          `Domain ${row.domain} appears in aermod_files.csv but has no WRF_DOMAINS entry in util/constants.ts; ` +
+            `it will not be searchable until its dx and LLCRN anchor are added there.`
+        );
+        continue;
+      }
+
+      // Anchor: domain's lower-left mass point is grid point (1, 1)
+      this.domainProjections[row.domain] = this.getProjInfo(config.dx, config.llcrnLat, config.llcrnLon, 1, 1);
+    }
+    console.log(`Built projections for domains: ${Object.keys(this.domainProjections).join(', ')}`);
+  }
+
+  /**
+   * Flowchart algorithm:
+   *  1. Loop through HR domains (d03-d06) before d02.
+   *  2. For each domain, convert lat/lon to decimal WRF i/j using that
+   *     domain's own projection (its dx and its anchor mass point).
+   *  3. Round to the nearest mass-grid point.
+   *  4. Check whether i/j falls inside any of that domain's tile I/J ranges
+   *     from aermod_files.csv. If yes, return {domain, tile, i, j}.
+   *  5. Fall back to d02 if no HR match; return null if outside d02 too.
+   */
   async findClosestPoint(latitude: number, longitude: number): Promise<any> {
     try {
-      const hrTile = this.isInsideHRDomain(latitude, longitude);
+      for (const domain of MappingService.DOMAIN_SEARCH_ORDER) {
+        const proj = this.domainProjections[domain];
+        if (!proj) continue;
 
-      if (hrTile) return this.findIjForHrDomain(hrTile, latitude, longitude);
-
-      //For non-HR domain
-      // find the tile and calculate i,j based on lat/lon from cached CSV rows
-      let i = null;
-      let j = null;
-      let tile = null;
-      let url = null;
-      let minDistance = Infinity;
-      const proj = this.getProjInfo();
-
-      for (const row of this.aermodRows) {
-        if (row.domain !== 'd02') continue;
-
-        const { I0, J0, I1, J1, lat0, lon0, lat1, lon1 } = row; // lat0,lon0 = NE; lat1,lon1 = SW
-
-        // Check if point is within the tile's bounding box
-        const minLat = Math.min(lat0, lat1);
-        const maxLat = Math.max(lat0, lat1);
-        const minLon = Math.min(lon0, lon1);
-        const maxLon = Math.max(lon0, lon1);
-
-        if (latitude >= minLat && latitude <= maxLat && longitude >= minLon && longitude <= maxLon) {
-          // Interpolate i,j within the tile
-          const dLon = lon1 - lon0;
-          const dLat = lat0 - lat1; // lat0 > lat1
-          const i_interp = I0 + ((longitude - lon0) / dLon) * (I1 - I0);
-          const j_interp = J0 + ((lat0 - latitude) / dLat) * (J1 - J0);
-
-          i = Math.round(i_interp);
-          j = Math.round(j_interp);
-          tile = parseInt(row.tile, 10);
-          url = row.url;
-          // Point is confirmed inside this tile - stop scanning. Otherwise the
-          // corner-distance fallback below would keep running for every
-          // remaining row and could overwrite tile/url with a different tile.
-          break;
-        }
-
-        // Cheap O(1) lower bound: distance from the point to this tile's
-        // axis-aligned bounding box. If even that already exceeds the best
-        // distance found so far, this tile's corners (nw/se included, since
-        // they sit at/near the same box) can't possibly win, so skip the
-        // expensive projection math below entirely.
-        const clampedLat = Math.max(minLat, Math.min(maxLat, latitude));
-        const clampedLon = Math.max(minLon, Math.min(maxLon, longitude));
-        const boxDist = Math.sqrt((latitude - clampedLat) ** 2 + (longitude - clampedLon) ** 2);
-        if (boxDist >= minDistance) continue;
-
-        // If not inside, calculate distance to each corner
-        const ne = { lat: lat0, lon: lon0 };
-        const sw = { lat: lat1, lon: lon1 };
-        const nw = this.calculateMissingCorner(ne, sw, I0, J1, I0, J0, I1, J1, proj);
-        const se = this.calculateMissingCorner(ne, sw, I1, J0, I0, J0, I1, J1, proj);
-
-        const corners = [ne, nw, sw, se];
-        corners.forEach((corner) => {
-          const dist = Math.sqrt((latitude - corner.lat) ** 2 + (longitude - corner.lon) ** 2);
-          if (dist < minDistance) {
-            minDistance = dist;
-            tile = parseInt(row.tile, 10);
-            url = row.url;
-          }
-        });
-      }
-
-      if (i === null) {
-        // Point not inside any tile, use projected calculation (reuses the
-        // proj computed above - it's the same static projection either way)
+        // Decimal WRF i/j in this domain's own grid
         const { x, y } = this.latLonToProjected(latitude, longitude, proj);
-        // x and y are decimal WRF i/j coordinates calculated from the Lambert projection.
-        const rawI = Math.round(x - 0.1);
-        const rawJ = Math.round(y - 0.1);
+        const i = Math.round(x);
+        const j = Math.round(y);
 
-        // Guard: reject points that fall outside the d02 domain entirely,
-        // rather than silently clamping them to the domain edge.
-        const D02_MIN_I = 2;
-        const D02_MAX_I = 391;
-        const D02_MIN_J = 2;
-        const D02_MAX_J = 373;
-        if (rawI < D02_MIN_I || rawI > D02_MAX_I || rawJ < D02_MIN_J || rawJ > D02_MAX_J) {
-          console.error(
-            `findClosestPoint: lat=${latitude}, lon=${longitude} is outside the d02 domain (i=${rawI}, j=${rawJ})`
-          );
-          return null;
+        // Does this mass point land inside one of the domain's tiles?
+        for (const row of this.aermodRows) {
+          if (row.domain !== domain) continue;
+          if (i >= row.I0 && i <= row.I1 && j >= row.J0 && j <= row.J1) {
+            console.log(
+              `findClosestPoint: lat=${latitude}, lon=${longitude} -> domain=${domain}, i=${i}, j=${j}, tile=${row.tile}`
+            );
+            return { i, j, tile: row.tile, domain, url: row.url };
+          }
         }
-
-        i = rawI;
-        j = rawJ;
-
-        // tile is already set to the closest
       }
 
-      console.log(`findClosestPoint: lat=${latitude}, lon=${longitude} -> i=${i}, j=${j}, tile=${tile}`);
-      return { i, j, tile, domain: 'd02', url };
+      // Outside every domain, including d02
+      console.error(`findClosestPoint: lat=${latitude}, lon=${longitude} is outside all model domains`);
+      return null;
     } catch (err) {
       console.log('Error in findClosestPoint');
       console.log(err);
       return null;
     }
-  }
-
-  /**
-   * Look up a tile's corner lat/lon by domain + tile id, from that domain's
-   * CSV (aermod_files.csv for d02, calpuff_files.csv for d03-d06). Normalizes
-   * to NE (lat0,lon0) / SW (lat1,lon1) regardless of how the source CSV
-   * orders its corner columns - aermod_files.csv and calpuff_files.csv use
-   * opposite conventions.
-   */
-  private getTileCorners(
-    domain: string,
-    tile: string | number
-  ): { lat0: number; lon0: number; lat1: number; lon1: number } | null {
-    for (const row of this.aermodRows) {
-      if (row.domain !== domain || String(row.tile) !== String(tile)) continue;
-
-      return {
-        lat0: Math.max(row.lat0, row.lat1), // NE
-        lon0: Math.max(row.lon0, row.lon1), // NE
-        lat1: Math.min(row.lat0, row.lat1), // SW
-        lon1: Math.min(row.lon0, row.lon1), // SW
-      };
-    }
-
-    return null;
   }
 
   /**
@@ -616,7 +504,21 @@ export class MappingService {
     return { lat, lon };
   }
 
-  private getProjInfo(): ProjInfo {
+  /**
+   * Build a Lambert Conformal Conic projection for one WRF domain.
+   *
+   * All parameters are intentionally required (no defaults): the anchor is a
+   * four-number fact - (knownLat, knownLon) and the grid indices
+   * (knowni, knownj) of the SAME mass point - and every caller must supply a
+   * complete, matching set. See WRF_DOMAINS in util/constants.ts.
+   *
+   * @param dx - Grid spacing in meters (4000 for d02, 1333.33 for d03-d06)
+   * @param knownLat - Latitude of a known mass point in this domain
+   * @param knownLon - Longitude of that known mass point
+   * @param knowni - The WRF i index of the known mass point
+   * @param knownj - The WRF j index of the known mass point
+   */
+  private getProjInfo(dx: number, knownLat: number, knownLon: number, knowni: number, knownj: number): ProjInfo {
     enum WrfProjectionType {
       LambertConformal = 1,
       PolarSterographic = 2,
@@ -629,22 +531,15 @@ export class MappingService {
 
     proj.code = WrfProjectionType.LambertConformal;
 
-    // DX in meters from (full domain)
-    const DX: number = 4000.0;
-    // DY in meters from (full domain)
-    const DY: number = 4000.0;
-    // DX and DY in meters
-    proj.dx = DX;
-    proj.dy = DY;
+    // DX and DY in meters (domain-specific)
+    proj.dx = dx;
+    proj.dy = dx;
 
-    // STAND_LON, TRUELAT1, TRUELAT2
-    //proj.stdlon = -125.0;
-    //proj.truelat1 = 46.5;
-    //proj.truelat2 = 63.5;
-
-    // Coordinate of Lower Left Grid Cell (1,1)
-    proj.lat1 = 46.3873596;
-    proj.lon1 = -137.7155914;
+    // Known mass point coordinate for this domain
+    proj.lat1 = knownLat;
+    proj.lon1 = knownLon;
+    proj.knowni = knowni;
+    proj.knownj = knownj;
 
     if (proj.code === WrfProjectionType.LambertConformal) {
       if (Math.abs(proj.truelat1 - proj.truelat2) > 0.1) {
@@ -653,7 +548,10 @@ export class MappingService {
           (Math.log(Math.tan((90.0 - Math.abs(proj.truelat1)) * RAD_PER_DEG * 0.5)) -
             Math.log(Math.tan((90.0 - Math.abs(proj.truelat2)) * RAD_PER_DEG * 0.5)));
       } else {
-        proj.cone = Math.sign(Math.abs(proj.truelat1) * RAD_PER_DEG);
+        // Tangent cone (truelat1 == truelat2): cone = sin(truelat1).
+        // The previous Math.sign(...) returned 1.0, which distorted every
+        // projected i/j calculation.
+        proj.cone = Math.sin(Math.abs(proj.truelat1) * RAD_PER_DEG);
       }
     } else {
       throw new Error('Unsupported projection.');

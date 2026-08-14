@@ -205,10 +205,6 @@
             <div class="radio">
               <label> <input type="radio" name="timezone" id="timezoneMST" value="7" />MST (-0700) </label>
             </div>
-
-            <div class="radio">
-              <label> <input type="radio" name="timezone" id="timezoneUTC" value="0" />UTC </label>
-            </div>
           </div>
         </div>
         <div class="form-group row">
@@ -240,6 +236,7 @@
               (i.e., Readme.txt) for instructions on next steps. If you have any questions, please email
               <a href="mailto:bcdispersion.model@gov.bc.ca">bcdispersion.model@gov.bc.ca</a>.
             </p>
+            <p><em>Note: High-resolution (1.33 km) data is available for the dark-shaded regions shown on the map. </em></p>
           </div>
         </div>
       </div>
@@ -350,9 +347,18 @@
           changeMonth: true,
           changeYear: true,
           dateFormat: 'mm/dd/yy',
+          // Selectable range: 00:00 on 1 Jan 2019 through 00:00 on 1 Jan 2024.
+          // minDate/maxDate limit which DATES are selectable and ignore the time
+          // part; minDateTime/maxDateTime are what limit the HOUR dropdown, and
+          // only on the day equal to the limit's own date - so 31 Dec 2023 keeps
+          // hours 00-23 while 1 Jan 2024 offers hour 00 only.
           minDate: new Date(2019, 0, 1),
-          maxDate: new Date(2023, 11, 31),
+          maxDate: new Date(2024, 0, 1),
+          minDateTime: new Date(2019, 0, 1, 0, 0),
+          maxDateTime: new Date(2024, 0, 1, 0, 0),
+          // Default range spans one year: 1 Jan 2019 00:00 to 1 Jan 2020 00:00.
           defaultDate: new Date(2019, 0, 1),
+          hour: 0,
           timeFormat: 'HH:mm',
           controlType: 'select',
           showMinute: false,
@@ -361,13 +367,21 @@
           changeMonth: true,
           changeYear: true,
           dateFormat: 'mm/dd/yy',
+          // Same selectable range as the Start field: 00:00 on 1 Jan 2019 through
+          // 00:00 on 1 Jan 2024. MMIF Start/Stop are hour-ending, so the final
+          // hour of data (23:00-24:00 on 31 Dec 2023) is labelled 2024-01-01
+          // hour 00 and the range must reach it.
           minDate: new Date(2019, 0, 1),
-          maxDate: new Date(2023, 11, 31),
-          defaultDate: new Date(2023, 0, 1),
+          maxDate: new Date(2024, 0, 1),
+          minDateTime: new Date(2019, 0, 1, 0, 0),
+          maxDateTime: new Date(2024, 0, 1, 0, 0),
+          // One year after the Start default. Hour 00 on 1 Jan 2020 is the
+          // hour-ending label for the final hour of 31 Dec 2019.
+          defaultDate: new Date(2020, 0, 1),
+          hour: 0,
           timeFormat: 'HH:mm',
           controlType: 'select',
           showMinute: false,
-          hour: 23,
         });
       }
     </script>
