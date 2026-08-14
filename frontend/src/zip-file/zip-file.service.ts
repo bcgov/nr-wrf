@@ -138,72 +138,6 @@ export class ZipFileService {
     return { subFolder: subFolder };
   }
 
-  /**
-   * Runtime libraries required by mmif.exe, stored in object storage under
-   * setup_files/ alongside the executable. They are appended to the
-   * download.bat URL list so the user's machine fetches them into the same
-   * folder as mmif.exe before start.bat runs it.
-   */
-  private static readonly MMIF_DLLS = [
-    'libaws-c-auth.dll',
-    'libaws-c-cal.dll',
-    'libaws-c-common.dll',
-    'libaws-c-compression.dll',
-    'libaws-c-event-stream.dll',
-    'libaws-c-http.dll',
-    'libaws-c-io.dll',
-    'libaws-c-mqtt.dll',
-    'libaws-c-s3.dll',
-    'libaws-c-sdkutils.dll',
-    'libaws-checksums.dll',
-    'libaws-cpp-sdk-core.dll',
-    'libaws-cpp-sdk-s3.dll',
-    'libaws-crt-cpp.dll',
-    'libbrotlicommon.dll',
-    'libbrotlidec.dll',
-    'libbz2-1.dll',
-    'libcrypto-3-x64.dll',
-    'libcurl-4.dll',
-    'libgcc_s_seh-1.dll',
-    'libgfortran-5.dll',
-    'libhdf5-320.dll',
-    'libhdf5_hl-320.dll',
-    'libiconv-2.dll',
-    'libidn2-0.dll',
-    'libintl-8.dll',
-    'liblzma-5.dll',
-    'libnetcdf.dll',
-    'libnetcdff-7.dll',
-    'libnghttp2-14.dll',
-    'libnghttp3-9.dll',
-    'libngtcp2-16.dll',
-    'libngtcp2_crypto_ossl-0.dll',
-    'libpsl-5.dll',
-    'libquadmath-0.dll',
-    'libssh2-1.dll',
-    'libssl-3-x64.dll',
-    'libstdc++-6.dll',
-    'libsz-2.dll',
-    'libunistring-5.dll',
-    'libwinpthread-1.dll',
-    'libxml2-16.dll',
-    'libzip.dll',
-    'libzstd.dll',
-    'zlib1.dll',
-  ];
-
-  /**
-   * True when a filename can be placed in a download.bat URL unchanged.
-   *
-   * The object store requires characters like "+" to be percent-encoded, but
-   * a "%" in a .bat file is consumed by cmd.exe as a script-argument or
-   * environment-variable reference before curl sees the line. Files whose
-   * names need encoding are therefore bundled into the zip server-side.
-   */
-  private static isBatchSafeFilename(name: string): boolean {
-    return encodeURIComponent(name) === name;
-  }
-
   async beginZippingAermodFromCoords(request: {
     latitude: number;
     longitude: number;
@@ -283,26 +217,10 @@ export class ZipFileService {
       }
     }
 
-    // mmif.exe's runtime libraries. curl saves to the current directory,
-    // which is the unzipped folder containing mmif.exe, and start.bat runs
-    // download.bat before mmif, so they are in place when it executes.
-    //
-    // Only names that survive a .bat file unchanged go here. The object store
-    // needs "+" percent-encoded as "%2B" (a literal "+" returns 404), but
-    // cmd.exe expands "%2" as a script argument when download.bat runs, which
-    // corrupts the URL. Those files are fetched server-side into the zip
-    // instead - see zipFilesAermod().
-    const dataFileCount = dataUrls.length;
-    for (const dll of ZipFileService.MMIF_DLLS) {
-      if (ZipFileService.isBatchSafeFilename(dll)) {
-        dataUrls.push(`${baseUrl}/setup_files/${dll}`);
-      }
-    }
-
-    console.log(
-      `Generated ${dataUrls.length} download URLs for AERMOD ` +
-        `(${dataFileCount} data files, ${ZipFileService.MMIF_DLLS.length} runtime libraries)`
-    );
+    // mmif.exe's runtime libraries are not listed here. They are fetched by
+    // download_dlls.bat, a static script kept in object storage alongside
+    // mmif.exe and shipped in the zip by zipFilesAermod(); start.bat calls it.
+    console.log(`Generated ${dataUrls.length} data download URLs for AERMOD`);
 
     return this.beginZippingAermod(tileDownloadInfo, dataUrls, aermodTileData);
   }
@@ -423,6 +341,16 @@ export class ZipFileService {
       );
       await fs.promises.writeFile(folder + 'readme.txt', readmeFile);
       console.log('Saved ' + 'readme.txt');
+      // download_dlls.bat - static script that fetches mmif.exe's runtime
+      // libraries. Kept in object storage so the DLL list can be updated
+      // without a code change; start.bat calls it before running MMIF.
+      const downloadDllsBat = await lastValueFrom(
+        this.httpService
+          .get('https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/setup_files/download_dlls.bat')
+          .pipe(map((response) => response.data))
+      );
+      await fs.promises.writeFile(folder + 'download_dlls.bat', downloadDllsBat);
+      console.log('Saved ' + 'download_dlls.bat');
       // start.bat
       const startBatContent = this.createAermodStartBat();
       await fs.promises.writeFile(folder + 'start.bat', startBatContent);
@@ -436,30 +364,13 @@ export class ZipFileService {
       await fs.promises.writeFile(folder + 'mmif.inp', mmifContent);
       console.log('Saved ' + 'mmif.inp');
 
-      // Runtime libraries whose names cannot go through download.bat (see
-      // isBatchSafeFilename) are fetched here and shipped inside the zip.
-      const bundledDlls: string[] = [];
-      for (const dll of ZipFileService.MMIF_DLLS) {
-        if (ZipFileService.isBatchSafeFilename(dll)) continue;
-        const dllData = await lastValueFrom(
-          this.httpService
-            .get(`https://nrs.objectstore.gov.bc.ca/wrfdel/aermod/setup_files/${encodeURIComponent(dll)}`, {
-              responseType: 'arraybuffer',
-            })
-            .pipe(map((response) => response.data))
-        );
-        await fs.promises.writeFile(folder + dll, dllData);
-        bundledDlls.push(folder + dll);
-        console.log(`Saved ${dll} (bundled: name is not batch-safe)`);
-      }
-
       const files = [
         folder + 'mmif.exe',
         folder + 'readme.txt',
         folder + 'start.bat',
         folder + 'download.bat',
+        folder + 'download_dlls.bat',
         folder + 'mmif.inp',
-        ...bundledDlls,
       ];
       await zipFiles(files, folder);
       for (let file of files) {
@@ -710,9 +621,10 @@ export class ZipFileService {
 
   createAermodStartBat(): string {
     return `
-rem Batch file downloads data, runs MMIF, collects output
+rem Batch file downloads data and libraries, runs MMIF, collects output
 
 call download.bat
+call download_dlls.bat
 
 rem "start /wait" blocks until mmif.exe exits. Without it, cmd.exe continues
 rem immediately and the move below can grab aermod.sfc while MMIF is still
