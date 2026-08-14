@@ -381,6 +381,15 @@ export class ZipFileService {
     } catch (err) {
       console.log('Something went wrong while downloading or zipping the files.');
       console.log(err);
+      // Record the failure so checkZipFile() can report it. Without this the
+      // browser polls for the 'Complete' marker forever and the user is left
+      // watching a spinner with no indication anything went wrong.
+      try {
+        await fs.promises.writeFile(folder + 'Error', String(err));
+      } catch (writeErr) {
+        console.log('Could not write Error marker');
+        console.log(writeErr);
+      }
     }
   }
 
@@ -395,9 +404,16 @@ export class ZipFileService {
     const folder =
       filePath.charAt(filePath.length - 1) == '/' ? filePath + subFolder + '/' : filePath + '/' + subFolder + '/';
     const completionFileName = folder + 'Complete';
+    const errorFileName = folder + 'Error';
     const files = fs.readdirSync(folder);
+    let status = 'Not Ready';
+    if (fs.existsSync(completionFileName)) {
+      status = 'Ready';
+    } else if (fs.existsSync(errorFileName)) {
+      status = 'Error';
+    }
     return {
-      status: fs.existsSync(completionFileName) ? 'Ready' : 'Not Ready',
+      status,
       num: files.length,
     };
   }
@@ -621,21 +637,30 @@ export class ZipFileService {
 
   createAermodStartBat(): string {
     return `
-rem Batch file downloads data and libraries, runs MMIF, collects output
+rem Batch file downloads the data and runtime libraries, then runs MMIF.
+rem MMIF writes aermod.sfc and aermod.pfl into the output folder, created
+rem here first since MMIF does not create it itself.
 
 call download.bat
 call download_dlls.bat
 
-rem "start /wait" blocks until mmif.exe exits. Without it, cmd.exe continues
-rem immediately and the move below can grab aermod.sfc while MMIF is still
-rem writing it, corrupting the output and crashing the run.
-start "" /wait mmif.exe
-
 md output
-move aermod.* output\\
+mmif
     `;
   }
 
+  /**
+   * Builds mmif.inp. The OUTPUT paths below use "output\\aermod.sfc" /
+   * "output\\aermod.pfl" (double backslash in this TS source) so MMIF writes
+   * its two result files into an output/ subfolder rather than alongside
+   * mmif.exe and the 45 runtime DLLs. start.bat creates that folder with
+   * "md output" before invoking mmif, since MMIF does not create it itself.
+   *
+   * The double backslash matters: a single "\" before a letter that is not a
+   * recognised JavaScript escape sequence is silently dropped from the
+   * template literal, which previously turned "output\aermod.sfc" into
+   * "outputaermod.sfc" in the generated file.
+   */
   createAermodConfig(
     tileDownloadInfo: TileDownloadInfo,
     tileList: { domainTile: any; domainTiles: { domain: string; tiles: string[] }[] }
@@ -704,11 +729,8 @@ aer_min_obuk 1.0 !default 1
 FSL_INTERVAL 12 !default 12
 ${latLonLine}
 # See the Users Guide for the OUTPUT keyword details
-# NOTE: keep these paths free of backslashes, or escape them as \\ - a single
-# backslash before a letter is consumed as a JavaScript escape sequence, which
-# previously turned "output\aermod.sfc" into "outputaermod.sfc".
-OUTPUT AERMOD SFC "aermod.sfc"
-OUTPUT AERMOD PFL "aermod.pfl"
+OUTPUT AERMOD SFC "output\\aermod.sfc"
+OUTPUT AERMOD PFL "output\\aermod.pfl"
 ${inputString}
 `;
     return mmifContent;
