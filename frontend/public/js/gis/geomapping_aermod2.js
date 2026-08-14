@@ -847,6 +847,11 @@ require([
               actions: [downloadZipAction],
               content: 'Your files are ready, click the link below to download them.',
             });
+          } else if (resJson.status === 'Error') {
+            // The server hit a problem while assembling the package. Stop
+            // polling and tell the user, rather than spinning indefinitely.
+            clearInterval(interval);
+            view.popup.content = 'Preparing your download failed. Please try again later.';
           } else {
             if (resJson.num <= 3 && (resJson.num >= prevNum || !zipping)) {
               view.popup.content = `Downloading ${resJson?.num || '3'}/3... please wait`;
